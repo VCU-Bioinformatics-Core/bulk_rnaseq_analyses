@@ -20,7 +20,6 @@ pacman::p_load(here,
                edgeR,
                ggplot2,
                AnnotationDbi,
-               "org.Mm.eg.db",
                gplots,
                RColorBrewer,
                purrr,
@@ -32,8 +31,65 @@ pacman::p_load(here,
                htmlwidgets
 )
 
+# Define command-line flags.
+option_list = list(
+  make_option(c("-c", "--counts"), type = "character", default = NULL,
+              help = "Required. A path for the merged counts.tsv file"),
 
+  make_option(c("-m", "--contrasts"), type = "character", default = NULL,
+              help = "Required. A path for the contrast matrix.tsv file"),
 
+  make_option(c("-o", "--outdir"), type = "character", default = "./output",
+              help = "path for the output directory to store results. \
+                    A new directory will be created with the given path and \
+                    name, otherwise a default directory will be created in \
+                    the current directory: [default= %default]"),
+
+  make_option(c("-s", "--samplesheet"), type = "character", default = NULL,
+              help = "Required. A path for the samplesheet.csv file"),
+
+  make_option(c("-r", "--runid"), type = "character", default = NULL,
+              help = "Required. A unique name for this analysis.",
+              metavar = "character"),
+
+  make_option(c("-a", "--annotation"), type = "character", default = "mouse",
+              help = "Specify genome for annotation: 'mouse' or 'human' [default= %default]")
+);
+
+# Parse the arguments
+opt_parser = OptionParser(option_list=option_list);
+opt = parse_args(opt_parser);
+runID <- opt$runid
+countData <- opt$counts
+contrastData <- opt$contrasts
+sampleSheet <- opt$samplesheet
+outDir <- opt$outdir
+genome <- opt$annotation
+
+# Implementing all hard-coded files here for debugging.
+#### Debug Options
+debug <- FALSE
+if (debug){
+  runID <- "test_run"
+  countData <- "./rsem.merged.gene_counts.tsv"
+  contrastData <- "./contrasts.tsv"
+  sampleSheet <- "./samplesheet.csv"
+  outDir <- "./draft_output"
+  annotation <- "mouse" # or "human"
+}
+
+# Load appropriate annotation package based on genome selection
+if (opt$annotation == "human") {
+  if (!require("org.Hs.eg.db"))
+    BiocManager::install("org.Hs.eg.db")
+  annotation_db <- org.Hs.eg.db
+} else if (opt$annotation == "mouse") {
+  if (!require("org.Mm.eg.db"))
+    BiocManager::install("org.Mm.eg.db")
+  annotation_db <- org.Mm.eg.db
+} else {
+  stop("Invalid genome specified. Use 'mouse' or 'human'")
+}
 
 
 # HELPER FUNCTIONS
@@ -98,8 +154,6 @@ export_plotly_to_html <- function(plotly_obj, file_path) {
 
 
 
-
-
 # ANALYSIS FUNCTIONS
 
 #' @description Perform differential expression analysis using DESeq2
@@ -155,9 +209,9 @@ perform_deseq2_analysis <- function(dds, exp, ctrl) {
 #' @export
 annotate_results <- function(results) {
   gene_ids <- rownames(results)
-  annotations <- AnnotationDbi::select(org.Mm.eg.db, 
-    keys = gene_ids, 
-    keytype = "ENSEMBL", 
+  annotations <- AnnotationDbi::select(annotation_db,
+    keys = gene_ids,
+    keytype = "ENSEMBL",
     columns = c("SYMBOL", "GENENAME")
   )
   merge(as.data.frame(results),
@@ -268,8 +322,8 @@ process_gsea <- function(result, p = 0.05, lfc = 0.58) {
         keyType = "ENSEMBL",
         pvalueCutoff = 0.05,
         pAdjustMethod = "fdr",
-        OrgDb = org.Mm.eg.db) %>%
-    setReadable(OrgDb = org.Mm.eg.db, keyType = "ENSEMBL")
+        OrgDb = annotation_db) %>%
+    setReadable(OrgDb = annotation_db, keyType = "ENSEMBL")
 }
 
 #' @description Create a dotplot visualization of GSEA results
@@ -290,8 +344,6 @@ create_dotplot <- function(gse, title) {
           font.size = 9) +
     facet_grid(.~.sign)
 }
-
-
 
 
 
@@ -418,51 +470,12 @@ setup_directories <- function(base_dir) {
 ###########################################
 ###########################################
 
-# Define command-line flags.
-option_list = list (
-  make_option(c("-c", "--counts"), type = "character", default = NULL,
-                    help = "Required. A path for the merged counts.tsv file"),
-
-  make_option(c("-m", "--contrasts"), type = "character", default = NULL,
-                    help = "Required. A path for the contrast matrix.tsv file"),
-
-  make_option(c("-o", "--outdir"), type = "character", default = "./output",
-                    help = "path for the output directory to store results. \
-                    A new directory will be created with the given path and \
-                    name, otherwise a default directory will be created in \
-                    the current directory: [default= %default]"),
-
-  make_option(c("-s", "--samplesheet"), type = "character", default = NULL,
-                    help = "Required. A path for the samplesheet.csv file"),
-
-  make_option(c("-r", "--runid"), type = "character", default = NULL,
-                    help="Required. A unique name for this analysis.", metavar="character")
-);
-
-# Parse the arguments
-opt_parser = OptionParser(option_list=option_list);
-opt = parse_args(opt_parser);
-runID <- opt$runid
-countData <- opt$counts
-contrastData <- opt$contrasts
-sampleSheet <- opt$samplesheet
-outDir <- opt$outdir
-
-# Implementing all hard-coded files here for debugging.
-#### Debug Options
-debug = FALSE
-if(debug){
-  runID <- "test_run"
-  countData <- "./rsem.merged.gene_counts.tsv"
-  contrastData <- "./contrasts.tsv"
-  sampleSheet <- "./samplesheet.csv"
-  outDir <- "./draft_output"
-}
-
-# Check for the commad-line arguments for the script. If no arguments are provided exit and print help.
-if (is.null(runID) | is.null(countData) | is.null(contrastData) | is.null(sampleSheet)) {
+# Check for the commad-line arguments for the script.
+# If no arguments are provided exit and print help.
+if (is.null(runID) | is.null(countData) |
+      is.null(contrastData) | is.null(sampleSheet) | is.null(genome)) {
   print_help(opt_parser)
-  stop("All required arguments must be supplied (input file)", call.=FALSE)
+  stop("All required arguments must be supplied (input file)", call. = FALSE)
 }
 
 # Access the arguments
@@ -471,13 +484,15 @@ cat("merged counts file found:", countData, "\n")
 cat("contrast matrix file found:", contrastData, "\n")
 cat("sample sheet found:", sampleSheet, "\n")
 cat("creating output directory:", outDir, "\n")
+cat("genome:", genome, "\n")
 
 # Set up output directories
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, contrasts and sample sheet
 counts <- data.frame(fread(countData, header = "auto"), row.names = 1)
-contrasts_raw <- read.delim(contrastData, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+contrasts_raw <- read.delim(contrastData, sep = "\t", header = TRUE,
+                            stringsAsFactors = FALSE)
 sample_info <- read_delim(sampleSheet, delim = ",") # for deseq object
 
 # Get all contrast columns (columns after GroupID)
@@ -490,20 +505,22 @@ comparisons <- list()
 for(i in seq_along(contrast_cols)) {
   contrast_name <- contrast_cols[i]
   contrast_data <- contrasts_raw[[contrast_name]]
-  
+
   print(paste("\nProcessing contrast:", contrast_name))
   print("Contrast data:")
   print(table(contrast_data, useNA="ifany"))
-  
+
   # Find unique groups for exp (1) and ctrl (0)
-  exp_group <- unique(contrasts_raw$GroupID[contrast_data == 1 & !is.na(contrast_data)])
-  ctrl_group <- unique(contrasts_raw$GroupID[contrast_data == 0 & !is.na(contrast_data)])
-  
-  print(paste("exp_group found:", paste(exp_group, collapse=", ")))
-  print(paste("ctrl_group found:", paste(ctrl_group, collapse=", ")))
-  
+  exp_group <- unique(contrasts_raw$GroupID[contrast_data == 1 &
+                                              !is.na(contrast_data)])
+  ctrl_group <- unique(contrasts_raw$GroupID[contrast_data == 0 &
+                                               !is.na(contrast_data)])
+
+  print(paste("exp_group found:", paste(exp_group, collapse = ", ")))
+  print(paste("ctrl_group found:", paste(ctrl_group, collapse = ", ")))
+
   # Add to comparisons list if both exp and ctrl are found
-  if(length(exp_group) > 0 && length(ctrl_group) > 0) {
+  if (length(exp_group) > 0 && length(ctrl_group) > 0) {
     comparisons[[length(comparisons) + 1]] <- list(
       name = contrast_name,
       exp = exp_group,
@@ -517,7 +534,7 @@ print("\nFinal comparisons list:")
 str(comparisons)
 
 # need to subtract 1 as we will ignore the transcript ids
-n <- ncol(counts) - 1 
+n <- ncol(counts) - 1
 
 # clean counts to make sure the columns are just samples
 countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
@@ -525,11 +542,13 @@ countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
 # NORMALIZE DATA
 x <- DGEList(counts = countsdf)
 dge <- calcNormFactors(x, method = "TMM")
-TMM <- cpm(dge)
-write.csv(TMM, str_c(out_dirs$de_data, "normalizedCounts_TMM", Sys.Date(), ".csv"))
+tmm <- cpm(dge)
+write.csv(tmm, str_c(out_dirs$de_data, "normalizedCounts_tmm",
+                     Sys.Date(), ".csv"))
 
 # DESEQ2 SETUP
-sample_info <- data.frame(sample = sample_info$sample, condition = sample_info$condition)
+sample_info <- data.frame(sample = sample_info$sample,
+                          condition = sample_info$condition)
 
 dds <- DESeqDataSetFromMatrix(
   countData = countsdf,
@@ -540,10 +559,10 @@ dds <- DESeqDataSetFromMatrix(
 # Pre-filtering
 smallestGroupSize <- 3
 keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
-dds <- dds[keep,]
+dds <- dds[keep, ]
 
 # Run analysis for all comparisons
-#results <- map(comparisons, ~run_analysis(., dds, TMM, out_dirs))
+#results <- map(comparisons, ~run_analysis(., dds, tmm, out_dirs))
 print("Verifying DDS setup...")
 print("Condition levels in DDS:")
 print(levels(dds$condition))
@@ -552,12 +571,12 @@ print("\nVerifying comparisons:")
 str(comparisons)
 
 results <- list()
-for(i in seq_along(comparisons)) {
+for (i in seq_along(comparisons)) {
   print(paste("\nProcessing comparison", i, "of", length(comparisons)))
-  results[[i]] <- run_analysis(comparisons[[i]], dds, TMM, out_dirs)
-  
+  results[[i]] <- run_analysis(comparisons[[i]], dds, tmm, out_dirs)
+
   # Verify results
-  if(is.null(results[[i]])) {
+  if (is.null(results[[i]])) {
     print(paste("Warning: No results generated for comparison", i))
   } else {
     print(paste("Results generated successfully for comparison", i))
@@ -567,9 +586,9 @@ for(i in seq_along(comparisons)) {
 
 # Print summary of results
 print("\nResults summary:")
-for(i in seq_along(results)) {
+for (i in seq_along(results)) {
   print(paste("\nComparison", i, "-", comparisons[[i]]$name))
-  if(!is.null(results[[i]])) {
+  if (!is.null(results[[i]])) {
     print(paste("DESeq2 results:", nrow(results[[i]]$deseq), "genes"))
     print(paste("GSEA results:", !is.null(results[[i]]$gsea)))
   } else {
@@ -580,14 +599,14 @@ for(i in seq_along(results)) {
 # PCA
 # NOTE: The prcomp() expects the genes to columns and the sample to rows.
 # Since the samples in our data matrix are the columns and the genes are the rows;
-##  Removes all zero row from the TMM normalized data. 
-data_reduced_zero <- as.data.frame(TMM) %>%
+##  Removes all zero row from the tmm normalized data.
+data_reduced_zero <- as.data.frame(tmm) %>%
   filter(if_any(where(is.numeric)))
 
-# Generate a PCA Matrix 
-pca_matrix <- data_reduced_zero %>% 
+# Generate a PCA Matrix
+pca_matrix <- data_reduced_zero %>%
   # coerce to a matrix
-  as.matrix() %>% 
+  as.matrix() %>%
   # transpose the matrix so that rows = samples and columns = variables
   t()
 
@@ -646,7 +665,7 @@ fig <- plot_ly(pca_df, x = ~X, y = ~Y, color = ~Group,
     )
 
 # Define variable and save plot
-file_name_plotly <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot.pdf")
+file_name_plotly <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot.html")
 orca(fig, file_name_plotly)
 export_plotly_to_html(fig, file_name_plotly)
 
@@ -676,6 +695,6 @@ fig3D <- fig3D %>%
 )
 
 # Define variable and save
-file_name_plotlyPCA3D <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot3D.pdf")
+file_name_plotlyPCA3D <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot3D.html")
 orca(fig3D, file_name_plotlyPCA3D)
 export_plotly_to_html(fig3D, file_name_plotlyPCA3D)
