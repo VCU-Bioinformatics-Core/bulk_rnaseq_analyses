@@ -1,4 +1,6 @@
 # Package installation and loading
+options(repos = c(CRAN = "https://cran.r-project.org"))
+
 if (!requireNamespace("BiocManager"))
     install.packages("BiocManager")
 
@@ -504,7 +506,10 @@ cat("genome:", genome, "\n")
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, contrasts and sample sheet
-counts <- data.frame(fread(countData, header = "auto"), row.names = 1)
+counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>% # attempting to re-write this line to only read in numeric columns, and the *first* column
+  mutate(across(everything(), as.numeric)) %>%  # Convert numeric columns
+  select(where(is.numeric)) # select only numeric
+
 contrasts_raw <- read.delim(contrastData, sep = "\t", header = TRUE,
                             stringsAsFactors = FALSE)
 sample_info <- read_delim(sampleSheet, delim = ",") # for deseq object
@@ -547,11 +552,11 @@ for(i in seq_along(contrast_cols)) {
 print("\nFinal comparisons list:")
 str(comparisons)
 
-# need to subtract 1 as we will ignore the transcript ids
-n <- ncol(counts) - 1
+# count the number of columns
+n <- ncol(counts)
 
 # clean counts to make sure the columns are just samples
-countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
+countsdf <- counts %>% mutate_at(1:n, as.integer)
 
 # NORMALIZE DATA
 x <- DGEList(counts = countsdf)
