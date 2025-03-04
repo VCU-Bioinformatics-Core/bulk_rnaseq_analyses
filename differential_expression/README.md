@@ -1,22 +1,28 @@
 # Differential Expression Analysis Pipeline
 
-This R script aims to perform downstream analysis specifically differential expression analysis on RNA-seq data including DESeq2 package, Gene Set Enrichment Analysis of Gene Onotology (GSEA GO) and several visualizations.
+The `de.R` script performs differential expression analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analysis. Below is synopsis of this scripts features: 
 
-Note:
+- Detection of differentially expression genes (DEG) with DESeq2
+- Visualization of DEG results using volcano plots
+- Visualization of top differentially expressed genes using heatmaps
+- Interpretation of prioritied genes using Gene Set Enrichment Analysis (GSEA)
+- Plotting of PCA plots (2D and 3D interactive versions)
+- Normalization of read counts using trimmed mean of M values (TMM)
+- Organization of results into separate sub-directories
+- Support for both human and mouse annotations
 
-- This is a nascent script meant for first pass analysis and It only supports pairwise comparisons using DESeq2 package for now.
-- It works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts) can be directly used as an input for this script.
+*Note:*
+- *This script has been specialized for first pass analyses, for much more complex analyses please utilize DESeq2 directly*
+- *Currently, this script only supports pairwise comparisons. Multiple comparisons will be supported in later versions*
+- *We are actively developing this script to handle count data from any source, however, at this stage the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
 
-## Features
-
-- DESeq2 differential expression analysis
-- Volcano plots for visualizing differential expression
-- Heat-maps of differentially expressed genes
-- Gene Set Enrichment Analysis for Gene Ontology (GSEA)
-- PCA plots (2D and 3D interactive versions)
-- TMM normalization
-- Automated result organization and file management
-- Support for both mouse and human genome annotations
+## Table of Contents
+- [Features]()
+- [Prerequisites]()
+- [Input Files Required]()
+- [Usage]()
+- [Arguments]()
+- [Output Structure]()
 
 ## Prerequisites
 
