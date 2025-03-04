@@ -55,13 +55,13 @@ The following R packages are required:
 - `sample`: Sample identifiers (should be the same as count)
 - `condition`: Group/condition labels
 
-| sample  | group  |
-| ------- | ------ |
-| sample1 | group1 |
-| sample2 | group2 |
-| sample3 | group3 |
-| sample4 | group4 |
-| sample5 | group5 |
+| sample  | condition  |
+| ------- | ---------- |
+| sample1 | group1     |
+| sample2 | group1     |
+| sample3 | group2     |
+| sample4 | group2     |
+| sample5 | group3     |
 
 3. **Contrast Matrix** (`contrasts.tsv`):
 
@@ -82,6 +82,8 @@ The following R packages are required:
 ## Usage
 
 ```bash
+
+module load R/4.4.1
 
 Rscript de.R \
 --counts path/to/counts.tsv \
