@@ -1,4 +1,6 @@
 # Package installation and loading
+options(repos = c(CRAN = "https://cran.r-project.org"))
+
 if (!requireNamespace("BiocManager"))
     install.packages("BiocManager")
 
@@ -235,14 +237,28 @@ annotate_results <- function(results) {
 #' @export
 generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, 
                            sig = "padj", out_dir) {
-  data %>% 
+  labeled_dat <-data %>% 
     mutate(
       color_tag = case_when(
         eval(as.symbol(sig)) < p & log2FoldChange < -lfc ~ "Under expressed",
         eval(as.symbol(sig)) < p & log2FoldChange > lfc ~ "Over expressed",
         TRUE ~ NA_character_
-      ),
-      highlight = ifelse(pvalue <= p & abs(log2FoldChange) >= lfc, SYMBOL, NA)
+      ))
+  
+  top_20_genes_up <- labeled_dat %>%
+    filter(pvalue <= p & log2FoldChange >= lfc) %>%
+    arrange(eval(as.symbol(sig))) %>%
+    slice_head(n = 20) %>%
+    pull(ENSEMBL_ID)
+  top_20_genes_dn <- labeled_dat %>%
+    filter(pvalue <= p & log2FoldChange <= -lfc) %>%
+    arrange(eval(as.symbol(sig))) %>%
+    slice_head(n = 20) %>%
+    pull(ENSEMBL_ID)
+
+  labeled_dat%>%
+    mutate(
+      highlight = ifelse(ENSEMBL_ID %in% c(top_20_genes_up, top_20_genes_dn), SYMBOL, NA)
     ) %>% 
     ggplot(aes(x = log2FoldChange, 
                y = -log10(eval(as.symbol(sig))), 
@@ -250,7 +266,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
                label = ifelse(highlight == TRUE, SYMBOL, NA))) +
     geom_point(alpha = 0.5) +
     theme_minimal() +
-    geom_label_repel(aes(label = highlight)) +
+    geom_label_repel(aes(label = highlight), max.overlaps = Inf,show.legend = FALSE) +
     scale_color_manual(values = c("firebrick", "steelblue")) +
     geom_hline(yintercept = -log10(p), col = "red", linetype = 2) +
     geom_vline(xintercept = c(-lfc, lfc)) +
@@ -504,7 +520,10 @@ cat("genome:", genome, "\n")
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, contrasts and sample sheet
-counts <- data.frame(fread(countData, header = "auto"), row.names = 1)
+counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>% # attempting to re-write this line to only read in numeric columns, and the *first* column
+  mutate(across(everything(), as.numeric)) %>%  # Convert numeric columns
+  select(where(is.numeric)) # select only numeric
+
 contrasts_raw <- read.delim(contrastData, sep = "\t", header = TRUE,
                             stringsAsFactors = FALSE)
 sample_info <- read_delim(sampleSheet, delim = ",") # for deseq object
@@ -547,11 +566,11 @@ for(i in seq_along(contrast_cols)) {
 print("\nFinal comparisons list:")
 str(comparisons)
 
-# need to subtract 1 as we will ignore the transcript ids
-n <- ncol(counts) - 1
+# count the number of columns
+n <- ncol(counts)
 
 # clean counts to make sure the columns are just samples
-countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
+countsdf <- counts %>% mutate_at(1:n, as.integer)
 
 # NORMALIZE DATA
 x <- DGEList(counts = countsdf)
