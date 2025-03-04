@@ -255,10 +255,10 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
     arrange(eval(as.symbol(sig))) %>%
     slice_head(n = 20) %>%
     pull(ENSEMBL_ID)
-  
+
   labeled_dat%>%
     mutate(
-      highlight = ifelse(ENSEMBL_ID %in% c(top_25_genes_up, top_25_genes_dn), SYMBOL, NA)
+      highlight = ifelse(ENSEMBL_ID %in% c(top_20_genes_up, top_20_genes_dn), SYMBOL, NA)
     ) %>% 
     ggplot(aes(x = log2FoldChange, 
                y = -log10(eval(as.symbol(sig))), 
@@ -266,7 +266,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
                label = ifelse(highlight == TRUE, SYMBOL, NA))) +
     geom_point(alpha = 0.5) +
     theme_minimal() +
-    geom_label_repel(aes(label = highlight)) +
+    geom_label_repel(aes(label = highlight), max.overlaps = Inf,show.legend = FALSE) +
     scale_color_manual(values = c("firebrick", "steelblue")) +
     geom_hline(yintercept = -log10(p), col = "red", linetype = 2) +
     geom_vline(xintercept = c(-lfc, lfc)) +
