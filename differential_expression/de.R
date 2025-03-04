@@ -301,29 +301,45 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
 #' @param result DESeq2 results data frame
 #' @param p P-value threshold for significance (default: 0.05)
 #' @param lfc Log2 fold change threshold (default: 0.58)
-#' @return GSEA results object containing enriched GO terms
+#' @return GSEA results object containing enriched GO terms or NULL if no enrichment found
 #' @details Performs GSEA analysis on significant genes using GO terms.
-#' Uses org.Mm.eg.db for mouse gene annotations and filters based on
-#' provided p-value and log fold change thresholds.
 #' @export
 process_gsea <- function(result, p = 0.05, lfc = 0.58) {
-  sig_genes <- result %>%
-    dplyr::filter(padj < p & abs(log2FoldChange) >= lfc) %>%
-    rownames_to_column("gene") %>%
-    arrange(desc(log2FoldChange))
-  
-  gene_list <- sig_genes$log2FoldChange
-  names(gene_list) <- sig_genes$gene
-  
-  gseGO(geneList = gene_list,
-        ont = "ALL",
-        minGSSize = 1,
-        maxGSSize = 900,
-        keyType = "ENSEMBL",
-        pvalueCutoff = 0.05,
-        pAdjustMethod = "fdr",
-        OrgDb = annotation_db) %>%
-    setReadable(OrgDb = annotation_db, keyType = "ENSEMBL")
+  tryCatch({
+    sig_genes <- result %>%
+      dplyr::filter(padj < p & abs(log2FoldChange) >= lfc) %>%
+      rownames_to_column("gene") %>%
+      arrange(desc(log2FoldChange))
+    
+    # Check if we have enough significant genes
+    if(nrow(sig_genes) < 2) {
+      message("Not enough significant genes for GSEA analysis")
+      return(NULL)
+    }
+    
+    gene_list <- sig_genes$log2FoldChange
+    names(gene_list) <- sig_genes$gene
+    
+    gse_result <- gseGO(geneList = gene_list,
+          ont = "ALL",
+          minGSSize = 1,
+          maxGSSize = 900,
+          keyType = "ENSEMBL",
+          pvalueCutoff = 0.05,
+          pAdjustMethod = "fdr",
+          OrgDb = annotation_db)
+    
+    # Check if any terms were enriched
+    if(nrow(gse_result@result) == 0) {
+      message("No enriched terms found in GSEA analysis")
+      return(NULL)
+    }
+    
+    setReadable(gse_result, OrgDb = annotation_db, keyType = "ENSEMBL")
+  }, error = function(e) {
+    message("Error in GSEA processing: ", e$message)
+    return(NULL)
+  })
 }
 
 #' @description Create a dotplot visualization of GSEA results
@@ -372,7 +388,8 @@ run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
     # Perform DESeq2 analysis
     deseq_results <- perform_deseq2_analysis(dds, comparison$exp, comparison$ctrl)
     if(is.null(deseq_results)) {
-      stop("DESeq2 analysis returned NULL results")
+      message("DESeq2 analysis returned NULL results")
+      return(NULL)
     }
     
     # Annotate results
@@ -387,29 +404,24 @@ run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
     # Generate and save volcano plot
     print("Generating volcano plot...")
     volcano_plot <- generate_volcano(annotated_results, 
-                                     comparison$exp, 
-                                     comparison$ctrl)
+                                   comparison$exp, 
+                                   comparison$ctrl)
     save_plot(volcano_plot, 
-              create_file_path(out_dirs$volcano, "", comparison$name, "_volcano.png"))
+             create_file_path(out_dirs$volcano, "", comparison$name, "_volcano.png"))
     
     # Generate and save heatmap
     print("Generating heatmap...")
     png(create_file_path(out_dirs$heatmap, "", comparison$name, "_heatmap.png"),
         width = 800, height = 1200, res = 150)
     generate_heatmap(deseq_results, 
-                     normalized_counts, 
-                     exp_name = comparison$exp, 
-                     ctrl_name = comparison$ctrl)
+                    normalized_counts, 
+                    exp_name = comparison$exp, 
+                    ctrl_name = comparison$ctrl)
     dev.off()
     
     # Process and save GSEA results
     print("Processing GSEA...")
-    gse <- tryCatch({
-      process_gsea(deseq_results)
-    }, error = function(e) {
-      print(paste("GSEA processing error:", e$message))
-      return(NULL)
-    })
+    gse <- process_gsea(deseq_results)
     
     if(!is.null(gse)) {
       write.csv(as.data.frame(gse), 
@@ -418,17 +430,19 @@ run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
       # Generate and save GSEA plot
       print("Generating GSEA plot...")
       gsea_plot <- create_dotplot(gse, 
-                                  create_comparison_name(comparison$exp, 
-                                                         comparison$ctrl, 
-                                                         "GSEA "))
+                                 create_comparison_name(comparison$exp, 
+                                                      comparison$ctrl, 
+                                                      "GSEA "))
       save_plot(gsea_plot, 
-                create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png"))
+               create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png"))
+    } else {
+      message("Skipping GSEA visualization - no enrichment results available")
     }
     
     return(list(deseq = annotated_results, gsea = gse))
     
   }, error = function(e) {
-    print(paste("Error in run_analysis:", e$message))
+    message("Error in run_analysis: ", e$message)
     return(NULL)
   })
 }
@@ -573,14 +587,18 @@ str(comparisons)
 results <- list()
 for (i in seq_along(comparisons)) {
   print(paste("\nProcessing comparison", i, "of", length(comparisons)))
-  results[[i]] <- run_analysis(comparisons[[i]], dds, tmm, out_dirs)
-
-  # Verify results
-  if (is.null(results[[i]])) {
-    print(paste("Warning: No results generated for comparison", i))
-  } else {
+  result <- run_analysis(comparisons[[i]], dds, tmm, out_dirs)
+  
+  # Store results even if GSEA is NULL
+  if (!is.null(result)) {
+    results[[i]] <- result
     print(paste("Results generated successfully for comparison", i))
-    print(paste("Number of DEGs:", nrow(results[[i]]$deseq)))
+    print(paste("Number of DEGs:", nrow(result$deseq)))
+    if (is.null(result$gsea)) {
+      print("Note: No GSEA results available for this comparison")
+    }
+  } else {
+    print(paste("Warning: No results generated for comparison", i))
   }
 }
 
@@ -666,7 +684,6 @@ fig <- plot_ly(pca_df, x = ~X, y = ~Y, color = ~Group,
 
 # Define variable and save plot
 file_name_plotly <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot.html")
-orca(fig, file_name_plotly)
 export_plotly_to_html(fig, file_name_plotly)
 
 
@@ -696,5 +713,4 @@ fig3D <- fig3D %>%
 
 # Define variable and save
 file_name_plotlyPCA3D <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot3D.html")
-orca(fig3D, file_name_plotlyPCA3D)
 export_plotly_to_html(fig3D, file_name_plotlyPCA3D)
