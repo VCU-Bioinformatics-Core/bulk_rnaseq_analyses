@@ -237,14 +237,28 @@ annotate_results <- function(results) {
 #' @export
 generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, 
                            sig = "padj", out_dir) {
-  data %>% 
+  labeled_dat <-data %>% 
     mutate(
       color_tag = case_when(
         eval(as.symbol(sig)) < p & log2FoldChange < -lfc ~ "Under expressed",
         eval(as.symbol(sig)) < p & log2FoldChange > lfc ~ "Over expressed",
         TRUE ~ NA_character_
-      ),
-      highlight = ifelse(pvalue <= p & abs(log2FoldChange) >= lfc, SYMBOL, NA)
+      ))
+  
+  top_20_genes_up <- labeled_dat %>%
+    filter(pvalue <= p & log2FoldChange >= lfc) %>%
+    arrange(eval(as.symbol(sig))) %>%
+    slice_head(n = 20) %>%
+    pull(ENSEMBL_ID)
+  top_20_genes_dn <- labeled_dat %>%
+    filter(pvalue <= p & log2FoldChange <= -lfc) %>%
+    arrange(eval(as.symbol(sig))) %>%
+    slice_head(n = 20) %>%
+    pull(ENSEMBL_ID)
+  
+  labeled_dat%>%
+    mutate(
+      highlight = ifelse(ENSEMBL_ID %in% c(top_25_genes_up, top_25_genes_dn), SYMBOL, NA)
     ) %>% 
     ggplot(aes(x = log2FoldChange, 
                y = -log10(eval(as.symbol(sig))), 
