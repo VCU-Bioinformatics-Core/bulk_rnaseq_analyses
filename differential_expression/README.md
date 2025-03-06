@@ -50,14 +50,17 @@ install.packages(c("ggplot2", "plotly"))
 *Note: all other dependencies (will be automatically installed)*
 
 ## Preparing Your Data
-As mentioned earlier, this code was first developed after setting up the `nf-core/rnaseq` pipeline and therefore is guaranteed to work seamlessly with this pipeline. Despite this, we are working on generalizing this code to any count data. To utilize this script we require three pieces of data/files: 1) **Count Matrix**, 2) **Samplesheet**, and 3) **Contrast Matrix**. Each of these have a **mandatory** file name that will be described below: 
+As mentioned earlier, this code was first developed after setting up the `nf-core/rnaseq` pipeline and therefore is guaranteed to work seamlessly with this pipeline. Despite this, we are working on generalizing this code to any count data. To utilize this script we require three pieces of data/files: 1) **Count Matrix**, 2) **Samplesheet**, and 3) **Contrast Matrix**. Each of these have a **mandatory** file name that will be described below. In addition, please pay close attention to the file format to ensure proper processing. Lastly, below each file description we provide a tabular representation of the required data as an example.
 
-### 1. **Counts Matrix**:
-**Mandatory name:** `counts.tsv`
+**_ATTENTION: header lines are expected for all files._**
 
-- Tab-separated file containing gene counts
-- First column should contain gene IDs (ENSEMBL format)
-- Subsequent columns should contain count data for each sample
+### 1. **Count Matrix**:
+**Mandatory name:** `counts.tsv`<br>
+**File Format:** `TSV`
+
+This file contains the expression counts data and must follow the following format:
+- First column contains ENSEMBL gene IDs
+- Subsequent columns should contain count data for each sample. Note: header values should be the sample identifiers use across other input files
 
 | gene_id            | sample1 | sample2 | sample3 | sample4 | sample5 |
 | ------------------ | ------- | ------- | ------- | ------- | ------- |
@@ -68,34 +71,36 @@ As mentioned earlier, this code was first developed after setting up the `nf-cor
 | ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
   
 ### 2. **Samplesheet**:
-**Mandatory name:** `samplesheet.csv`
-- CSV file containing sample metadata
-- Must include columns:
-- `sample`: Sample identifiers (should be the same as count)
-- `condition`: Group/condition labels
+**Mandatory name:** `samplesheet.csv`<br>
+**File Format:** `CSV`
 
-| sample  | condition  |
-| ------- | ---------- |
-| sample1 | group1     |
-| sample2 | group1     |
-| sample3 | group2     |
-| sample4 | group2     |
-| sample5 | group3     |
+This file contains samples with a comprehensive set of metadata/clinical variables (i.e. cancer_status, treatments, etc) and uses the format:
+- First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
+- Subsequent columns contains metadata variables
+
+| sample  | meta1      | meta2      | ... | metaN | 
+| ------- | ---------- | ---------- | --- | ---   |
+| sample1 | group1     | group1     | ... | ...   |
+| sample2 | group1     | group1     | ... | ...   |
+| sample3 | group2     | group1     | ... | ...   |
+| sample4 | group2     | group1     | ... | ...   |
+| sample5 | group3     | group1     | ... | ...   |
 
 ### 3. **Contrast Matrix**:
-**Mandatory name:** `contrasts.tsv`
-- Tab-separated file defining comparisons
-- Must include columns:
-- `GroupID`: Group identifiers
-- `SampleID`: Sample Identifiers (should be the same as sample names in the counts matrix
-- Additional columns for each comparison (1 = experimental, 0 = control, leave cell empty if not included in the comparison)
+**Mandatory name:** `contrasts.tsv`<br>
+**File Format:** `TSV`
 
-| GroupID    | treatment_vs_control | treatment2_vs_control2 |
-| ---------- | -------------------- | ---------------------- |
-| control    | 0                    |                        |
-| treatment  | 1                    |                        |
-| treatment2 |                      | 1                      |
-| control2   |                      | 0                      |
+This file contains samples with a subset of metadata/clinical variables that will be utilized for DEG analysis and uses the format:
+- First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
+- Second column contains the group identifier
+- Subsequent columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will not be used for the current comparison
+
+| sample     | GroupID    | treatment_vs_control | treatment2_vs_control2 |
+|------------| ---------- | -------------------- | ---------------------- |
+| sample1    | control    | 0                    |                        |
+| sample2    | treatment  | 1                    |                        |
+| sample3    | treatment2 |                      | 1                      |
+| sample4    | control2   |                      | 0                      |
 
 
 ## Running the Script
