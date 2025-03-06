@@ -18,16 +18,16 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 
 ## Table of Contents
 - [Features]()
-- [Prerequisites]()
+- [Preparing your R Environment]()
 - [Input Files Required]()
 - [Usage]()
 - [Arguments]()
 - [Output Structure]()
 
-## Prerequisites
+## Preparing your R Environment
 
-The following R packages are required:
-
+The following R packages are required to properly run this script:
+```
 - BiocManager
 - DESeq2
 - edgeR
@@ -36,7 +36,18 @@ The following R packages are required:
 - plotly
 - org.Mm.eg.db (for mouse genome)
 - org.Hs.eg.db (for human genome)
-- and other dependencies (will be automatically installed)
+```
+
+To install we recommend starting an R session and using:
+```
+# install bioconductor packages
+install.packages("BiocManager")
+BiocManager::install(c("DESeq2", "edgeR", "clusterProfiler", "org.Mm.eg.db", "org.Hs.eg.db"))
+
+# install CRAN packages
+install.packages(c("ggplot2", "plotly"))
+```
+*Note: all other dependencies (will be automatically installed)*
 
 ## Input Files Required
 
