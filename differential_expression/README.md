@@ -105,6 +105,8 @@ This file contains samples with a subset of metadata/clinical variables that wil
 
 ## Running the Script
 
+To run the script on VCU servers we require the following commands:
+
 ```bash
 
 module load R/4.4.1
@@ -121,18 +123,48 @@ Rscript de.R \
 
 ### Arguments
 
-- `-c, --counts`: Path to the merged counts file
+- `-c, --counts`: Path to the merged counts file **(Mandatory)**
 
-- `-m, --contrasts`: Path to the contrast matrix file
+- `-m, --contrasts`: Path to the contrast matrix file **(Mandatory)**
 
-- `-s, --samplesheet`: Path to the sample sheet file
+- `-s, --samplesheet`: Path to the sample sheet file **(Mandatory)**
 
 - `-o, --outdir`: Output directory (default: ./output)
 
-- `-r, --runid`: Unique identifier for the analysis run
+- `-r, --runid`: Unique identifier for the analysis run **(Mandatory)**
 
 - `-a, --annotation`: Genome to use for annotation: 'mouse' or 'human' (default: mouse)  
 
+
+### Example Commands
+
+#### Mouse Analysis
+
+```bash
+
+Rscript de.R \
+--counts mouse_counts.tsv \
+--contrasts contrasts.tsv \
+--samplesheet samplesheet.csv \
+--outdir mouse_results \
+--runid mouse_experiment \
+--genome mouse
+
+```
+  
+#### Human Analysis
+
+```bash
+
+Rscript de.R \
+--counts human_counts.tsv \
+--contrasts contrasts.tsv \
+--samplesheet samplesheet.csv \
+--outdir human_results \
+--runid human_experiment \
+--genome human
+
+```  
 
 ## Understanding the Outputs
 ```
@@ -155,15 +187,15 @@ output/
 └── allsamples_PCA_plot3D.pdf
 ```
 
-## Output Files
+### Output Files
 
-### Analysis Results
+#### Analysis Results
 
 - **DESeq2 Results**: Differential expression statistics and annotations
 - **GSEA Results**: Gene set enrichment analysis results
 - **Normalized Counts**: TMM-normalized expression values
 
-### Visualizations
+#### Visualizations
 
 - **Volcano Plots**: Highlighting significantly differentially expressed genes
 - **Heatmaps**: Expression patterns of significant genes
@@ -172,39 +204,6 @@ output/
 - Static 2D plot
 - Interactive 2D plot
 - Interactive 3D plot
-
-  
-
-## Example Commands
-
-### Mouse Analysis
-
-```bash
-
-Rscript de.R \
---counts mouse_counts.tsv \
---contrasts contrasts.tsv \
---samplesheet samplesheet.csv \
---outdir mouse_results \
---runid mouse_experiment \
---genome mouse
-
-```
-  
-### Human Analysis
-
-```bash
-
-Rscript de.R \
---counts human_counts.tsv \
---contrasts contrasts.tsv \
---samplesheet samplesheet.csv \
---outdir human_results \
---runid human_experiment \
---genome human
-
-```  
-
 
 ## Notes
 
@@ -230,5 +229,5 @@ Rscript de.R \
 
   
 ## Contact
-  
+
 [mccbioinfo@vcu.edu]
