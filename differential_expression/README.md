@@ -49,9 +49,11 @@ install.packages(c("ggplot2", "plotly"))
 ```
 *Note: all other dependencies (will be automatically installed)*
 
-## Input Files Required
+## Preparing Your Data
+As mentioned earlier, this code was first developed after setting up the `nf-core/rnaseq` pipeline and therefore is guaranteed to work seamlessly with this pipeline. Despite this, we are working on generalizing this code to any count data. To utilize this script we require three pieces of data/files: 1) **Count Matrix**, 2) **Samplesheet**, and 3) **Contrast Matrix**. Each of these have a **mandatory** file name that will be described below: 
 
-1. **Counts Matrix** (`counts.tsv`):
+### 1. **Counts Matrix**:
+**Mandatory name:** `counts.tsv`
 
 - Tab-separated file containing gene counts
 - First column should contain gene IDs (ENSEMBL format)
@@ -65,8 +67,8 @@ install.packages(c("ggplot2", "plotly"))
 | ENSMUSG00000000004 | 4567    | 5678    | 6789    | 7890    | 8901    |
 | ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
   
-2. **Sample Sheet** (`samplesheet.csv`):
-
+### 2. **Samplesheet**:
+**Mandatory name:** `samplesheet.csv`
 - CSV file containing sample metadata
 - Must include columns:
 - `sample`: Sample identifiers (should be the same as count)
@@ -80,8 +82,8 @@ install.packages(c("ggplot2", "plotly"))
 | sample4 | group2     |
 | sample5 | group3     |
 
-3. **Contrast Matrix** (`contrasts.tsv`):
-
+### 3. **Contrast Matrix**:
+**Mandatory name:** `contrasts.tsv`
 - Tab-separated file defining comparisons
 - Must include columns:
 - `GroupID`: Group identifiers
@@ -96,7 +98,7 @@ install.packages(c("ggplot2", "plotly"))
 | control2   |                      | 0                      |
 
 
-## Usage
+## Running the Script
 
 ```bash
 
@@ -127,8 +129,8 @@ Rscript de.R \
 - `-a, --annotation`: Genome to use for annotation: 'mouse' or 'human' (default: mouse)  
 
 
-## Output Structure
-
+## Understanding the Outputs
+```
 output/
 ├── de_data/
 │ ├── DESeq2_[comparison].csv
@@ -146,7 +148,7 @@ output/
 ├── PCA_plot.png
 ├── allsamples_PCA_plot.pdf
 └── allsamples_PCA_plot3D.pdf
-
+```
 
 ## Output Files
 
