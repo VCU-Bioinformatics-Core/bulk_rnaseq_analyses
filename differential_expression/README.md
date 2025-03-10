@@ -30,7 +30,6 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
   - [DESeq2 Results](#deseq2-results)
   - [GSEA Results](#gsea-results)
   - [Figures/Visualizations](#figuresvisualizations)
-  - []()
 - [Future Improvements](#future-improvements)
 - [License](#license)
 - [Contact](#contact)
@@ -40,10 +39,10 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 <img src="https://github.com/user-attachments/assets/e03814cf-05ad-46e8-9990-57886292724d" alt="pipeline.jpg" width="40%">
 
 **Note:** 
-- DEG analysis requires a group size to contain a minimum of 3 samples each
-- Genes with low counts (< 10 TMM in all samples) are filtered out
-- P-value threshold for significance is 0.05
-- Log2 fold change threshold is 0.58
+- DEG analysis requires group to contain a minimum of 3 samples each
+- Genes with low counts (TMM < 10 in all samples) are excluded from DE analysis
+- DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
+- The threshold for Log2 fold change is set at 0.58
 
 ## Preparing your R Environment
 
@@ -75,7 +74,7 @@ As mentioned earlier, this code was first developed after setting up the `nf-cor
 
 **_ATTENTION: header lines are expected for all files._**
 
-### 1. **Count Matrix**:
+### 1. Count Matrix:
 **Mandatory name:** `counts.tsv`<br>
 **File Format:** `TSV`
 
@@ -91,7 +90,7 @@ This file contains the expression counts data and must follow the following form
 | ENSMUSG00000000004 | 4567    | 5678    | 6789    | 7890    | 8901    |
 | ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
   
-### 2. **Samplesheet**:
+### 2. Samplesheet:
 **Mandatory name:** `samplesheet.csv`<br>
 **File Format:** `CSV`
 
@@ -257,7 +256,7 @@ In the next section we will dive into the meaning and interpretation of each res
 
 - **[comparison]heatmap.png:**
 
-<img src="https://github.com/user-attachments/assets/7b94d0f9-65cd-4ce2-a593-752b9d623bff" alt="volcano.png" width="40%">
+<img src="https://github.com/user-attachments/assets/1e87ceaa-d2eb-4f68-8b9a-8e4142d4a6e1" alt="heatmap.png" width="40%">
 
 - **[comparison]GSEA.png:**
 
