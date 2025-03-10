@@ -17,11 +17,20 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 - *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
 
 ## Table of Contents
+- [Pipeline](#pipeline)
 - [Preparing your R Environment](#preparing-your-r-environment)
 - [Preparing Your Data](#preparing-your-data)
+  - [1. Count Matrix](#1-count-matrix)
+  - [2. Samplesheet](#2-samplesheet)
+  - [3. Contrast Matrix](#3-contrast-matrix)
 - [Running the Script](#running-the-script)
-- [Output Structure](#understanding-the-outputs)
-- [Notes](#notes)
+  - [Arguments](#arguments)
+  - [Example Commands](#example-commands)
+- [Understanding the Outputs](#understanding-the-outputs)
+  - [DESeq2 Results](#deseq2-results)
+  - [GSEA Results](#gsea-results)
+  - [Figures/Visualizations](#figuresvisualizations)
+  - []()
 - [Future Improvements](#future-improvements)
 - [License](#license)
 - [Contact](#contact)
