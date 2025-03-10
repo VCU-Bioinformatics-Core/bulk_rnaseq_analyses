@@ -26,6 +26,16 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 - [License](#license)
 - [Contact](#contact)
 
+## Pipeline
+
+<img src="" alt="pipeline.jpg" width="40%">
+
+**Note:** 
+- DEG analysis requires a group size to contain a minimum of 3 samples each
+- Genes with low counts (< 10 TMM in all samples) are filtered out
+- P-value threshold for significance is 0.05
+- Log2 fold change threshold is 0.58
+
 ## Preparing your R Environment
 
 The following R packages are required to properly run this script:
@@ -166,9 +176,20 @@ Rscript de.R \
 --runid human_experiment \
 --genome human
 
-```  
+```
 
 ## Understanding the Outputs
+
+The output is produced within the `output` folder of this project directory and contains 3 main subdirectories.
+- **de_data**: contains each DESeq2 analysis with TMM normalize data stored within `normalizedCounts_TMM[date].csv` and results for each DESeq2 analysis within files called `DESeq2_[comparison].csv`
+- **gsea_data**: contains GO analysis for each comparison within `GO_Analysis_[comparison].csv` files
+- **figures**: contains subdirectories for different visualization generated for each comparison
+  - **volcano**: for each comparison, contains a volcano plot named `[comparison]volcano.png`
+  - **heatmap**: for each comparison, contains a heatmap named `[comparison]heatmap.png`
+  - **gsea**: for each comparison, contains the gsea results named `[comparison]GSEA.png`
+  - **pca**: pca representations of the data
+
+Below is the output tree structure you can expect:
 ```
 output/
 ├── de_data/
@@ -189,47 +210,73 @@ output/
 └── allsamples_PCA_plot3D.pdf
 ```
 
-### Output Files
+In the next section we will dive into the meaning and interpretation of each result.
 
-#### Analysis Results
+### DESeq2 Results
+- **DESeq2_[comparison].csv:** Contains differential expression statistics as previewed below:
 
-- **DESeq2 Results**: Differential expression statistics and annotations
-- **GSEA Results**: Gene set enrichment analysis results
-- **Normalized Counts**: TMM-normalized expression values
+| Gene ID      | baseMean  | log2FoldChange | lfcSE   | stat      | pvalue   | padj     |
+|--------------|-----------|----------------|---------|-----------|----------|----------|
+| ENSG001  | 95.28865  | 0.00399148     | 0.225010| 0.0177391 | 0.9858470| 0.996699 |
+| ENSG002  | 4359.09632| -0.23842494    | 0.127094| -1.8759764| 0.0606585| 0.289604 |
+| ENSG003  | 419.06811 | -0.10185506    | 0.146568| -0.6949338| 0.4870968| 0.822681 |
+| ...      | ...       | ...            | ...     | ...       | ...      | ...      | 
+| ENSG00N  | 4863.807  | 0.0179729      | 0.194137| 0.0925784 | 0.9262385| 0.986726 |
 
-#### Visualizations
+- **normalizedCounts_TMM[date].csv:** Contains TMM normalized counts
 
-- **Volcano Plots**: Highlighting significantly differentially expressed genes
-- **Heatmaps**: Expression patterns of significant genes
-- **GSEA Plots**: Enriched gene sets visualization
-- **PCA Plots**: Sample clustering and quality control
+| col 1 | col2 |
+| ----- | ---- |
+| a     | b    |
+| ...   | ...  |
+| y     | z    |
+
+### GSEA Results
+- **GO_Analysis_[comparison].csv:** Results for gene set enrichment analysis
+
+| col 1 | col2 |
+| ----- | ---- |
+| a     | b    |
+| ...   | ...  |
+| y     | z    |
+
+### Figures/Visualizations
+
+- **[comparison]volcano.png:**
+
+<img src="https://github.com/user-attachments/assets/74671325-89ff-4108-a8b1-8ef0d2471bbd" alt="volcano.png" width="40%">
+
+- **[comparison]heatmap.png:**
+
+<img src="https://github.com/user-attachments/assets/7b94d0f9-65cd-4ce2-a593-752b9d623bff" alt="volcano.png" width="40%">
+
+- **[comparison]GSEA.png:**
+
+<img src="https://github.com/user-attachments/assets/f4b7f84b-9d7e-4303-b0d4-cfa5fc87f2f6" alt="gsea.png" width="40%">
+
+**PCA**
 - Static 2D plot
+
+<img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
+
 - Interactive 2D plot
+
+<img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
+
 - Interactive 3D plot
 
-## Notes
-
-- Gene annotations use either:
-	- Mouse genome (org.Mm.eg.db)
-	- Human genome (org.Hs.eg.db)
-- Minimum group size is set to 3 samples
-- Genes with low counts (< 10 in all samples) are filtered out
-- P-value threshold for significance is 0.05
-- Log2 fold change threshold is 0.58
-
+<img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
 
 ## Future Improvements
 
-- Add a module to produce R Markdown Reports.
-- Add support for EdgeR package to perform differential expression analysis.
-- Add functionality to perform analysis using multi-comparison contrast matrix and using covariates.
+- Add a module to produce R Markdown Reports
+- Add support for EdgeR package to perform differential expression analysis
+- Add functionality to perform analysis using multi-comparison a contrast matrix as well as covariates
 
+## Contact
+
+If you need to reach the BISR group please email us at: [mccbioinfo@vcu.edu] or open a Github Issue to this repo.
 
 ## License
 
 [GPL-3.0 license](https://github.com/VCU-Bioinformatics-Core/bulk_rnaseq_analyses/tree/main?tab=GPL-3.0-1-ov-file#)
-
-  
-## Contact
-
-[mccbioinfo@vcu.edu]
