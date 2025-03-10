@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-The `de.R` script performs differential expression analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analysis. Below is synopsis of this scripts features: 
+The `de.R` script performs differential expression analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. Below is a synopsis of this scripts features: 
 
 - Detection of differentially expression genes (DEG) with DESeq2
 - Visualization of DEG results using volcano plots
@@ -12,17 +12,19 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 - Support for both human and mouse annotations
 
 *Note:*
-- *This script has been specialized for first pass analyses, for much more complex analyses please utilize DESeq2 directly*
+- *This script has been specialized for first pass analyses (as required for the VCU BISR), for much more complex analyses please utilize DESeq2 directly*
 - *Currently, this script only supports pairwise comparisons. Multiple comparisons will be supported in later versions*
-- *We are actively developing this script to handle count data from any source, however, at this stage the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
+- *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
 
 ## Table of Contents
-- [Features]()
-- [Preparing your R Environment]()
-- [Input Files Required]()
-- [Usage]()
-- [Arguments]()
-- [Output Structure]()
+- [Preparing your R Environment](#preparing-your-r-environment)
+- [Preparing Your Data](#preparing-your-data)
+- [Running the Script](#running-the-script)
+- [Output Structure](#understanding-the-outputs)
+- [Notes](#notes)
+- [Future Improvements](#future-improvements)
+- [License](#license)
+- [Contact](#contact)
 
 ## Preparing your R Environment
 
