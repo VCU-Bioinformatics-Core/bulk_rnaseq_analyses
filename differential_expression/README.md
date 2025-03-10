@@ -28,7 +28,7 @@ The `de.R` script performs differential expression analysis for RNA-seq data usi
 
 ## Pipeline
 
-<img src="" alt="pipeline.jpg" width="40%">
+<img src="https://github.com/user-attachments/assets/e03814cf-05ad-46e8-9990-57886292724d" alt="pipeline.jpg" width="40%">
 
 **Note:** 
 - DEG analysis requires a group size to contain a minimum of 3 samples each
