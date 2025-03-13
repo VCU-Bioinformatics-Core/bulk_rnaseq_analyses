@@ -47,23 +47,8 @@ The following R packages are required:
 | ENSMUSG00000000003 | 3456    | 4567    | 5678    | 6789    | 7890    |
 | ENSMUSG00000000004 | 4567    | 5678    | 6789    | 7890    | 8901    |
 | ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
-  
-2. **Sample Sheet** (`samplesheet.csv`):
 
-- CSV file containing sample metadata
-- Must include columns:
-- `sample`: Sample identifiers (should be the same as count)
-- `condition`: Group/condition labels
-
-| sample  | condition  |
-| ------- | ---------- |
-| sample1 | group1     |
-| sample2 | group1     |
-| sample3 | group2     |
-| sample4 | group2     |
-| sample5 | group3     |
-
-3. **Contrast Matrix** (`contrasts.tsv`):
+2. **Contrast Matrix** (`contrasts.tsv`):
 
 - Tab-separated file defining comparisons
 - Must include columns:
@@ -71,12 +56,12 @@ The following R packages are required:
 - `SampleID`: Sample Identifiers (should be the same as sample names in the counts matrix
 - Additional columns for each comparison (1 = experimental, 0 = control, leave cell empty if not included in the comparison)
 
-| GroupID    | treatment_vs_control | treatment2_vs_control2 |
-| ---------- | -------------------- | ---------------------- |
-| control    | 0                    |                        |
-| treatment  | 1                    |                        |
-| treatment2 |                      | 1                      |
-| control2   |                      | 0                      |
+| SampleID | GroupID    | treatment_vs_control | treatment2_vs_control2 |
+| ---------| ---------- | -------------------- | ---------------------- |
+| sample1  | control    | 0                    |                        |
+| sample2  | treatment  | 1                    |                        |
+| sample3  | treatment2 |                      | 1                      |
+| sample4  | control2   |                      | 0                      |
 
 
 ## Usage
