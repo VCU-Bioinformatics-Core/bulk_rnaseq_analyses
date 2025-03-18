@@ -96,7 +96,7 @@ Rscript de.R \
 
 
 ## Output Structure
-
+```
 output/
 ├── de_data/
 │ ├── DESeq2_[comparison].csv
@@ -114,7 +114,7 @@ output/
 ├── PCA_plot.png
 ├── allsamples_PCA_plot.pdf
 └── allsamples_PCA_plot3D.pdf
-
+```
 
 ## Output Files
 
