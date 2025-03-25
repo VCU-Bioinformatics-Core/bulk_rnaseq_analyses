@@ -115,13 +115,12 @@ This file contains samples with a subset of metadata/clinical variables that wil
 - Second column contains the group identifier
 - Subsequent columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will not be used for the current comparison
 
-| sample     | GroupID    | treatment_vs_control | treatment2_vs_control2 |
-|------------| ---------- | -------------------- | ---------------------- |
-| sample1    | control    | 0                    |                        |
-| sample2    | treatment  | 1                    |                        |
-| sample3    | treatment2 |                      | 1                      |
-| sample4    | control2   |                      | 0                      |
-
+| SampleID | GroupID    | treatment_vs_control | treatment2_vs_control2 |
+| ---------| ---------- | -------------------- | ---------------------- |
+| sample1  | control    | 0                    |                        |
+| sample2  | treatment  | 1                    |                        |
+| sample3  | treatment2 |                      | 1                      |
+| sample4  | control2   |                      | 0                      |
 
 ## Running the Script
 

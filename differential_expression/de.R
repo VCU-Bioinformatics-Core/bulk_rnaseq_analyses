@@ -1,4 +1,5 @@
 # Package installation and loading
+
 options(repos = c(CRAN = "https://cran.r-project.org"))
 
 if (!requireNamespace("BiocManager"))
@@ -47,9 +48,6 @@ option_list = list(
                     name, otherwise a default directory will be created in \
                     the current directory: [default= %default]"),
 
-  make_option(c("-s", "--samplesheet"), type = "character", default = NULL,
-              help = "Required. A path for the samplesheet.csv file"),
-
   make_option(c("-r", "--runid"), type = "character", default = NULL,
               help = "Required. A unique name for this analysis.",
               metavar = "character"),
@@ -64,7 +62,6 @@ opt = parse_args(opt_parser);
 runID <- opt$runid
 countData <- opt$counts
 contrastData <- opt$contrasts
-sampleSheet <- opt$samplesheet
 outDir <- opt$outdir
 genome <- opt$annotation
 
@@ -75,7 +72,6 @@ if (debug){
   runID <- "test_run"
   countData <- "./rsem.merged.gene_counts.tsv"
   contrastData <- "./contrasts.tsv"
-  sampleSheet <- "./samplesheet.csv"
   outDir <- "./draft_output"
   annotation <- "mouse" # or "human"
 }
@@ -237,19 +233,20 @@ annotate_results <- function(results) {
 #' @export
 generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, 
                            sig = "padj", out_dir) {
-  labeled_dat <-data %>% 
+   labeled_dat <-data %>% 
     mutate(
       color_tag = case_when(
         eval(as.symbol(sig)) < p & log2FoldChange < -lfc ~ "Under expressed",
         eval(as.symbol(sig)) < p & log2FoldChange > lfc ~ "Over expressed",
         TRUE ~ NA_character_
-      ))
-  
+            ))
+
   top_20_genes_up <- labeled_dat %>%
     filter(pvalue <= p & log2FoldChange >= lfc) %>%
     arrange(eval(as.symbol(sig))) %>%
     slice_head(n = 20) %>%
     pull(ENSEMBL_ID)
+
   top_20_genes_dn <- labeled_dat %>%
     filter(pvalue <= p & log2FoldChange <= -lfc) %>%
     arrange(eval(as.symbol(sig))) %>%
@@ -503,7 +500,7 @@ setup_directories <- function(base_dir) {
 # Check for the commad-line arguments for the script.
 # If no arguments are provided exit and print help.
 if (is.null(runID) | is.null(countData) |
-      is.null(contrastData) | is.null(sampleSheet) | is.null(genome)) {
+      is.null(contrastData) | is.null(genome)) {
   print_help(opt_parser)
   stop("All required arguments must be supplied (input file)", call. = FALSE)
 }
@@ -512,7 +509,6 @@ if (is.null(runID) | is.null(countData) |
 cat("Utilizing this Run Id:", runID, "\n")
 cat("merged counts file found:", countData, "\n")
 cat("contrast matrix file found:", contrastData, "\n")
-cat("sample sheet found:", sampleSheet, "\n")
 cat("creating output directory:", outDir, "\n")
 cat("genome:", genome, "\n")
 
@@ -520,13 +516,13 @@ cat("genome:", genome, "\n")
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, contrasts and sample sheet
-counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>% # attempting to re-write this line to only read in numeric columns, and the *first* column
+counts <- data.frame(fread(countData, header = "auto"), row.names = 1) %>% 
+# attempting to re-write this line to only read in numeric columns, and the *first* column
   mutate(across(everything(), as.numeric)) %>%  # Convert numeric columns
-  select(where(is.numeric)) # select only numeric
+  select(where(is.numeric)) # select only numeric columns
 
-contrasts_raw <- read.delim(contrastData, sep = "\t", header = TRUE,
+contrasts_raw <- read.delim(contrastData, sep = ",", header = TRUE,
                             stringsAsFactors = FALSE)
-sample_info <- read_delim(sampleSheet, delim = ",") # for deseq object
 
 # Get all contrast columns (columns after GroupID)
 contrast_cols <- colnames(contrasts_raw)[3:ncol(contrasts_raw)]
@@ -566,7 +562,7 @@ for(i in seq_along(contrast_cols)) {
 print("\nFinal comparisons list:")
 str(comparisons)
 
-# count the number of columns
+# need to subtract 1 as we will ignore the transcript ids
 n <- ncol(counts)
 
 # clean counts to make sure the columns are just samples
@@ -580,8 +576,8 @@ write.csv(tmm, str_c(out_dirs$de_data, "normalizedCounts_tmm",
                      Sys.Date(), ".csv"))
 
 # DESEQ2 SETUP
-sample_info <- data.frame(sample = sample_info$sample,
-                          condition = sample_info$condition)
+sample_info <- data.frame(sample = contrasts_raw$SampleID,
+                          condition = contrasts_raw$GroupID)
 
 dds <- DESeqDataSetFromMatrix(
   countData = countsdf,
