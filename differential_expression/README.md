@@ -95,27 +95,13 @@ This file contains the expression counts data and must follow the following form
 **File Format:** `CSV`
 
 This file contains samples with a comprehensive set of metadata/clinical variables (i.e. cancer_status, treatments, etc) and uses the format:
-- First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
-- Subsequent columns contains metadata variables
-
-| sample  | meta1      | meta2      | ... | metaN | 
-| ------- | ---------- | ---------- | --- | ---   |
-| sample1 | group1     | group1     | ... | ...   |
-| sample2 | group1     | group1     | ... | ...   |
-| sample3 | group2     | group1     | ... | ...   |
-| sample4 | group2     | group1     | ... | ...   |
-| sample5 | group3     | group1     | ... | ...   |
-
-### 3. **Contrast Matrix**:
-**Mandatory name:** `contrasts.tsv`<br>
-**File Format:** `TSV`
-
+or
 This file contains samples with a subset of metadata/clinical variables that will be utilized for DEG analysis and uses the format:
 - First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
 - Second column contains the group identifier
 - Subsequent columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will not be used for the current comparison
 
-| SampleID | GroupID    | treatment_vs_control | treatment2_vs_control2 |
+| SampleID | meta1      |      contrast1       |        contrast2       |
 | ---------| ---------- | -------------------- | ---------------------- |
 | sample1  | control    | 0                    |                        |
 | sample2  | treatment  | 1                    |                        |
