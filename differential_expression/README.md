@@ -99,14 +99,14 @@ or
 This file contains samples with a subset of metadata/clinical variables that will be utilized for DEG analysis and uses the format:
 - First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
 - Second column contains the group identifier
-- Subsequent columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will not be used for the current comparison
+- All subsequent columns are dedicated comparisons between covariates (columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. variable1_vs_variable2
 
-| SampleID | meta1      |      contrast1       |        contrast2       |
-| ---------| ---------- | -------------------- | ---------------------- |
-| sample1  | control    | 0                    |                        |
-| sample2  | treatment  | 1                    |                        |
-| sample3  | treatment2 |                      | 1                      |
-| sample4  | control2   |                      | 0                      |
+| SampleID | meta1      | control_vs_treatment	| control2_vs_treatment2	|
+| ---------| ---------- | ----------------------| ------------------------- |
+| sample1  | control    | 0                     |							|
+| sample2  | treatment  | 1                     |                        	|
+| sample3  | treatment2 |                		| 1                      	|
+| sample4  | control2   |    			        | 0                      	|
 
 ## Running the Script
 
@@ -118,7 +118,6 @@ module load R/4.4.1
 
 Rscript de.R \
 --counts path/to/counts.tsv \
---contrasts path/to/contrasts.tsv \
 --samplesheet path/to/samplesheet.csv \
 --outdir path/to/output \
 --runid analysis_name \
@@ -129,8 +128,6 @@ Rscript de.R \
 ### Arguments
 
 - `-c, --counts`: Path to the merged counts file **(Mandatory)**
-
-- `-m, --contrasts`: Path to the contrast matrix file **(Mandatory)**
 
 - `-s, --samplesheet`: Path to the sample sheet file **(Mandatory)**
 
@@ -149,7 +146,6 @@ Rscript de.R \
 
 Rscript de.R \
 --counts mouse_counts.tsv \
---contrasts contrasts.tsv \
 --samplesheet samplesheet.csv \
 --outdir mouse_results \
 --runid mouse_experiment \
@@ -163,7 +159,6 @@ Rscript de.R \
 
 Rscript de.R \
 --counts human_counts.tsv \
---contrasts contrasts.tsv \
 --samplesheet samplesheet.csv \
 --outdir human_results \
 --runid human_experiment \
