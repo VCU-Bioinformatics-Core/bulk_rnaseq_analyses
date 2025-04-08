@@ -99,7 +99,7 @@ or
 This file contains samples with a subset of metadata/clinical variables that will be utilized for DEG analysis and uses the format:
 - First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
 - Second column contains the group identifier
-- All subsequent columns are dedicated comparisons between covariates (columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. variable1_vs_variable2
+- All subsequent columns are dedicated comparisons (columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. variable1_vs_variable2
 
 | SampleID | meta1      | control_vs_treatment	| control2_vs_treatment2	|
 | ---------| ---------- | ----------------------| ------------------------- |
