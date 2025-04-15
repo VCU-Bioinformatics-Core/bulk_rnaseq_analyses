@@ -39,8 +39,8 @@ option_list = list(
   make_option(c("-c", "--counts"), type = "character", default = NULL,
               help = "Required. A path for the merged counts.tsv file"),
 
-  make_option(c("-m", "--contrasts"), type = "character", default = NULL,
-              help = "Required. A path for the contrast matrix.tsv file"),
+  make_option(c("-s", "--samplesheet"), type = "character", default = NULL,
+              help = "Required. A path for the samplesheet.csv file"),
 
   make_option(c("-o", "--outdir"), type = "character", default = "./output",
               help = "path for the output directory to store results. \
@@ -61,7 +61,7 @@ opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 runID <- opt$runid
 countData <- opt$counts
-contrastData <- opt$contrasts
+samplesheetData <- opt$samplesheet
 outDir <- opt$outdir
 genome <- opt$annotation
 
@@ -71,7 +71,7 @@ debug <- FALSE
 if (debug){
   runID <- "test_run"
   countData <- "./rsem.merged.gene_counts.tsv"
-  contrastData <- "./contrasts.tsv"
+  samplesheetData <- "./samplesheet.csv"
   outDir <- "./draft_output"
   annotation <- "mouse" # or "human"
 }
@@ -258,7 +258,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
       highlight = ifelse(ENSEMBL_ID %in% c(top_20_genes_up, top_20_genes_dn), SYMBOL, NA)
     ) %>% 
     ggplot(aes(x = log2FoldChange, 
-               y = -log10(eval(as.symbol(sig))), 
+               y = -log10(pvalue), 
                color = color_tag,
                label = ifelse(highlight == TRUE, SYMBOL, NA))) +
     geom_point(alpha = 0.5) +
@@ -270,7 +270,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
     theme(legend.title = element_blank()) +
     labs(
       x = "Log2 Fold-Change (FC)",
-      y = paste0("-log10(", sig, ")"),
+      y = paste0("-log10( pvalue )"),
       title = create_comparison_name(exp_name, ctrl_name, "Differentially expressed genes - ")
     )
 }
@@ -500,7 +500,7 @@ setup_directories <- function(base_dir) {
 # Check for the commad-line arguments for the script.
 # If no arguments are provided exit and print help.
 if (is.null(runID) | is.null(countData) |
-      is.null(contrastData) | is.null(genome)) {
+      is.null(samplesheetData) | is.null(genome)) {
   print_help(opt_parser)
   stop("All required arguments must be supplied (input file)", call. = FALSE)
 }
@@ -508,20 +508,17 @@ if (is.null(runID) | is.null(countData) |
 # Access the arguments
 cat("Utilizing this Run Id:", runID, "\n")
 cat("merged counts file found:", countData, "\n")
-cat("contrast matrix file found:", contrastData, "\n")
+cat("samplesheet found:", samplesheetData, "\n")
 cat("creating output directory:", outDir, "\n")
 cat("genome:", genome, "\n")
 
 # Set up output directories
 out_dirs <- setup_directories(outDir)
 
-# Read in raw merged counts, contrasts and sample sheet
-counts <- data.frame(fread(countData, header = "auto"), row.names = 1) %>% 
-# attempting to re-write this line to only read in numeric columns, and the *first* column
-  mutate(across(everything(), as.numeric)) %>%  # Convert numeric columns
-  select(where(is.numeric)) # select only numeric columns
+# Read in raw merged counts, samplesheet
+counts <- data.frame(fread(countData, header = "auto"), row.names = 1)
 
-contrasts_raw <- read.delim(contrastData, sep = ",", header = TRUE,
+contrasts_raw <- read.delim(samplesheetData, sep = ",", header = TRUE,
                             stringsAsFactors = FALSE)
 
 # Get all contrast columns (columns after GroupID)
@@ -563,10 +560,10 @@ print("\nFinal comparisons list:")
 str(comparisons)
 
 # need to subtract 1 as we will ignore the transcript ids
-n <- ncol(counts)
+n <- ncol(counts) - 1
 
 # clean counts to make sure the columns are just samples
-countsdf <- counts %>% mutate_at(1:n, as.integer)
+countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
 
 # NORMALIZE DATA
 x <- DGEList(counts = countsdf)
@@ -729,3 +726,19 @@ fig3D <- fig3D %>%
 # Define variable and save
 file_name_plotlyPCA3D <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot3D.html")
 export_plotly_to_html(fig3D, file_name_plotlyPCA3D)
+
+
+# save results in an RDS file:
+rds <- list(results, comparisons, out_dirs, pca_plot, fig, fig3D)
+timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+rds_name <- paste0("analysis_results", "_", timestamp, ".rds")
+saveRDS(rds, rds_name)
+
+
+# trigger reporter
+source("report_generator.R")
+report_path <- generate_report(analysis_results_path = paste0("./", rds_name))
+print(paste("Report generated at:", report_path))
+
+
+# EOF
