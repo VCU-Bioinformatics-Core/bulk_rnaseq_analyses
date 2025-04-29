@@ -235,18 +235,19 @@ In the next section we will dive into the meaning and interpretation of each res
 
 ### Figures/Visualizations
 
-- **[comparison]volcano.png:**
+**PCA**<br>
+<img src="https://github.com/user-attachments/assets/d0987ffe-0ff1-4e20-b0d9-54394b779384" alt="pca.jpg" width="40%">
 
-<img src="https://github.com/user-attachments/assets/74671325-89ff-4108-a8b1-8ef0d2471bbd" alt="volcano.png" width="40%">
+**[comparison]volcano.png:**<br>
+<img src="https://github.com/user-attachments/assets/4094a1da-c1c2-4e4d-ae9c-ff879e60532a" alt="volcano.png" width="40%">
 
-- **[comparison]heatmap.png:**
+**[comparison]heatmap.png:**<br>
+<img src="https://github.com/user-attachments/assets/58055324-34ec-4dd6-b900-9103c546f419" alt="volcano.png" width="40%">
 
-<img src="https://github.com/user-attachments/assets/1e87ceaa-d2eb-4f68-8b9a-8e4142d4a6e1" alt="heatmap.png" width="40%">
+**[comparison]GSEA.png:**<br>
+<img src="https://github.com/user-attachments/assets/39c49383-38ed-4ab5-8204-3a399a37ea68" alt="gsea.png" width="40%">
 
-- **[comparison]GSEA.png:**
-
-<img src="https://github.com/user-attachments/assets/f4b7f84b-9d7e-4303-b0d4-cfa5fc87f2f6" alt="gsea.png" width="40%">
-
+<!--
 **PCA**
 - Static 2D plot
 
@@ -259,6 +260,7 @@ In the next section we will dive into the meaning and interpretation of each res
 - Interactive 3D plot
 
 <img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
+-->
 
 ## Future Improvements
 
