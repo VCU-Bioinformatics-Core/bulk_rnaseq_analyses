@@ -66,14 +66,16 @@ pca_3d <- rds_data[[6]]
 
 ## Overview
 
-This report presents the results of differential expression analysis for `r length(comparisons)` comparisons.
-For further exploration of the results, please refer to the output directories containing the raw data files.
+This report contains the results of differential expression analysis for `r length(comparisons)` comparisons.
+We start with a section exploring our samples using a PCA analysis (_Sample Exploration using Principal Component Analysis_)
+to look for large trends in the data. From there, we have a section for each of
+comparisons where we include different visualizations in the form of a volcano plot, heatmap,
+table of top hits, and GSEA bubble plots. For further exploration of the results, please
+refer to the output directories containing the raw data files.
 
+## Pipeline
 
-
-## Methods
-
-The analysis pipeline used the following methods:
+For this analysis we used the following methods:
 1. **Data preprocessing**: Count data was filtered to remove genes with low expression.
 2. **Normalization**: TMM normalization was applied using edgeR.
 3. **Differential expression**: DESeq2 was used to identify differentially expressed genes.
@@ -81,13 +83,10 @@ The analysis pipeline used the following methods:
 5. **Thresholds**: Genes with adjusted p-value < 0.05 and |log2FC| >= 0.58 were considered differentially expressed.
 6. **Genome annotation**: Mouse (org.Mm.eg.db)
 
-
-
-## Sample Exploration
-
-### Principal Component Analysis (PCA)
+## Sample Exploration using Principal Component Analysis
 
 PCA was performed to visualize the overall pattern of gene expression across samples and to identify potential batch effects or outliers.
+
 **What we expect:** We would expect to see samples that are similar to
 each other cluster together, and samples that are different should
 cluster separately.
@@ -96,9 +95,11 @@ cluster separately.
 print(pca_plot)
 ```
 
-The interactive PCA plots can be found in the following files:
+Interactive PCA plots can be found in the following files:
 - 2D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot.html")`
 - 3D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot3D.html")`
+
+
 
 
 
@@ -165,17 +166,18 @@ kable(summary_table, caption = "Summary of Differential Expression Results")
 - **Control group**: %s
 
 
-**Volcano Plot**: Each dot represents a change in gene expression. X-axis:
-log2 fold-change of expression between treatment compared to the control
-plotted against the -log10(p-value). The red line indicates
-the p-value \\< 0.05. Every point (gene) above that threshold appears to
-have statistically significant changes between the two conditions.
-
-Vertical lines indicate 1.5 fold change. Genes highlighted in RED are
-up-regulated in the Treatment compared to the control. Genes
-highlighted in BLUE are down-regulated in the Treatment compared
-to the control. Genes in gray, do not meet the thresholds for both logFC
-and p-value.
+**Volcano Plot**:
+- Data point: represents a gene
+- X-axis: log2 fold-change of expression between group1 compared to the group2
+- Y-axis: -log10(p-value)
+- Description: For this volcano plot we use a red horizontal line to indicate the
+	significant p-value threshold of \\< 0.05 thus, every point (gene) above
+	that threshold represents a gene with a differential expression that is
+	statistically significant changes between the two groups/conditions. In addition,
+	the black vertical lines indicate 1.5 fold change. Genes highlighted in red are
+	up-regulated in group1 compared to the group2. Genes highlighted in blue are
+	down-regulated in group1 compared to group2. Genes in gray, do not meet the thresholds
+	for both logFC and p-value.
 
 ```{r volcano-%d}
 # Display volcano plot from file
