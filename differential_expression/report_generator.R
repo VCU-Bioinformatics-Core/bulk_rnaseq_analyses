@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+#skipthisfornow - !/usr/bin/env Rscript
 
 # Required libraries
 library(rmarkdown)
@@ -30,10 +30,10 @@ generate_report <- function(analysis_results_path, output_dir = "./", report_pre
   comparisons <- rds_data[[2]]
   out_dirs <- rds_data[[3]]
   
-  # Create R Markdown template
+  # Create R Markdown template (beginning section)
   rmd_content <- sprintf('---
 title: "RNA-Seq Differential Expression Analysis Report"
-author: "Mikail Bala"
+author: "Bioinformatics Shared Resources at VCU"
 date: "%s"
 output: 
   html_document:
@@ -67,44 +67,46 @@ pca_3d <- rds_data[[6]]
 ## Overview
 
 This report contains the results of differential expression analysis for `r length(comparisons)` comparisons.
-We start with a section exploring our samples using a PCA analysis (_Sample Exploration using Principal Component Analysis_)
-to look for large trends in the data. From there, we have a section for each of
-comparisons where we include different visualizations in the form of a volcano plot, heatmap,
-table of top hits, and GSEA bubble plots. For further exploration of the results, please
-refer to the output directories containing the raw data files.
+We start with the **Sample Exploration using PCA** section that tries to identify major
+trends and potential batch effects in the data. From there, we present the
+**Differential Expression Results** section with subsections for each comparison (more details
+below). For further exploration of the results, please refer to the output directories
+containing the raw data files.
+
 
 ## Pipeline
 
-For this analysis we used the following methods:
-1. **Data preprocessing**: Count data was filtered to remove genes with low expression.
-2. **Normalization**: TMM normalization was applied using edgeR.
-3. **Differential expression**: DESeq2 was used to identify differentially expressed genes.
-4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler.
-5. **Thresholds**: Genes with adjusted p-value < 0.05 and |log2FC| >= 0.58 were considered differentially expressed.
+For this analysis we used the following steps:
+
+1. **Data preprocessing**: Count data was filtered to remove genes with low expression
+2. **Normalization**: TMM normalization was applied using edgeR
+3. **Differential expression**: DESeq2 was used to identify differentially expressed genes
+4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler
+5. **Thresholds**: Genes with adjusted p-value < 0.05 and |FC| >= 1.5 were considered differentially expressed.
 6. **Genome annotation**: Mouse (org.Mm.eg.db)
 
-## Sample Exploration using Principal Component Analysis
+## Sample Exploration using PCA
 
-PCA was performed to visualize the overall pattern of gene expression across samples and to identify potential batch effects or outliers.
+PCA was performed to visualize the overall patterns of gene expression across samples and
+to identify potential batch effects or outliers. **What we expect:** Samples with similar
+expression profiles should cluster together, while dissimilar samples are expected to
+separate into distinct clusters.
 
-**What we expect:** We would expect to see samples that are similar to
-each other cluster together, and samples that are different should
-cluster separately.
 
 ```{r pca-plot}
 print(pca_plot)
 ```
 
-Interactive PCA plots can be found in the following files:
+Interactive PCA plots can also be found in the following files:
+
 - 2D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot.html")`
 - 3D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot3D.html")`
-
-
-
-
-
-## Differential Expression Results
-
+', format(Sys.time(), "%B %d, %Y"),  # Date in header
+   analysis_results_path)
+  
+  
+  # Add data extraction section
+  data_summary_section <- '
 ```{r results-summary}
 # Create a summary table for all comparisons
 summary_table <- data.frame(
@@ -143,41 +145,62 @@ for (i in seq_along(comparisons)) {
     }
   }
 }
+```'
+rmd_content <- paste0(rmd_content, data_summary_section)
 
+  
+  # Add a diff section
+  diff_section <- '
+## Differential Expression Results
+This section contains a high-level table summarizing the differential expression results,
+followed by a subsection for each comparison that visualizes the results using a volcano
+plot, heatmap, table of top hits, and GSEA results (shown as both a bubble plot and a table).
+
+### Summary of Comparisions
+
+Briefly, we report the following:
+
+- Total number of comparisons analyzed: `r length(comparisons)`
+- Total number of differential expressed genes across all comparisons: `r sum(summary_table$Total_DEGs)`
+- Comparisons with the highest number of DEGs: `r summary_table$Comparison[which.max(summary_table$Total_DEGs)]` (`r max(summary_table$Total_DEGs)` DEGs)
+
+The table below summarizes differential expression results from all comparisons.
+Specifically, the **Total_DEGs** column reports the number of genes with an adjusted
+p-value < 0.05 and |FC| ≥ 1.5. The **Upregulated** and **Downregulated** columns break
+down this count accordingly. The **GSEA_Performed** column indicates whether GSEA was run
+for each case.
+
+```{r display-summary-table}
 # Display the summary table
-kable(summary_table, caption = "Summary of Differential Expression Results")
+kable(summary_table, caption = "")
 ```
-
-### Detailed Results by Comparison
-
-', 
-    format(Sys.time(), "%B %d, %Y"),  # Date in header
-    analysis_results_path  # Path to results
-  )
+'
+  rmd_content <- paste0(rmd_content, diff_section)
+  
   
   # Add detailed sections for each comparison
   for (i in seq_along(comparisons)) {
     comparison_section <- sprintf('
-## %s
+### %s
 
-### Experimental design
+**Experimental design**
 
 - **Experimental group**: %s
 - **Control group**: %s
 
 
-**Volcano Plot**:
-- Data point: represents a gene
-- X-axis: log2 fold-change of expression between group1 compared to the group2
+**Volcano Plot**
+
+- Description: main visualization for differential expression results. This rendition uses
+  a **red horizontal line** to indicate the significant p-value threshold of \\< 0.05. Therefore,
+  every point (gene) above that red line can be considered statistically signficant (note:
+  before FDR correction). In addition, the **black vertical lines** indicate 1.5 fold change.
+  Genes highlighted in red are up-regulated in group1 compared to the group2. Genes
+  highlighted in blue are down-regulated in group1 compared to group2. Genes in gray, do
+  not meet the thresholds for both logFC and p-value.
+- Data point: a gene
+- X-axis: log2 fold-change (group1/group2)
 - Y-axis: -log10(p-value)
-- Description: For this volcano plot we use a red horizontal line to indicate the
-	significant p-value threshold of \\< 0.05 thus, every point (gene) above
-	that threshold represents a gene with a differential expression that is
-	statistically significant changes between the two groups/conditions. In addition,
-	the black vertical lines indicate 1.5 fold change. Genes highlighted in red are
-	up-regulated in group1 compared to the group2. Genes highlighted in blue are
-	down-regulated in group1 compared to group2. Genes in gray, do not meet the thresholds
-	for both logFC and p-value.
 
 ```{r volcano-%d}
 # Display volcano plot from file
@@ -190,14 +213,14 @@ if (file.exists(volcano_path)) {
 ```
 
 
+**Heatmap**
 
-**Heatmap**: a heatmap of z-score normalized read counts data.
-The x-axis are samples, the y-axis are genes. The red color
-represents the magnitude of standard deviations above the mean for each
-read count (i.e., higher expression), and the blue is the magnitude of
-standard deviations below the mean (i.e., lower expression). White
-indicates that a read count is close to the mean. The dendrogram is
-clustering by samples and by RNA expression.
+- Description: a heatmap of **z-score normalized** read counts data with application of 
+  **hierarchical clustering** by both samples and expression levels
+- X-axis: samples
+- Y-axis: genes
+- Color-scale: z-score normalized read counts 
+
 
 ```{r heatmap-%d}
 # Display heatmap from file
@@ -210,8 +233,11 @@ if (file.exists(heatmap_path)) {
 ```
 
 
-
 **Top Differentially Expressed Genes**
+
+Table of the top differential expressed genes with both nominal (**pvalue**)
+and adjusted pvalues (**padj**).
+
 ```{r top-degs-%d}
 # Display top DEGs table
 if (!is.null(results[[%d]]) && !is.null(results[[%d]]$deseq)) {
@@ -243,12 +269,14 @@ if (!is.null(results[[%d]]) && !is.null(results[[%d]]$deseq)) {
 }
 ```
 
-### Gene Set Enrichment Analysis
-Gene Set Enrichment Analysis of gene ontology (GO) terms.
-Dot Plot: This is a graphical representation of Gene Set Enrichment Analysis terms.
-Y axis is the "Gene Set" in which these genes are significantly enriched.
-X-axis shows the gene ratio (# genes related to Gene Set / total number of significant genes) to which
-the term is enriched. This figure is faceted by activated gene sets and suppressed gene sets.
+
+**Gene Set Enrichment Analysis**
+
+- Description: Gene Set Enrichment Analysis using (GO) terms with both a bubble plot and
+ table. 
+- X-axis: the gene ratio (# genes related to Gene Set / total number of significant genes) to which
+the term is enriched.
+- Y-axis: a given Gene Set
 
 ```{r gsea-%d}
 # Display GSEA results from file
@@ -259,7 +287,6 @@ if (file.exists(gsea_path)) {
   cat("GSEA results not available for this comparison")
 }
 ```
-
 
 
 ```{r gsea-table-%d}
@@ -298,20 +325,6 @@ if (!is.null(results[[%d]]) && !is.null(results[[%d]]$gsea)) {
     
     rmd_content <- paste0(rmd_content, comparison_section)
   }
-  
-  # Add conclusion section
-  rmd_content <- paste0(rmd_content, '
-
-
-
-## Analysis Summary  
-- Total number of comparisons analyzed: `r length(comparisons)`
-- Total number of differential expressed genes across all comparisons: `r sum(summary_table$Total_DEGs)`
-- Comparisons with the highest number of DEGs: `r summary_table$Comparison[which.max(summary_table$Total_DEGs)]` (`r max(summary_table$Total_DEGs)` DEGs)
-
-
-*Report generated on %s*
-', format(Sys.time(), "%B %d, %Y %H:%M:%S"))  # Date in footer
   
   # Write the R Markdown file
   rmd_file <- file.path(output_dir, paste0(report_prefix, "_", timestamp, ".Rmd"))
