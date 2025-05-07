@@ -1,18 +1,22 @@
 # Differential Expression Analysis Pipeline
 
-The `de.R` script performs differential expression analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. Below is a synopsis of this scripts features: 
+The `de.R` script performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses.
 
-- Detection of differentially expression genes (DEG) with DESeq2
-- Visualization of DEG results using volcano plots
-- Visualization of top differentially expressed genes using heatmaps
-- Interpretation of prioritied genes using Gene Set Enrichment Analysis (GSEA)
-- Plotting of PCA plots (2D and 3D interactive versions)
-- Normalization of read counts using trimmed mean of M values (TMM)
-- Organization of results into separate sub-directories
-- Support for both human and mouse annotations
+Features:
+- Differential gene expression analysis (DGE) using DESeq2 to identify genes that exhibit significant changes in expression levels between conditions.
+  - Automated DESeq2 dds design based on parsing of contrasts specified in the samplesheet.  
+- Gene Set Enrichment Analysis (GSEA) to identify significantly enriched or depleted groups of genes.
+- Principal Component Analysis (PCA) to facilitate sample exploration.
+- Visualizations for each comparision:
+  - Volcano Plots of Differential Expression results.
+  - Heatmaps of top differentially expressed genes.
+  - PCA plots (2D and 3D interactive versions).
+- Normalization of read counts using trimmed mean of M values (TMM).
+- Organization of results into sub-directories.
+- Support for both Human and Mouse annotations.
 
 *Note:*
-- *This script has been specialized for first pass analyses (as required for the VCU BISR), for much more complex analyses please utilize DESeq2 directly*
+- *This script aims to perform a "first pass" analysis (as required by the VCU BISR), for custom/complex analysis please contact our core and submit a Jira ticket*
 - *Currently, this script only supports pairwise comparisons. Multiple comparisons will be supported in later versions*
 - *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
 
