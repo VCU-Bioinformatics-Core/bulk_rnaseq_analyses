@@ -320,7 +320,8 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
 process_gsea <- function(result, p = 0.05, lfc = 0.58) {
   tryCatch({
     sig_genes <- result %>%
-      dplyr::filter(padj < p & abs(log2FoldChange) >= lfc) %>%
+      # filtering out genes with low expression
+      dplyr::filter(baseMean > 0) %>%
       rownames_to_column("gene") %>%
       arrange(desc(log2FoldChange))
     
@@ -516,7 +517,12 @@ cat("genome:", genome, "\n")
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, samplesheet
-counts <- data.frame(fread(countData, header = "auto"), row.names = 1)
+counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>% 
+  # attempting to re-write this line to only read in numeric columns, and the *first* column
+  dplyr::select(where(is.numeric)) 
+  
+# select only numeric columns
+rownames(counts) <- rownames(counts) %>% str_remove("\\..*")
 
 contrasts_raw <- read.delim(samplesheetData, sep = ",", header = TRUE,
                             stringsAsFactors = FALSE)
@@ -559,11 +565,9 @@ for(i in seq_along(contrast_cols)) {
 print("\nFinal comparisons list:")
 str(comparisons)
 
-# need to subtract 1 as we will ignore the transcript ids
-n <- ncol(counts) - 1
-
 # clean counts to make sure the columns are just samples
-countsdf <- counts %>% select(-transcript_id.s.) %>% mutate_at(1:n, as.integer)
+countsdf <- counts %>%
+  mutate(across(where(is.numeric), ~ as.integer(round(.))))
 
 # NORMALIZE DATA
 x <- DGEList(counts = countsdf)
