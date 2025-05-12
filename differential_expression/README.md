@@ -9,7 +9,7 @@ Features:
 - Principal Component Analysis (PCA) to facilitate sample exploration.
 - Visualizations for each comparision:
   - Volcano Plots of Differential Expression results.
-  - Heatmaps of top differentially expressed genes.
+  - Heatmaps of Zscores using normalized counts for the top differentially expressed genes.
   - PCA plots (2D and 3D interactive versions).
 - Normalization of read counts using trimmed mean of M values (TMM).
 - Organization of results into sub-directories.
@@ -26,7 +26,6 @@ Features:
 - [Preparing Your Data](#preparing-your-data)
   - [1. Count Matrix](#1-count-matrix)
   - [2. Samplesheet](#2-samplesheet)
-  - [3. Contrast Matrix](#3-contrast-matrix)
 - [Running the Script](#running-the-script)
   - [Arguments](#arguments)
   - [Example Commands](#example-commands)
