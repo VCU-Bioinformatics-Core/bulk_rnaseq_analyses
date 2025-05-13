@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-The `de.R` script performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses.
+The `de.R` script performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. It aumatically produces a R Markdown Report to summarize the results and showcase visualizations for each comparision.
 
 Features:
 - Differential gene expression analysis (DGE) using DESeq2 to identify genes that exhibit significant changes in expression levels between conditions.
@@ -42,10 +42,10 @@ Features:
 <img src="https://github.com/user-attachments/assets/e03814cf-05ad-46e8-9990-57886292724d" alt="pipeline.jpg" width="40%">
 
 **Note:** 
-- DEG analysis requires group to contain a minimum of 3 samples each
+- DGE analysis requires group to contain a minimum of 3 samples each
 - Genes with low counts (TMM < 10 in all samples) are excluded from DE analysis
 - DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
-- The threshold for Log2 fold change is set at 0.58
+- The threshold for absolute log fold change is set to 1.5 (0.58 Log2 fold change)
 
 ## Preparing your R Environment
 
@@ -73,17 +73,16 @@ install.packages(c("ggplot2", "plotly"))
 *Note: all other dependencies (will be automatically installed)*
 
 ## Preparing Your Data
-As mentioned earlier, this code was first developed after setting up the `nf-core/rnaseq` pipeline and therefore is guaranteed to work seamlessly with this pipeline. Despite this, we are working on generalizing this code to any count data. To utilize this script we require three pieces of data/files: 1) **Count Matrix**, 2) **Samplesheet**, and 3) **Contrast Matrix**. Each of these have a **mandatory** file name that will be described below. In addition, please pay close attention to the file format to ensure proper processing. Lastly, below each file description we provide a tabular representation of the required data as an example.
+This script is compatible with the outputs from `nf-core/rnaseq` pipeline as well as output counts file from any other custom analysis. However, currently this script is only compatible with merged counts. Tp proceed further, two files are mandatory: **Raw Merged Count Matrix**, and **Samplesheet**. Each of these have a **mandatory** file name that will be described below. In addition, please pay close attention to the file format to ensure proper processing. Lastly, below each file description we provide a tabular representation of the required data as an example.
 
 **_ATTENTION: header lines are expected for all files._**
 
-### 1. Count Matrix:
-**Mandatory name:** `counts.tsv`<br>
-**File Format:** `TSV`
+### 1. Raw Merged Count Matrix:
+**Required file format:** `TSV`
 
-This file contains the expression counts data and must follow the following format:
-- First column contains ENSEMBL gene IDs
-- Subsequent columns should contain count data for each sample. Note: header values should be the sample identifiers use across other input files
+This file contains the raw expression counts data and files with any other type of column format are automatically converted to the following format:
+- First column contains ENSEMBL gene IDs.
+- Subsequent columns with raw count data for each sample. Note: header values should be the same as the sample identifiers used in the samplesheet.
 
 | gene_id            | sample1 | sample2 | sample3 | sample4 | sample5 |
 | ------------------ | ------- | ------- | ------- | ------- | ------- |
@@ -94,26 +93,23 @@ This file contains the expression counts data and must follow the following form
 | ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
   
 ### 2. Samplesheet:
-**Mandatory name:** `samplesheet.csv`<br>
-**File Format:** `CSV`
+**required file format:** `CSV`
 
-This file contains samples with a comprehensive set of metadata/clinical variables (i.e. cancer_status, treatments, etc) and uses the format:
-or
-This file contains samples with a subset of metadata/clinical variables that will be utilized for DEG analysis and uses the format:
-- First column contains sample identifiers that should correspond (one-to-one) with columns of the count matrix
-- Second column contains the group identifier
-- All subsequent columns are dedicated comparisons (columns contain a binarized value representing `1` for the treatment group, `0` for the control, and `blank` if the given sample will be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. variable1_vs_variable2
+This file contains samples with metadata/clinical variables that will be utilized for DEG analysis. The columns should be organised exactly in the same order exemplified below.
+- First Column (**SampleID**) should contain sample identifiers that correspond with sample column names after the **gene_id** column of the count matrix.
+- Second Column (**GroupID**) should contain the group identifiers.
+- All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. group1_vs_group2
 
-| SampleID | meta1      | control_vs_treatment	| control2_vs_treatment2	|
+| SampleID | meta1      | group1_vs_group2	| group3_vs_group4	|
 | ---------| ---------- | ----------------------| ------------------------- |
-| sample1  | control    | 0                     |							|
-| sample2  | treatment  | 1                     |                        	|
-| sample3  | treatment2 |                		| 1                      	|
-| sample4  | control2   |    			        | 0                      	|
+| sample1  | group1    | 0                     |							|
+| sample2  | group2  | 1                     |                        	|
+| sample3  | group3 |                		| 1                      	|
+| sample4  | group4   |    			        | 0                      	|
 
 ## Running the Script
 
-To run the script on VCU servers we require the following commands:
+To run the script on VCU HPRC (high performance research computing servers) we require the following commands:
 
 ```bash
 
@@ -204,7 +200,7 @@ output/
 In the next section we will dive into the meaning and interpretation of each result.
 
 ### DESeq2 Results
-- **DESeq2_[comparison].csv:** Contains differential expression statistics as previewed below:
+- **DESeq2_[comparison].csv:** Contains differential expression statistics:
 
 | Gene ID      | baseMean  | log2FoldChange | lfcSE   | stat      | pvalue   | padj     |
 |--------------|-----------|----------------|---------|-----------|----------|----------|
@@ -260,10 +256,10 @@ In the next section we will dive into the meaning and interpretation of each res
 
 ## Future Improvements
 
-- Add a module to produce R Markdown Reports
-- Add support for EdgeR package to perform differential expression analysis
-- Add functionality to perform analysis using multi-comparison a contrast matrix as well as covariates
-
+- Add support for EdgeR package to perform differential expression analysis.
+- Add functionality to perform analysis using multi-comparison a contrast matrix as well as covariates.
+- Add KEGG analysis module.
+  
 ## Contact
 
 If you need to reach the BISR group please email us at: [mccbioinfo@vcu.edu] or open a Github Issue to this repo.
