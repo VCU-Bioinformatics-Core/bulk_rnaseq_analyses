@@ -43,7 +43,7 @@ Features:
 
 **Note:** 
 - DGE analysis requires group to contain a minimum of 3 samples each
-- Genes with low counts (TMM < 10 in all samples) are excluded from DE analysis
+- Gene Prefiltering based on [Deseq2 Documentation Prefiltering Section](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are removed if they do not have three or more samples with a read count of 10 or greater.
 - DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
 - The threshold for absolute log fold change is set to 1.5 (0.58 Log2 fold change)
 
@@ -100,12 +100,14 @@ This file contains samples with metadata/clinical variables that will be utilize
 - Second Column (**GroupID**) should contain the group identifiers.
 - All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. group1_vs_group2
 
-| SampleID | meta1      | group1_vs_group2	| group3_vs_group4	|
+| SampleID | GroupID      | treatment1_vs_control	| treatment2_vs_control	|
 | ---------| ---------- | ----------------------| ------------------------- |
-| sample1  | group1    | 0                     |							|
-| sample2  | group2  | 1                     |                        	|
-| sample3  | group3 |                		| 1                      	|
-| sample4  | group4   |    			        | 0                      	|
+| sample1  | control    | 0                     |			0				|
+| sample2  | control    | 0                     |			0				|
+| sample3  | treatment1  | 1                     |                        	|
+| sample4  | treatment1  | 1                     |                        	|
+| sample5  | treatment2 |                		| 1                      	|
+| sample6  | treatment2 |                		| 1                      	|
 
 ## Running the Script
 
