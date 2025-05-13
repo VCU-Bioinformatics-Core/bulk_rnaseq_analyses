@@ -45,7 +45,7 @@ Features:
 - DGE analysis requires group to contain a minimum of 3 samples each
 - Gene Prefiltering based on [Deseq2 Documentation Prefiltering Section](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are removed if they do not have three or more samples with a read count of 10 or greater.
 - DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
-- The threshold for absolute log fold change is set to 1.5 (0.58 Log2 fold change)
+- The threshold for absolute fold change is set to 1.5 (0.58 Log2 fold change)
 
 ## Preparing your R Environment
 
