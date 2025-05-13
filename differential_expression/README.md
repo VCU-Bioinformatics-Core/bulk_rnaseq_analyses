@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-The `de.R` script performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. It aumatically produces a R Markdown Report to summarize the results and showcase visualizations for each comparision.
+This Pipeline performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. It aumatically produces an report to summarize the results and showcase visualizations for each comparision.
 
 Features:
 - Differential gene expression analysis (DGE) using DESeq2 to identify genes that exhibit significant changes in expression levels between conditions.
@@ -14,11 +14,6 @@ Features:
 - Normalization of read counts using trimmed mean of M values (TMM).
 - Organization of results into sub-directories.
 - Support for both Human and Mouse annotations.
-
-*Note:*
-- *This script aims to perform a "first pass" analysis (as required by the VCU BISR), for custom/complex analysis please contact our core and submit a Jira ticket*
-- *Currently, this script only supports pairwise comparisons. Multiple comparisons will be supported in later versions*
-- *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the nf-core rnaseq pipeline and its output (merged counts).*
 
 ## Table of Contents
 - [Pipeline](#pipeline)
@@ -41,56 +36,32 @@ Features:
 
 <img src="https://github.com/user-attachments/assets/e03814cf-05ad-46e8-9990-57886292724d" alt="pipeline.jpg" width="40%">
 
-**Note:** 
-- DGE analysis requires group to contain a minimum of 3 samples each
-- Gene Prefiltering based on [Deseq2 Documentation Prefiltering Section](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are removed if they do not have three or more samples with a read count of 10 or greater.
+*Note:*
+- *This pipeline aims to perform a "first pass" analysis (as required by the VCU BISR), for custom/complex analysis please contact our core and [submit a Jira ticket](https://www.masseycancercenter.org/research/shared-resource-cores/bioinformatics/)*
+- Current version only supports pairwise comparisons. We aim to support DESeq2 designs with multiple comparisons in later versions.
+- To avoid complexity, i.e. overfitting of code that is tailored to parse input raw counts file from specific gene quantification tools; Users are required to remove any additional columns except **Gene id** and subsequent **sample** columns (with raw count data).
+- *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the Nextflow nf-core rnaseq pipeline and its output (merged counts).*
+- Gene Prefiltering is based on [Deseq2 Documentation Prefiltering Section](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are removed if they do not have three or more samples with a read count of 10 or greater.
 - DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
 - The threshold for absolute fold change is set to 1.5 (0.58 Log2 fold change)
 
-## Preparing your R Environment
-
-The following R packages are required to properly run this script:
-```
-- BiocManager
-- DESeq2
-- edgeR
-- clusterProfiler
-- ggplot2
-- plotly
-- org.Mm.eg.db (for mouse genome)
-- org.Hs.eg.db (for human genome)
-```
-
-To install we recommend starting an R session and using:
-```
-# install bioconductor packages
-install.packages("BiocManager")
-BiocManager::install(c("DESeq2", "edgeR", "clusterProfiler", "org.Mm.eg.db", "org.Hs.eg.db"))
-
-# install CRAN packages
-install.packages(c("ggplot2", "plotly"))
-```
-*Note: all other dependencies (will be automatically installed)*
-
 ## Preparing Your Data
-This script is compatible with the outputs from `nf-core/rnaseq` pipeline as well as output counts file from any other custom analysis. However, currently this script is only compatible with merged counts. Tp proceed further, two files are mandatory: **Raw Merged Count Matrix**, and **Samplesheet**. Each of these have a **mandatory** file name that will be described below. In addition, please pay close attention to the file format to ensure proper processing. Lastly, below each file description we provide a tabular representation of the required data as an example.
-
-**_ATTENTION: header lines are expected for all files._**
+Two input files are required with specific file formats to ensure proper processing: **Raw Merged Count Matrix**, and **Samplesheet**. Examples with tabular representation of the required data are provided below.
 
 ### 1. Raw Merged Count Matrix:
 **Required file format:** `TSV`
 
 This file contains the raw expression counts data and files with any other type of column format are automatically converted to the following format:
-- First column contains ENSEMBL gene IDs.
-- Subsequent columns with raw count data for each sample. Note: header values should be the same as the sample identifiers used in the samplesheet.
+- First column should contain gene IDs.
+- Subsequent columns with raw count data for each sample. Note: header values for these columns should be the same as the sample identifiers used in the samplesheet.
 
-| gene_id            | sample1 | sample2 | sample3 | sample4 | sample5 |
-| ------------------ | ------- | ------- | ------- | ------- | ------- |
-| ENSMUSG00000000001 | 1234    | 2345    | 3456    | 4567    | 5678    |
-| ENSMUSG00000000002 | 2345    | 3456    | 4567    | 5678    | 6789    |
-| ENSMUSG00000000003 | 3456    | 4567    | 5678    | 6789    | 7890    |
-| ENSMUSG00000000004 | 4567    | 5678    | 6789    | 7890    | 8901    |
-| ENSMUSG00000000005 | 5678    | 6789    | 7890    | 8901    | 9012    |
+| gene_id            | sample1_r1 | sample1_r2 | sample1_r3 | sample2_r1 | sample2_r1 | sample2_r2 | sample2_r3 | sample3_r1 | sample3_r2 | sample3_r3 | sample4_r1 | sample4_r2 | sample4_r3 |
+| ------------------ | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
+| ENSMUSG00000000001 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
+| ENSMUSG00000000002 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
+| ENSMUSG00000000003 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
+| ENSMUSG00000000004 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
+| ENSMUSG00000000005 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
   
 ### 2. Samplesheet:
 **required file format:** `CSV`
@@ -100,31 +71,25 @@ This file contains samples with metadata/clinical variables that will be utilize
 - Second Column (**GroupID**) should contain the group identifiers.
 - All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. group1_vs_group2
 
-| SampleID | GroupID      | treatment1_vs_control	| treatment2_vs_control	|
-| ---------| ---------- | ----------------------| ------------------------- |
-| sample1  | control    | 0                     |			0				|
-| sample2  | control    | 0                     |			0				|
-| sample3  | treatment1  | 1                     |                        	|
-| sample4  | treatment1  | 1                     |                        	|
-| sample5  | treatment2 |                		| 1                      	|
-| sample6  | treatment2 |                		| 1                      	|
+| SampleID | GroupID      | experimental1_vs_control1	| experimental2_vs_control2	|
+| -------- | ------------ | ------------------------- | ------------------------- |
+| sample1_r1  | experimental1    | 1                  |              							|
+| sample1_r2  | experimental1    | 1                  |							              |
+| sample1_r3  | experimental1    | 1                  |							              |
+| sample2_r1  | control1  | 0                 |                        	|
+| sample2_r2  | control1  | 0                 |                        	|
+| sample2_r3  | control1  | 0                 |                        	|
+| sample3_r1  | experimental2 |                		    | 1                      	|
+| sample3_r2  | experimental2 |                		    | 1                      	|
+| sample3_r3  | experimental2 |                		    | 1                      	|
+| sample4_r1  | control2 |                		| 0                      	|
+| sample4_r2  | control2 |                		| 0                      	|
+| sample4_r3  | control2 |                		| 0                      	|
+
 
 ## Running the Script
 
-To run the script on VCU HPRC (high performance research computing servers) we require the following commands:
-
-```bash
-
-module load R/4.4.1
-
-Rscript de.R \
---counts path/to/counts.tsv \
---samplesheet path/to/samplesheet.csv \
---outdir path/to/output \
---runid analysis_name \
---annotation mouse
-
-```
+Please refer to example commands below if you choose to run the pipeline on VCU HPRC (high performance research computing servers):
 
 ### Arguments
 
@@ -138,45 +103,43 @@ Rscript de.R \
 
 - `-a, --annotation`: Genome to use for annotation: 'mouse' or 'human' (default: mouse)  
 
-
-### Example Commands
-
 #### Mouse Analysis
 
 ```bash
+module load R/4.4.1
 
 Rscript de.R \
 --counts mouse_counts.tsv \
 --samplesheet samplesheet.csv \
 --outdir mouse_results \
 --runid mouse_experiment \
---genome mouse
-
+--annotation mouse
 ```
   
 #### Human Analysis
 
 ```bash
+module load R/4.4.1
 
 Rscript de.R \
 --counts human_counts.tsv \
 --samplesheet samplesheet.csv \
 --outdir human_results \
 --runid human_experiment \
---genome human
-
+--annotation human
 ```
 
 ## Understanding the Outputs
 
-The output is produced within the `output` folder of this project directory and contains 3 main subdirectories.
-- **de_data**: contains each DESeq2 analysis with TMM normalize data stored within `normalizedCounts_TMM[date].csv` and results for each DESeq2 analysis within files called `DESeq2_[comparison].csv`
-- **gsea_data**: contains GO analysis for each comparison within `GO_Analysis_[comparison].csv` files
-- **figures**: contains subdirectories for different visualization generated for each comparison
+An output directory is automatically created with the name specfied with the `--outdir` command line argument. You can also provide an absolute path here with the output directory name in the end. For eg. `/lustre/home/lab/projects/project_name/outputs`, where the `outdir` name is "outputs". All the outputs are stored and organized into 3 main subdirectories.
+- **data_frames**: contains subdirectories for DGE and GSEA output dataframes.
+  - **de_data**: contains DESeq2 results data frame for each comparision `DESeq2_[comparison].csv` and TMM normalized counts stored within `normalizedCounts_TMM[date].csv`.
+  - **gsea_data**: contains GSEA-GO results data frame `GO_Analysis_[comparison].csv` for each comparision if processed succesfully.
+- **figures**: contains subdirectories for several visualizations generated for each comparison.
   - **volcano**: for each comparison, contains a volcano plot named `[comparison]volcano.png`
   - **heatmap**: for each comparison, contains a heatmap named `[comparison]heatmap.png`
-  - **gsea**: for each comparison, contains the gsea results named `[comparison]GSEA.png`
-  - **pca**: pca representations of the data
+  - **gsea**: for each comparison, contains the gsea dot plot named `[comparison]GSEA.png`
+  - **pca**: pca plots of the data, including a simple labeled PCA plot, an html interactive PCA plot 
 
 Below is the output tree structure you can expect:
 ```
