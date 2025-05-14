@@ -69,19 +69,19 @@ This file contains the raw expression counts data and files with any other type 
 This file contains samples with metadata/clinical variables that will be utilized for DEG analysis. The columns should be organised exactly in the same order exemplified below.
 - First Column (**SampleID**) should contain sample identifiers that correspond with sample column names after the **gene_id** column of the count matrix.
 - Second Column (**GroupID**) should contain the group identifiers.
-- All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. group1_vs_group2
+- All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment/experiment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. experiment_vs_control
 
-| SampleID | GroupID      | experimental1_vs_control1	| experimental2_vs_control2	|
+| SampleID | GroupID      | experiment1_vs_control1	| experiment2_vs_control2	|
 | -------- | ------------ | ------------------------- | ------------------------- |
-| sample1_r1  | experimental1    | 1                  |              							|
-| sample1_r2  | experimental1    | 1                  |							              |
-| sample1_r3  | experimental1    | 1                  |							              |
+| sample1_r1  | experiment1    | 1                  |              							|
+| sample1_r2  | experiment1    | 1                  |							              |
+| sample1_r3  | experiment1    | 1                  |							              |
 | sample2_r1  | control1  | 0                 |                        	|
 | sample2_r2  | control1  | 0                 |                        	|
 | sample2_r3  | control1  | 0                 |                        	|
-| sample3_r1  | experimental2 |                		    | 1                      	|
-| sample3_r2  | experimental2 |                		    | 1                      	|
-| sample3_r3  | experimental2 |                		    | 1                      	|
+| sample3_r1  | experiment2 |                		    | 1                      	|
+| sample3_r2  | experiment2 |                		    | 1                      	|
+| sample3_r3  | experiment2 |                		    | 1                      	|
 | sample4_r1  | control2 |                		| 0                      	|
 | sample4_r2  | control2 |                		| 0                      	|
 | sample4_r3  | control2 |                		| 0                      	|
@@ -131,7 +131,7 @@ Rscript de.R \
 
 ## Understanding the Outputs
 
-An output directory is automatically created with the name specfied with the `--outdir` command line argument. You can also provide an absolute path here with the output directory name in the end. For eg. `/lustre/home/lab/projects/project_name/outputs`, where the `outdir` name is "outputs". All the outputs are stored and organized into 3 main subdirectories.
+An output directory is automatically created with the name specfied with the `--outdir` command line argument. You can also provide an absolute path here with the desired output directory name in the end. For eg. `/lustre/home/lab/projects/project_name/outputs`, where the `outdir` name is "outputs". All the outputs are stored and organized into 2 main subdirectories.
 - **data_frames**: contains subdirectories for DGE and GSEA output dataframes.
   - **de_data**: contains DESeq2 results data frame for each comparision `DESeq2_[comparison].csv` and TMM normalized counts stored within `normalizedCounts_TMM[date].csv`.
   - **gsea_data**: contains GSEA-GO results data frame `GO_Analysis_[comparison].csv` for each comparision if processed succesfully.
