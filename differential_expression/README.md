@@ -144,12 +144,12 @@ An output directory is automatically created with the name specfied with the `--
 Below is the output tree structure you can expect:
 ```
 output/
-├── de_data/
-│ ├── DESeq2_[comparison].csv
-│ └── normalizedCounts_TMM[date].csv
-├── gsea_data/
-│ └── GO_Analysis_[comparison].csv
-└── figures/
+  ├── de_data/
+  │ ├── DESeq2_[comparison].csv
+  │ └── normalizedCounts_TMM[date].csv
+  ├── gsea_data/
+  │ └── GO_Analysis_[comparison].csv
+  └── figures/
 ├── volcano/
 │ └── [comparison]volcano.png
 ├── heatmap/
