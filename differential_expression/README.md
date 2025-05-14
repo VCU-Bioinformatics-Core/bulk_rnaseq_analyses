@@ -1,59 +1,18 @@
 # Differential Expression Analysis Pipeline
 
-This Pipeline performs Differential Expression Analysis for RNA-seq data using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and performs additional auxiliary analyses. It aumatically produces an report to summarize the results and showcase visualizations for each comparision.
+## Introduction
+This pipeline performs differential gene expression (DGE) analysis of RNA-seq count data using the DESeq2 R package (Love et al., 2014). It is designed to provide a streamlined, reproducible workflow for identifying genes with statistically significant expression differences between experimental conditions. The pipeline incorporates best-practice recommendations for RNA-seq data analysis, including normalization, dispersion estimation, and hypothesis testing.  It automatically generates a comprehensive report with key visualizations for each specified comparison, along with auxiliary analyses such as Gene Set Enrichment Analysis (GSEA) and Principal Component Analysis (PCA) for sample exploration.
 
-Features:
-- Differential gene expression analysis (DGE) using DESeq2 to identify genes that exhibit significant changes in expression levels between conditions.
-  - Automated DESeq2 dds design based on parsing of contrasts specified in the samplesheet.  
-- Gene Set Enrichment Analysis (GSEA) to identify significantly enriched or depleted groups of genes.
-- Principal Component Analysis (PCA) to facilitate sample exploration.
-- Visualizations for each comparision:
-  - Volcano Plots of Differential Expression results.
-  - Heatmaps of Zscores using normalized counts for the top differentially expressed genes.
-  - PCA plots (2D and 3D interactive versions).
-- Normalization of read counts using trimmed mean of M values (TMM).
-- Organization of results into sub-directories.
-- Support for both Human and Mouse annotations.
+*Note: This pipeline is intended for a "first pass" analysis. For custom or complex analyses, please contact our core and [submit a Jira ticket](https://www.masseycancercenter.org/research/shared-resource-cores/bioinformatics/)*
 
-## Table of Contents
-- [Pipeline](#pipeline)
-- [Preparing your R Environment](#preparing-your-r-environment)
-- [Preparing Your Data](#preparing-your-data)
-  - [1. Count Matrix](#1-count-matrix)
-  - [2. Samplesheet](#2-samplesheet)
-- [Running the Script](#running-the-script)
-  - [Arguments](#arguments)
-  - [Example Commands](#example-commands)
-- [Understanding the Outputs](#understanding-the-outputs)
-  - [DESeq2 Results](#deseq2-results)
-  - [GSEA Results](#gsea-results)
-  - [Figures/Visualizations](#figuresvisualizations)
-- [Future Improvements](#future-improvements)
-- [License](#license)
-- [Contact](#contact)
+## Usage
 
-## Pipeline
+### Preparing Your Data
+Two input files are required in specific formats: the **Raw Merged Count Matrix** and the **Samplesheet**.
 
-<img src="https://github.com/user-attachments/assets/e03814cf-05ad-46e8-9990-57886292724d" alt="pipeline.jpg" width="40%">
-
-*Note:*
-- *This pipeline aims to perform a "first pass" analysis (as required by the VCU BISR), for custom/complex analysis please contact our core and [submit a Jira ticket](https://www.masseycancercenter.org/research/shared-resource-cores/bioinformatics/)*
-- Current version only supports pairwise comparisons. We aim to support DESeq2 designs with multiple comparisons in later versions.
-- To avoid complexity, i.e. overfitting of code that is tailored to parse input raw counts file from specific gene quantification tools; Users are required to remove any additional columns except **Gene id** and subsequent **sample** columns (with raw count data).
-- *We are actively developing this script to handle count data from any source. However, at this stage, the script works best in conjunction with the Nextflow nf-core rnaseq pipeline and its output (merged counts).*
-- Gene Prefiltering is based on [Deseq2 Documentation Prefiltering Section](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are removed if they do not have three or more samples with a read count of 10 or greater.
-- DE results are considered significant when the adjusted P-value, calculated using the Benjamini-Hochberg correction, is less than or equal to 0.05
-- The threshold for absolute fold change is set to 1.5 (0.58 Log2 fold change)
-
-## Preparing Your Data
-Two input files are required with specific file formats to ensure proper processing: **Raw Merged Count Matrix**, and **Samplesheet**. Examples with tabular representation of the required data are provided below.
-
-### 1. Raw Merged Count Matrix:
-**Required file format:** `TSV`
-
-This file contains the raw expression counts data and files with any other type of column format are automatically converted to the following format:
-- First column should contain gene IDs.
-- Subsequent columns with raw count data for each sample. Note: header values for these columns should be the same as the sample identifiers used in the samplesheet.
+#### 1. Raw Merged Count Matrix
+**Required format:** Tab-Separated Values (`.tsv`)
+This file contains the raw merged gene expression counts. The first column must contain gene identifiers (`gene_id`), and subsequent columns should contain the raw count data for each sample. The `header` values for these sample columns must match the sample identifiers (`SampleID`) used in the samplesheet. The pipeline expects integer counts, as is typical for RNA-seq data. While the script has the functionality to automatically parse and handle count data from various quantification tools, the users are still responsible to remove any additional columns besides the gene IDs and sample counts. It currently works best with the merged counts output from pipelines like [`nf-core's rnaseq Nextflow pipeline`](https://nf-co.re/rnaseq).
 
 | gene_id            | sample1_r1 | sample1_r2 | sample1_r3 | sample2_r1 | sample2_r1 | sample2_r2 | sample2_r3 | sample3_r1 | sample3_r2 | sample3_r3 | sample4_r1 | sample4_r2 | sample4_r3 |
 | ------------------ | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
@@ -64,12 +23,12 @@ This file contains the raw expression counts data and files with any other type 
 | ENSMUSG00000000005 | 1234 | 2345 | 3456 | 4567 | 5678 | 6789 | 2345 | 3456 | 4567 | 5678 | 3456 | 4567 |
   
 ### 2. Samplesheet:
-**required file format:** `CSV`
-
-This file contains samples with metadata/clinical variables that will be utilized for DEG analysis. The columns should be organised exactly in the same order exemplified below.
-- First Column (**SampleID**) should contain sample identifiers that correspond with sample column names after the **gene_id** column of the count matrix.
-- Second Column (**GroupID**) should contain the group identifiers.
-- All subsequent columns are dedicated comparisons (rows for these columns should be a binary value, representing `1` for the treatment/experiment group, `0` for the control, and `blank` if the given sample needs to be ignored for the current comparison). These comparison columns are expected to follow the naming convention exemplified below; i.e. experiment_vs_control
+**Required format:** Comma-Separated Values (`CSV`)
+This file contains metadata for each sample, including group identifiers and binary indicators for specific comparisons. The columns must be organized as follows:
+- **SampleID:** Sample identifiers that exactly match the sample column headers in the count matrix.
+- **GroupID:** Group identifiers for each sample (e.g., `experiment1`, `control1`). These group identifiers are crucial for defining the experimental design in DESeq2.
+- [comparison]: Subsequent columns define pairwise comparisons. The column name should follow the format `experiment_vs_control`. For each comparison column, use `1` to indicate samples belonging to the experimental group,
+  `0` for the control group, and leave the cell `blank` for samples to be excluded from that specific comparison. This design matrix setup allows the user to specify which samples are used for each comparison, providing flexibility in complex experimental designs.
 
 | SampleID | GroupID      | experiment1_vs_control1	| experiment2_vs_control2	|
 | -------- | ------------ | ------------------------- | ------------------------- |
@@ -87,11 +46,11 @@ This file contains samples with metadata/clinical variables that will be utilize
 | sample4_r3  | control2 |                		| 0                      	|
 
 
-## Running the Script
+### Running the Script
 
-Please refer to example commands below if you choose to run the pipeline on VCU HPRC (high performance research computing servers):
+The pipeline is executed using an R script. Here are example commands for running it on VCU HPRC: (high performance research computing servers):
 
-### Arguments
+#### Arguments
 
 - `-c, --counts`: Path to the merged counts file **(Mandatory)**
 
@@ -129,43 +88,35 @@ Rscript de.R \
 --annotation human
 ```
 
-## Understanding the Outputs
+## Pipeline Output
+The pipeline generates an output directory (specified by `--outdir`) containing two main subdirectories: `data_frames` and `figures`.
 
-An output directory is automatically created with the name specfied with the `--outdir` command line argument. You can also provide an absolute path here with the desired output directory name in the end. For eg. `/lustre/home/lab/projects/project_name/outputs`, where the `outdir` name is "outputs". All the outputs are stored and organized into 2 main subdirectories.
-- **data_frames**: contains subdirectories for DGE and GSEA output dataframes.
-  - **de_data**: contains DESeq2 results data frame for each comparision `DESeq2_[comparison].csv` and TMM normalized counts stored within `normalizedCounts_TMM[date].csv`.
-  - **gsea_data**: contains GSEA-GO results data frame `GO_Analysis_[comparison].csv` for each comparision if processed succesfully.
-- **figures**: contains subdirectories for several visualizations generated for each comparison.
-  - **volcano**: for each comparison, contains a volcano plot named `[comparison]volcano.png`
-  - **heatmap**: for each comparison, contains a heatmap named `[comparison]heatmap.png`
-  - **gsea**: for each comparison, contains the gsea dot plot named `[comparison]GSEA.png`
-  - **pca**: pca plots of the data, including a simple labeled PCA plot, an html interactive PCA plot 
-
-Below is the output tree structure you can expect:
 ```
 output/
-  ├── de_data/
-  │ ├── DESeq2_[comparison].csv
-  │ └── normalizedCounts_TMM[date].csv
-  ├── gsea_data/
-  │ └── GO_Analysis_[comparison].csv
-  └── figures/
-├── volcano/
-│ └── [comparison]volcano.png
-├── heatmap/
-│ └── [comparison]heatmap.png
-├── gsea/
-│ └── [comparison]GSEA.png
-└── pca/
-├── PCA_plot.png
-├── allsamples_PCA_plot.pdf
-└── allsamples_PCA_plot3D.pdf
+├── data_frames/
+│   ├── de_data/
+│   │   ├── DESeq2_[comparison].csv
+│   │   └── normalizedCounts_TMM[date].csv
+│   └── gsea_data/
+│       └── GO_Analysis_[comparison].csv
+└── figures/
+    ├── volcano/
+    │   └── [comparison]volcano.png
+    ├── heatmap/
+    │   └── [comparison]heatmap.png
+    ├── gsea/
+    │   └── [comparison]GSEA.png
+    └── pca/
+        ├── PCA_plot.png
+        ├── allsamples_PCA_plot.html
+        └── allsamples_PCA_plot3D.html
 ```
 
-In the next section we will dive into the meaning and interpretation of each result.
+### data_frames
+This directory contains output data frames organized into subdirectories for DGE and GSEA results.
 
-### DESeq2 Results
-- **DESeq2_[comparison].csv:** Contains differential expression statistics:
+#### de_data
+DESeq_[comparison].csv: Contains the differential expression results from DESeq2 for each specified comparison. The columns include:
 
 | Gene ID      | baseMean  | log2FoldChange | lfcSE   | stat      | pvalue   | padj     |
 |--------------|-----------|----------------|---------|-----------|----------|----------|
@@ -175,7 +126,17 @@ In the next section we will dive into the meaning and interpretation of each res
 | ...      | ...       | ...            | ...     | ...       | ...      | ...      | 
 | ENSG00N  | 4863.807  | 0.0179729      | 0.194137| 0.0925784 | 0.9262385| 0.986726 |
 
-- **normalizedCounts_TMM[date].csv:** Contains TMM normalized counts
+Where:
+- `gene_id`:  The unique gene identifier.
+- `baseMean`: The average normalized expression count for the gene across all samples.
+- `log2FoldChange`: The log2 of the fold change in expression between the two groups being compared.  A positive value indicates higher expression in the experimental group, while a negative value indicates higher expression in the control group.
+- `lfcSE`: The standard error of the log2 fold change estimate.
+- `stat`: The Wald statistic used for testing the null hypothesis of no differential expression.
+- `pvalue`: The raw p-value associated with the Wald statistic.
+- `padj`: The Benjamini-Hochberg adjusted p-value, which corrects for multiple testing.
+
+#### normalizedCounts_TMM[date].csv:
+Contains the read counts normalized using the Trimmed Mean of M-values (TMM) method. TMM normalization is performed using the edgeR package (Robinson et al., 2010) to account for differences in library size and RNA composition between samples. The date is appended to the filename for version control.
 
 | col 1 | col2 |
 | ----- | ---- |
@@ -183,8 +144,8 @@ In the next section we will dive into the meaning and interpretation of each res
 | ...   | ...  |
 | y     | z    |
 
-### GSEA Results
-- **GO_Analysis_[comparison].csv:** Results for gene set enrichment analysis
+#### gsea_data
+**GO_Analysis_[comparison].csv:** Contains the results of the Gene Set Enrichment Analysis (GSEA) using Gene Ontology (GO) terms for each comparison. GSEA is performed using a suitable R package (e.g., clusterProfiler) to identify enriched GO terms among the differentially expressed genes. This analysis is skipped for a comparison if the Gene Set identified doesnot have enough genes. 
 
 | col 1 | col2 |
 | ----- | ---- |
@@ -192,42 +153,51 @@ In the next section we will dive into the meaning and interpretation of each res
 | ...   | ...  |
 | y     | z    |
 
-### Figures/Visualizations
 
-- **[comparison]volcano.png:**
+### figures
+This directory contains various visualizations generated for each comparison.
 
-<img src="https://github.com/user-attachments/assets/74671325-89ff-4108-a8b1-8ef0d2471bbd" alt="volcano.png" width="40%">
+#### volcano
+**[comparison]volcano.png:** A volcano plot displaying the log2 fold change against the negative logarithm (base 10) of the adjusted p-value for each gene in the differential expression results. This plot allows for a quick visual assessment of both the magnitude of differential expression and its statistical significance. Genes with large log2 fold changes and low adjusted p-values (i.e., in the upper corners of the plot) are considered as the most interesting candidates.
+<img src="https://github.com/user-attachments/assets/d836815e-2ce3-498a-886e-cf8aaa2321e0" alt="volcano.png" width="71%">
 
-- **[comparison]heatmap.png:**
+#### heatmap
+**[comparison]heatmap.png:** A heatmap visualizing the expression patterns of the top differentially expressed genes (based on adjusted p-value) across samples. The expression values are typically represented as Z-scores, which normalize the expression of each gene across samples to have a mean of 0 and a standard deviation of 1. This helps to visualize relative expression differences for each gene. The heatmap provides a visual overview of how gene expression varies across different experimental conditions.
+<img src="https://github.com/user-attachments/assets/ca974706-7d28-4647-95dd-3ecfb59a93db" alt="heatmap.png" width="71%">
 
-<img src="https://github.com/user-attachments/assets/1e87ceaa-d2eb-4f68-8b9a-8e4142d4a6e1" alt="heatmap.png" width="40%">
 
-- **[comparison]GSEA.png:**
+#### gsea
+**[comparison]GSEA.png:** A dot plot summarizing the Gene Set Enrichment Analysis (GSEA) results, showing enriched GO terms and their significance. The size and color of the dots represent the normalized enrichment score and adjusted p-value, respectively.
+<img src="https://github.com/user-attachments/assets/e8128497-2ef7-4d48-9ca3-249a50b25eef" alt="exp_vs_cntrl_GSEA" width="71%">
 
-<img src="https://github.com/user-attachments/assets/f4b7f84b-9d7e-4303-b0d4-cfa5fc87f2f6" alt="gsea.png" width="40%">
 
-**PCA**
-- Static 2D plot
+#### pca
+**PCA Plots:** Principal Component Analysis (PCA) plots showing the relationships between samples based on their gene expression profiles. PCA is used to reduce the dimensionality of the data and visualize the primary sources of variation in gene expression. The pipeline generates:
 
+- A static 2D plot
+<img src="https://github.com/user-attachments/assets/617de511-83a2-4b75-8085-65d084119e43" alt="pca.jpg" width="71%">
+
+- An Interactive 2D plot (HTML format) that allows for sample labeling and exploration.
 <img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
 
-- Interactive 2D plot
-
+- An interactive 3D PCA plot, providing a three-dimensional view of sample relationships.
 <img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
 
-- Interactive 3D plot
+These plots help to assess the overall quality of the data, identify potential outliers, and visualize the separation of samples according to experimental conditions.
 
-<img src="https://external-preview.redd.it/sS_GFhS_OsMz6x0euch2EmKFeGKHjF2vzWpxguw6U0s.jpg?auto=webp&s=d121e3bb7d19edaeef99db3a098242a4443fb9f3" alt="pca.jpg" width="40%">
+## Limitations
+- This pipeline currently supports only pairwise comparisons. Support for more complex designs with multiple comparisons with covariates and contrast matrices will be added in future versions. This is a limitation for experiments with more than two conditions.
+- The pipeline works best with merged count matrices generated from pipelines like [`nf-core's rnaseq Nextflow pipeline`](https://nf-co.re/rnaseq). While the script is being developed to handle count data from any source, users may need to pre-format their count matrices accordingly. Specifically, the matrix should have a `gene_id` column, with subsequent columns containing raw counts for each sample.
+- Gene prefiltering is performed as described in the [DESeq2 documentation](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html): Genes are excluded if they do not have three or more samples with a read count of 10 or greater. This step aims to remove genes with very low expression, which can reduce the memory size of the dds data object, and increase the speed of count modeling within DESeq2.
+- Differential expression results are considered significant if the Benjamini-Hochberg adjusted p-value (padj) is less than or equal to 0.05 and the absolute log2 fold change is greater than 0.58 (corresponding to an absolute fold change of 1.5).
 
 ## Future Improvements
-
-- Add support for EdgeR package to perform differential expression analysis.
-- Add functionality to perform analysis using multi-comparison a contrast matrix as well as covariates.
-- Add KEGG analysis module.
+- Add support for the EdgeR package for differential expression analysis. DESeq2 and edgeR are both popular packages for DGE analysis, and providing both options would increase user flexibility.
+- Implement functionality to perform analyses using a contrast matrix, multi-factor designs and covariates.  This would allow for the analysis of more complex experimental designs, including those with multiple factors and batch effects.
+- Incorporate a KEGG pathway analysis module. This would provide additional biological context for the DGE results by identifying enriched KEGG pathways.
   
 ## Contact
-
-If you need to reach the BISR group please email us at: [mccbioinfo@vcu.edu] or open a Github Issue to this repo.
+For questions or issues, please contact the BISR group at [mccbioinfo@vcu.edu] or open a GitHub issue in the repository.
 
 ## License
 
