@@ -3,3 +3,7 @@
 differential_ex.zip
 differential_expression/output/
 *.html
+differential_expression/analysis.rds
+differential_expression/rnaseq_analysis_20250507_124739.Rmd
+differential_expression/rsemtest_out1/
+
