@@ -72,7 +72,7 @@ if (debug){
   runID <- "test_run"
   countData <- "./rsem.merged.gene_counts.tsv"
   samplesheetData <- "./samplesheet.csv"
-  outDir <- "./draft_output"
+  outDir <- "./test_output"
   annotation <- "mouse" # or "human"
 }
 
@@ -466,8 +466,8 @@ run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
 #' @param base_dir Base directory path where subdirectories will be created
 #' @return List of created directory paths
 #' @details Creates the following subdirectories:
-#' - output/de_data: For differential expression results
-#' - output/gsea_data: For GSEA results
+#' - data/de_data: For differential expression results
+#' - data/gsea_data: For GSEA results
 #' - figures/volcano: For volcano plots
 #' - figures/heatmap: For heatmap plots
 #' - figures/gsea: For GSEA plots
@@ -475,10 +475,10 @@ run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
 #' @export
 setup_directories <- function(base_dir) {
   dirs <- list(
-    output = file.path(base_dir, "output"),
+    data = file.path(base_dir, "data"),
     figures = file.path(base_dir, "figures"),
-    de_data = file.path(base_dir, "output/de_data"),
-    gsea_data = file.path(base_dir, "output/gsea_data"),
+    de_data = file.path(base_dir, "data/de_data"),
+    gsea_data = file.path(base_dir, "data/gsea_data"),
     volcano = file.path(base_dir, "figures/volcano"),
     heatmap = file.path(base_dir, "figures/heatmap"),
     gsea = file.path(base_dir, "figures/gsea"),
