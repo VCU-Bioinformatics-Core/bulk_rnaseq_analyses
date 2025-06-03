@@ -31,7 +31,8 @@ This is a bioinformatics pipeline that performs differential gene expression ana
 - [References](#references)
 
 ## Pipeline
-<img width="2203" alt="pipeline" src="https://github.com/user-attachments/assets/9b114f42-72f4-4d43-ab87-af1f0acc7d72" />
+![colored_pipeline_nums](https://github.com/user-attachments/assets/3a8c49cb-4258-4674-9011-f8d85e3401e0)
+
 
 1. The input Samplesheet is parsed to generate contrasts definitions in the form of a comparisons list.
 2. Runs differential analysis over all contrasts specified using [DESeq2 R package 1.44.0](https://doi.org/10.1186/s13059-014-0550-8).
