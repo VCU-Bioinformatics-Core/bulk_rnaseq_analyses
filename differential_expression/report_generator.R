@@ -368,7 +368,7 @@ if (!is.null(results[[{i}]]) && !is.null(results[[{i}]]$gsea)) {{
   }
 
 
-  ipa_content <- '\n
+extra_content <- '\n
 ## Utilizing IPA
 
 The CSV Differential Expression output from DESeq2 (available in the results directory
@@ -383,8 +383,41 @@ credentials here: **https://analysis.ingenuity.com/pa** and follow the instructi
 We host an annual hands-on training for IPA at the beginning of the fall semester. Please
 email BISR if you would like to be a part of this training. In the meantime, QIAGEN has a
 playlist of user-friendly tutorials available on Youtube titled “QIAGEN IPA Training
-Videos” the **Qiagen Digital Insights Youtube** page.'
-  rmd_content <- paste0(rmd_content, ipa_content)
+Videos” the **Qiagen Digital Insights Youtube** page.
+
+## Manuscript-Ready Text
+
+### Methods
+Raw RNA-Seq fastq files were processed by the VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR) using the NextFlow nf-core/rnaseq v3.18.0 pipeline [1]. Briefly, this pipeline assesses sequencing quality using FastQC v 0.12.1 [2] before and after trimming, performs adaptor trimming with Trim Galore! v0.6.10 [3], and aligns sequencing reads to the GRCh38 human primary assembly reference genome using STAR v 2.7.11b [4] with transcriptome quantification by Salmon v1.10.3 [5].  Pipeline output includes gene expression raw count data and a comprehensive QC report compiled by MultiQC v1.25.1 [6].
+Differential expression analysis was performed using DESeq2 v 1.44.0 [7]. Lowly expressed genes were filtered out per DESeq2 methods [7] prior to normalization and differential expression testing. Significance was calculated using the Wald-test and adjusted using Benjamini Hochberg False Discovery Rate (FDR). Volcano plots and heatmaps were generated using the EdgeR TMM normalized count data and visualized using R packages. Significant differentially expressed genes (DEGs) are defined as those with an FDR<0.05 and absolute fold-change of 1.5 (log2 fold-change = 0.58) or greater. Gene Set Enrichment Analysis (GSEA) [8] for Gene Ontology terms (GO) was performed using the clusterProfiler package [9] across all genes, regardless of significance. All computational analyses were performed on VCU’s High Performance Research Computing cluster.
+
+### References
+1) Ewels P, Peltzer A, Fillinger S, Patel H, Alneberg J, Wilm A, Garcia MU, Di Tommaso P, Nahnsen S. The nf-core framework for community-curated bioinformatics pipelines. Nat Biotechnol. 2020 Feb 13. doi:10.1038/s41587-020-0439-x 
+Andrews S. FastQC: A Quality Control Tool for High Throughput Sequence Data. Babraham Bioinformatics; 2010. Accessed June 18, 2025. https://www.bioinformatics.babraham.ac.uk/projects/fastqc/.
+
+2) Krueger F. Trim Galore! v0.6.10. 2023. Available at: https://github.com/FelixKrueger/TrimGalore. Accessed June 18, 2025.
+
+3) Dobin A, Davis CA, Schlesinger F, Drenkow J, Zaleski C, Jha S, Batut P, Chaisson M, Gingeras TR. STAR: ultrafast universal RNA-seq aligner. Bioinformatics. 2013 Jan 1;29(1):15-21. doi: 10.1093/bioinformatics/bts635
+
+4) Patro, R., Duggal, G., Love, M.I., Irizarry, R.A., Kingsford, C., 2017. Salmon provides fast and bias-aware quantification of transcript expression. Nat. Methods 14, 417–419. https://doi.org/10.1038/nmeth.4197
+
+5) Ewels, P., Magnusson, M., Lundin, S., Käller, M., 2016. MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics 32, 3047–3048. https://doi.org/10.1093/bioinformatics/btw354
+
+6) Love, M.I., Huber, W., Anders, S., 2014. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biology 15, 550. https://doi.org/10.1186/s13059-014-0550-8
+
+7) A. Subramanian, P. Tamayo, V.K. Mootha, S. Mukherjee, B.L. Ebert, M.A. Gillette, A. Paulovich, S.L. Pomeroy, T.R. Golub, E.S. Lander, & J.P. Mesirov, Gene set enrichment analysis: A knowledge-based approach for interpreting genome-wide expression profiles, Proc. Natl. Acad. Sci. U.S.A. 102 (43) 15545-15550, https://doi.org/10.1073/pnas.0506580102 (2005).
+
+8) Yu G, Wang LG, Han Y, He QY. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS. 2012 May;16(5):284-7. doi: 10.1089/omi.2011.0118. Epub 2012 Mar 28. PMID: 22455463; PMCID: PMC3339379.
+
+### Required Acknowledgements
+
+Please include the following statements in your acknowledgements manuscript section:
+
+- “Services in support of the research project were provided by the VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource. Massey is supported, in part, with funding from NIH-NCI Cancer Center Support Grant P30 CA016059.”
+
+- “High Performance Computing resources provided by the High Performance Research Computing (HPRC) core facility at Virginia Commonwealth University (https://hprc.vcu.edu) were used for conducting the research reported in this work.”  
+'
+  rmd_content <- paste0(rmd_content, extra_content)
   
 
   # Write the R Markdown file
