@@ -4,6 +4,7 @@
 library(rmarkdown)
 library(knitr)
 library(dplyr)
+library(glue)
 
 # Function to generate automated R Markdown report
 # source("report_generator.R"); generate_report('analysis.rds', output_dir = getwd())
@@ -360,9 +361,31 @@ if (!is.null(results[[{i}]]) && !is.null(results[[{i}]]$gsea)) {{
 }} else {{
   cat("No GSEA results available for this comparison")
 }}
+
 ```')
+    
     rmd_content <- paste0(rmd_content, comparison_section)
   }
+
+
+  ipa_content <- '\n
+## Utilizing IPA
+
+The CSV Differential Expression output from DESeq2 (available in the results directory
+provided alongside this report *./output/de_data/DESeq2_[comparison_name].csv*), can be
+uploaded directly into **QIAGEN Ingenuity Pathway Analysis (IPA)** for self-exploration of
+pathways predicted to be enriched by this experimental condition. Massey’s BISR provides
+access to VCU’s license of IPA. If you do not already have an account associated with this
+license, you may reach out to **morecockcm@vcu.edu** with your name, VCU health or VCU
+email, and request for IPA. To perform a core expression analysis, login with your
+credentials here: **https://analysis.ingenuity.com/pa** and follow the instructions [here](https://qiagen.my.salesforce-sites.com/KnowledgeBase/KnowledgeNavigatorPage?id=kA41i000000L6rMCAS).
+
+We host an annual hands-on training for IPA at the beginning of the fall semester. Please
+email BISR if you would like to be a part of this training. In the meantime, QIAGEN has a
+playlist of user-friendly tutorials available on Youtube titled “QIAGEN IPA Training
+Videos” the **Qiagen Digital Insights Youtube** page.'
+  rmd_content <- paste0(rmd_content, ipa_content)
+  
 
   # Write the R Markdown file
   fn <- glue('{report_prefix}_{timestamp}.Rmd')
