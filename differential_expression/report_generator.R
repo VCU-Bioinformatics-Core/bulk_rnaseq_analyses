@@ -31,6 +31,10 @@ generate_report <- function(analysis_results_path, output_dir = "./", report_pre
   results <- rds_data[[1]]
   comparisons <- rds_data[[2]]
   out_dirs <- rds_data[[3]]
+  pca_plot <- rds_data[[4]]
+  pca_plotly <- rds_data[[5]]
+  pca_3d <- rds_data[[6]]
+  annotation <- rds_data[[7]]
   
   # calculate the current date
   date <- format(Sys.time(), "%B %d, %Y")
@@ -67,6 +71,7 @@ out_dirs <- rds_data[[3]]
 pca_plot <- rds_data[[4]]
 pca_plotly <- rds_data[[5]]
 pca_3d <- rds_data[[6]]
+annotation <- rds_data[[7]]
 ```
 
 ## Overview
@@ -74,8 +79,8 @@ pca_3d <- rds_data[[6]]
 **Analyst: {analyst}**
 
 This report contains the results of differential expression analysis for `r length(comparisons)` comparisons.
-We start with the **Sample Exploration using PCA** section that tries to identify major
-trends and potential batch effects in the data. From there, we present the
+It starts with the **Sample Exploration using PCA** section that highlights sample similarity and
+helps to explore and understand the relationships between samples. Next, we present the
 **Differential Expression Results** section with subsections for each comparison (more details
 below). For further exploration of the results, please refer to the output directories
 containing the raw data files.
@@ -85,12 +90,12 @@ containing the raw data files.
 
 For this analysis we used the following steps:
 
-1. **Data preprocessing**: Count data was filtered to remove genes with low expression
-2. **Normalization**: TMM normalization was applied using edgeR
-3. **Differential expression**: DESeq2 was used to identify differentially expressed genes
-4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler
-5. **Thresholds**: Genes with adjusted p-value < 0.05 and |FC| >= 1.5 (equivalent to log2(FC) = 0.58) were considered differentially expressed
-6. **Genome annotation**: Mouse (org.Mm.eg.db)
+1. **Data preprocessing**: Count data was filtered to remove genes with low expression.
+2. **Normalization**: TMM normalization was applied using edgeR TMM function.
+3. **Differential expression**: DESeq2 was used to identify differentially expressed genes.
+4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler.
+5. **Thresholds**: Genes with adjusted p-value < 0.05 and |FC| >= 1.5 (equivalent to log2(FC) = 0.58) were considered differentially expressed.
+6. **Genome annotation**: "{annotation}"
 
 As part of this pipeline we produce the following files for your downstream use:
 

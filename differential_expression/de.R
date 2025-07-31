@@ -63,7 +63,7 @@ runID <- opt$runid
 countData <- opt$counts
 samplesheetData <- opt$samplesheet
 outDir <- opt$outdir
-genome <- opt$annotation
+annotation <- opt$annotation
 
 # Implementing all hard-coded files here for debugging.
 #### Debug Options
@@ -76,7 +76,7 @@ if (debug){
   annotation <- "mouse" # or "human"
 }
 
-# Load appropriate annotation package based on genome selection
+# Load appropriate annotation package based on annotation selection
 if (opt$annotation == "human") {
   if (!require("org.Hs.eg.db"))
     BiocManager::install("org.Hs.eg.db")
@@ -86,7 +86,7 @@ if (opt$annotation == "human") {
     BiocManager::install("org.Mm.eg.db")
   annotation_db <- org.Mm.eg.db
 } else {
-  stop("Invalid genome specified. Use 'mouse' or 'human'")
+  stop("Invalid annotation specified. Use 'mouse' or 'human'")
 }
 
 
@@ -309,37 +309,44 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
             labRow = NA)
 }
 
-#' @description Process Gene Set Enrichment Analysis (GSEA)
+#' @description Process Gene Set Enrichment Analysis with GO terms (GSEA)
 #'
 #' @param result DESeq2 results data frame
 #' @param p P-value threshold for significance (default: 0.05)
-#' @param lfc Log2 fold change threshold (default: 0.58)
 #' @return GSEA results object containing enriched GO terms or NULL if no enrichment found
 #' @details Performs GSEA analysis on significant genes using GO terms.
 #' @export
-process_gsea <- function(result, p = 0.05, lfc = 0.58) {
+process_gsea <- function(result, p = 1) {
+
   tryCatch({
-    sig_genes <- result %>%
-      # filtering out genes with low expression
-      dplyr::filter(baseMean > 0) %>%
-      rownames_to_column("gene") %>%
-      arrange(desc(log2FoldChange))
+
+    # Get significant genes
+    result <- result %>%
+      rownames_to_column("gene")
+    # Geneset enrichment using clusterProfiler and enrichPlot
+    set.seed(1000)
+    # we want the log2 fold change values of signicant genes in a vector form
+    original_gene_list <- result[result$baseMean > 0,]$log2FoldChange  
+    # name the vector with the ENSEMBL gene names. 
+    names(original_gene_list) <-  result[result$baseMean > 0,]$gene
+    # omit any NA values
+    gene_list <- na.omit(original_gene_list)
+    # sort the list in decreasing order (required for clusterProfiler)
+    gene_list = sort(gene_list, decreasing = TRUE)
     
     # Check if we have enough significant genes
-    if(nrow(sig_genes) < 2) {
+    if(nrow(gene_list) < 2) {
       message("Not enough significant genes for GSEA analysis")
       return(NULL)
     }
     
-    gene_list <- sig_genes$log2FoldChange
-    names(gene_list) <- sig_genes$gene
-    
+    # Perform GSEA
     gse_result <- gseGO(geneList = gene_list,
           ont = "ALL",
-          minGSSize = 1,
-          maxGSSize = 900,
+          minGSSize = 10,
+          maxGSSize = 1000,
           keyType = "ENSEMBL",
-          pvalueCutoff = 0.05,
+          pvalueCutoff = p,
           pAdjustMethod = "fdr",
           OrgDb = annotation_db)
     
@@ -348,8 +355,11 @@ process_gsea <- function(result, p = 0.05, lfc = 0.58) {
       message("No enriched terms found in GSEA analysis")
       return(NULL)
     }
-    
+
     setReadable(gse_result, OrgDb = annotation_db, keyType = "ENSEMBL")
+    gse_result <- readable_gse@result %>% as_tibble() %>% filter(abs(NES)>=1.5)
+    return(gse_result)
+    
   }, error = function(e) {
     message("Error in GSEA processing: ", e$message)
     return(NULL)
@@ -501,7 +511,7 @@ setup_directories <- function(base_dir) {
 # Check for the commad-line arguments for the script.
 # If no arguments are provided exit and print help.
 if (is.null(runID) | is.null(countData) |
-      is.null(samplesheetData) | is.null(genome)) {
+      is.null(samplesheetData) | is.null(annotation)) {
   print_help(opt_parser)
   stop("All required arguments must be supplied (input file)", call. = FALSE)
 }
@@ -511,7 +521,7 @@ cat("Utilizing this Run Id:", runID, "\n")
 cat("merged counts file found:", countData, "\n")
 cat("samplesheet found:", samplesheetData, "\n")
 cat("creating output directory:", outDir, "\n")
-cat("genome:", genome, "\n")
+cat("annotation:", annotation, "\n")
 
 # Set up output directories
 out_dirs <- setup_directories(outDir)
@@ -733,14 +743,15 @@ export_plotly_to_html(fig3D, file_name_plotlyPCA3D)
 
 
 # save results in an RDS file:
-rds <- list(results, comparisons, out_dirs, pca_plot, fig, fig3D)
+rds <- list(results, comparisons, out_dirs, pca_plot, fig, fig3D, annotation)
 timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
 rds_name <- paste0("analysis_results", "_", timestamp, ".rds")
 saveRDS(rds, rds_name)
 
 
 # trigger reporter
-source("report_generator.R")
+report_generator <- file.path(getwd(),"bulk_rnaseq_analyses/differential_expression/report_generator.R")
+source(report_generator)
 report_path <- generate_report(analysis_results_path = paste0("./", rds_name))
 print(paste("Report generated at:", report_path))
 
