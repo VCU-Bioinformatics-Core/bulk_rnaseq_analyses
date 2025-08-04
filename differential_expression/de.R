@@ -309,7 +309,7 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
             labRow = NA)
 }
 
-#' @description Process Gene Set Enrichment Analysis with GO terms (GSEA)
+#' @description Process Gene Set Enrichment Analysis (GSEA)
 #'
 #' @param result DESeq2 results data frame
 #' @param p P-value threshold for significance (default: 0.05)
@@ -317,9 +317,7 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
 #' @details Performs GSEA analysis on significant genes using GO terms.
 #' @export
 process_gsea <- function(result, p = 1) {
-
   tryCatch({
-
     # Get significant genes
     result <- result %>%
       rownames_to_column("gene")
@@ -334,14 +332,7 @@ process_gsea <- function(result, p = 1) {
     # sort the list in decreasing order (required for clusterProfiler)
     gene_list = sort(gene_list, decreasing = TRUE)
     
-    # Check if we have enough significant genes
-    if(nrow(gene_list) < 2) {
-      message("Not enough significant genes for GSEA analysis")
-      return(NULL)
-    }
-    
-    # Perform GSEA
-    gse_result <- gseGO(geneList = gene_list,
+    gse <- gseGO(geneList = gene_list,
           ont = "ALL",
           minGSSize = 10,
           maxGSSize = 1000,
@@ -351,10 +342,19 @@ process_gsea <- function(result, p = 1) {
           OrgDb = annotation_db)
     
     # Check if any terms were enriched
-    if(nrow(gse_result@result) == 0) {
+    if(nrow(gse@result) == 0) {
       message("No enriched terms found in GSEA analysis")
       return(NULL)
     }
+    
+    # Convert to readable format
+    readable_gse <- setReadable(gse, OrgDb = annotation_db, keyType = "ENSEMBL")
+
+  }, error = function(e) {
+    message("Error in GSEA processing: ", e$message)
+    return(NULL)
+  })
+}
 
     setReadable(gse_result, OrgDb = annotation_db, keyType = "ENSEMBL")
     gse_result <- readable_gse@result %>% as_tibble() %>% filter(abs(NES)>=1.5)
