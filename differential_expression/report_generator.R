@@ -308,7 +308,7 @@ if (sum(deg_flags) == 0) {{
 ```{{r top-up-degs-{i} }}
 
 if (deg_flags[1] > 0){{
-    DT::datatable(top_down %>% select(ENSEMBL_ID, SYMBOL, log2FoldChange, pvalue, padj, GENENAME),
+    DT::datatable(top_up %>% select(ENSEMBL_ID, SYMBOL, log2FoldChange, pvalue, padj, GENENAME),
                caption = "Top Up Regulated Genes")
 }} else {{
   cat("No upregulated genes found\\n\\n")
