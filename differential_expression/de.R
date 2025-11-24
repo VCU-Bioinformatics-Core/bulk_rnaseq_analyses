@@ -1,38 +1,37 @@
-# Package installation and loading
+# Package loading
+# When using renv, packages are pre-installed and managed by the lockfile
+# No auto-installation is performed
 
+# Set CRAN repository
 options(repos = c(CRAN = "https://cran.r-project.org"))
 
-if (!requireNamespace("BiocManager"))
-    install.packages("BiocManager")
+# Load required packages
+# Note: These should already be installed via renv or container
+suppressPackageStartupMessages({
+  library(here)
+  library(dplyr)
+  library(data.table)
+  library(tidyverse)
+  library(janitor)
+  library(scales)
+  library(ggrepel)
+  library(clusterProfiler)
+  library(enrichplot)
+  library(readr)
+  library(DT)
+  library(DESeq2)
+  library(edgeR)
+  library(ggplot2)
+  library(AnnotationDbi)
+  library(gplots)
+  library(RColorBrewer)
+  library(purrr)
+  library(plotly)
+  library(stats)
+  library(optparse)
+  library(htmlwidgets)
+})
 
-if (!require("pacman"))
-  install.packages("pacman")
-pacman::p_load(here,
-               dplyr,
-               data.table,
-               tidyverse,
-               janitor,
-               scales,
-               ggrepel,
-               clusterProfiler,
-               enrichplot,
-               tidyverse,
-               readr,
-               DT,
-               DESeq2,
-               edgeR,
-               ggplot2,
-               AnnotationDbi,
-               gplots,
-               RColorBrewer,
-               purrr,
-               plotly,
-               stats,
-               orca,
-               reticulate,
-               optparse,
-               htmlwidgets
-)
 
 # Define command-line flags.
 option_list = list(
@@ -77,17 +76,17 @@ if (debug){
 }
 
 # Load appropriate annotation package based on annotation selection
+# These should already be installed via renv or container
 if (opt$annotation == "human") {
-  if (!require("org.Hs.eg.db"))
-    BiocManager::install("org.Hs.eg.db")
+  library(org.Hs.eg.db)
   annotation_db <- org.Hs.eg.db
 } else if (opt$annotation == "mouse") {
-  if (!require("org.Mm.eg.db"))
-    BiocManager::install("org.Mm.eg.db")
+  library(org.Mm.eg.db)
   annotation_db <- org.Mm.eg.db
 } else {
   stop("Invalid annotation specified. Use 'mouse' or 'human'")
 }
+
 
 
 # HELPER FUNCTIONS

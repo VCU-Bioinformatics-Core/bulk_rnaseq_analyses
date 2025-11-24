@@ -1,0 +1,7 @@
+SampleID,GroupID,hpvPositive_vs_hpvNegative
+SRR2219873_pass,hpvNegative,0
+SRR2219887_pass,hpvPositive,1
+SRR2219889_pass,hpvPositive,1
+SRR2219891_pass,hpvPositive,1
+SRR2219895_pass,hpvNegative,0
+SRR2219907_pass,hpvNegative,0
