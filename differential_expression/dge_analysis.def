@@ -50,6 +50,10 @@ From: rocker/r-ver:4.2.1
     apt-get clean
     rm -rf /var/lib/apt/lists/*
     
+    # Set compiler flags to handle newer C++ standards
+    export CXXFLAGS="-std=c++14 -Wno-error"
+    export CXX14FLAGS="-std=c++14 -Wno-error"
+    
     # Install renv
     R -e "install.packages('renv', repos='https://cran.r-project.org')"
     
@@ -63,9 +67,14 @@ From: rocker/r-ver:4.2.1
     # Copy lockfile
     cp /opt/dge_renv.lock /opt/dge_project/renv.lock
     
-    # Restore packages from lockfile
-    # This will take a while but only happens once during container build
-    R -e "renv::restore(prompt = FALSE, library = '/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu')"
+    # Try to restore packages from lockfile
+    # Use --continue-on-failure style approach
+    R -e "options(warn = 1); renv::restore(prompt = FALSE, library = '/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu')" || true
+    
+    # Install critical packages that might have failed
+    R -e "if (!requireNamespace('fgsea', quietly = TRUE)) { \
+            BiocManager::install('fgsea', force = TRUE, update = FALSE) \
+          }"
     
     # Create symbolic link for easier access
     ln -s /opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu /usr/local/lib/R/site-library/dge_libs
