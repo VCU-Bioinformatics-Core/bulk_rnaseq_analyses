@@ -2,7 +2,6 @@
 #
 # update_lockfile.R
 # Updates the lockfile to use current Bioconductor version
-# compatible with your R version
 #
 
 cat("======================================================================\n")

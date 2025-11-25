@@ -4,6 +4,7 @@
 library(rmarkdown)
 library(knitr)
 library(dplyr)
+library(glue)
 
 # Function to generate automated R Markdown report
 # source("report_generator.R"); generate_report('analysis.rds', output_dir = getwd())
@@ -202,8 +203,8 @@ kable(summary_table, caption = "")
   # Add detailed sections for each comparison
   for (i in seq_along(comparisons)) {
     name <- comparisons[[i]]$name
-    exp <- comparisons[[i]]$exp
-    ctrl <- comparisons[[i]]$ctrl
+    exp <- paste(comparisons[[i]]$exp, collapse = ", ")
+    ctrl <- paste(comparisons[[i]]$ctrl, collapse = ", ")
 
     comparison_section <- glue('\n
 ### {name}
@@ -229,8 +230,8 @@ kable(summary_table, caption = "")
 
 ```{{r volcano-{i}, out.width="80%", out.height="80%" }}
 # Display volcano plot from file
-volcano_path <- file.path(out_dirs$volcano, paste0("{name}_volcano.png"))
-if (file.exists(volcano_path)) {{
+volcano_path <- file.path("figures/volcano", paste0("{name}_volcano.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), volcano_path))) {{
   knitr::include_graphics(volcano_path)
 }} else {{
   cat("Volcano plot not available for this comparison")
@@ -249,8 +250,8 @@ if (file.exists(volcano_path)) {{
 
 ```{{r heatmap-{i} }}
 # Display heatmap from file
-heatmap_path <- file.path(out_dirs$heatmap, paste0("{name}_heatmap.png"))
-if (file.exists(heatmap_path)) {{
+heatmap_path <- file.path("figures/heatmap", paste0("{name}_heatmap.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), heatmap_path))) {{
   knitr::include_graphics(heatmap_path)
 }} else {{
   cat("Heatmap not available for this comparison")
@@ -335,8 +336,8 @@ the term is enriched
 
 ```{{r gsea-{i}, out.width="100%", out.height="100%"}}
 # Display GSEA results from file
-gsea_path <- file.path(out_dirs$gsea, paste0("{name}_GSEA.png"))
-if (file.exists(gsea_path)) {{
+gsea_path <- file.path("figures/gsea", paste0("{name}_GSEA.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), gsea_path))) {{
   knitr::include_graphics(gsea_path)
 }} else {{
   cat("GSEA results not available for this comparison")
@@ -370,6 +371,7 @@ if (!is.null(results[[{i}]]) && !is.null(results[[{i}]]$gsea)) {{
   # Write the R Markdown file
   fn <- glue("{report_prefix}_{timestamp}.Rmd")
   rmd_file <- file.path(output_dir, fn)
+
   writeLines(rmd_content, rmd_file)
 
   # Render the R Markdown to HTML
