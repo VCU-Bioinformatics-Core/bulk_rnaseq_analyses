@@ -8,8 +8,7 @@ library(glue)
 
 # Function to generate automated R Markdown report
 # source("report_generator.R"); generate_report('analysis.rds', output_dir = getwd())
-generate_report <- function(analysis_results_path, output_dir = "./", report_prefix = "rnaseq_analysis", analyst="Mikail Bala") {
-  
+generate_report <- function(analysis_results_path, output_dir = "./", report_prefix = "rnaseq_analysis", analyst = "Mikail Bala") {
   # Validate inputs
   if (!file.exists(analysis_results_path)) {
     stop("Analysis results file does not exist:", analysis_results_path)
@@ -19,14 +18,14 @@ generate_report <- function(analysis_results_path, output_dir = "./", report_pre
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
   }
-  
+
   # Generate unique filename with timestamp
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   output_file <- file.path(output_dir, paste0(report_prefix, "_", timestamp, ".html"))
-  
+
   # Load results
   rds_data <- readRDS(analysis_results_path)
-  
+
   # Extract components from RDS
   results <- rds_data[[1]]
   comparisons <- rds_data[[2]]
@@ -35,16 +34,16 @@ generate_report <- function(analysis_results_path, output_dir = "./", report_pre
   pca_plotly <- rds_data[[5]]
   pca_3d <- rds_data[[6]]
   annotation <- rds_data[[7]]
-  
+
   # calculate the current date
   date <- format(Sys.time(), "%B %d, %Y")
-  
+
   # Create R Markdown template (beginning section)
   rmd_content <- glue('---
 title: "RNA-Seq Differential Expression Analysis Report"
 author: "Bioinformatics Shared Resources at VCU"
 date: "{date}"
-output: 
+output:
   html_document:
     toc: true
     toc_float: true
@@ -152,15 +151,15 @@ summary_table <- data.frame(
 for (i in seq_along(comparisons)) {{
   if (!is.null(results[[i]])) {{
     res_df <- results[[i]]$deseq
-    
+
     # Count DEGs (padj < 0.05 & |log2FC| >= 0.58)
     if (!is.null(res_df)) {{
       total_degs <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & abs(res_df$log2FoldChange) >= 0.58)
       up_degs <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange >= 0.58)
       down_degs <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange <= -0.58)
-      
+
       gsea_status <- ifelse(!is.null(results[[i]]$gsea), "Yes", "No")
-      
+
       summary_table <- rbind(summary_table, data.frame(
         Comparison = comparisons[[i]]$name,
         Experimental = comparisons[[i]]$exp,
@@ -175,7 +174,7 @@ for (i in seq_along(comparisons)) {{
   }}
 }}
 ```
-  
+
 ## Differential Expression Results
 This section contains a high-level table summarizing the differential expression results,
 followed by a subsection for each comparison that visualizes the results using a volcano
@@ -199,15 +198,14 @@ for each case.
 # Display the summary table
 kable(summary_table, caption = "")
 ```\n')
-  
-  
+
+
   # Add detailed sections for each comparison
   for (i in seq_along(comparisons)) {
-    
-    name = comparisons[[i]]$name
-    exp = comparisons[[i]]$exp
-    ctrl = comparisons[[i]]$ctrl
-    
+    name <- comparisons[[i]]$name
+    exp <- paste(comparisons[[i]]$exp, collapse = ", ")
+    ctrl <- paste(comparisons[[i]]$ctrl, collapse = ", ")
+
     comparison_section <- glue('\n
 ### {name}
 
@@ -232,8 +230,8 @@ kable(summary_table, caption = "")
 
 ```{{r volcano-{i}, out.width="80%", out.height="80%" }}
 # Display volcano plot from file
-volcano_path <- file.path(out_dirs$volcano, paste0("{name}_volcano.png"))
-if (file.exists(volcano_path)) {{
+volcano_path <- file.path("figures/volcano", paste0("{name}_volcano.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), volcano_path))) {{
   knitr::include_graphics(volcano_path)
 }} else {{
   cat("Volcano plot not available for this comparison")
@@ -243,17 +241,17 @@ if (file.exists(volcano_path)) {{
 
 **Heatmap**
 
-- Description: a heatmap of **z-score normalized** read counts data with application of 
+- Description: a heatmap of **z-score normalized** read counts data with application of
   **hierarchical clustering** by both samples and expression levels
 - X-axis: samples
 - Y-axis: genes
-- Color-scale: z-score normalized read counts 
+- Color-scale: z-score normalized read counts
 
 
 ```{{r heatmap-{i} }}
 # Display heatmap from file
-heatmap_path <- file.path(out_dirs$heatmap, paste0("{name}_heatmap.png"))
-if (file.exists(heatmap_path)) {{
+heatmap_path <- file.path("figures/heatmap", paste0("{name}_heatmap.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), heatmap_path))) {{
   knitr::include_graphics(heatmap_path)
 }} else {{
   cat("Heatmap not available for this comparison")
@@ -278,7 +276,7 @@ if (!is.null(results[[{i}]]) && !is.null(results[[{i}]]$deseq)) {{
            padj = formatC(padj, format = "e", digits = 2)) %>%
     arrange(padj) %>%
     head(20)
-  
+
   top_down <- results[[{i}]]$deseq %>%
     filter(!is.na(padj) & padj < 0.05 & log2FoldChange <= -0.58) %>%
     mutate(log2FoldChange = round(log2FoldChange, 2),
@@ -286,7 +284,7 @@ if (!is.null(results[[{i}]]) && !is.null(results[[{i}]]$deseq)) {{
            padj = formatC(padj, format = "e", digits = 2)) %>%
     arrange(padj) %>%
     head(20)
-  
+
   # update the flags
   if (nrow(top_up) > 0) {{
     deg_flags[1] <- 1
@@ -313,7 +311,7 @@ if (deg_flags[1] > 0){{
 }} else {{
   cat("No upregulated genes found\\n\\n")
 }}
-  
+
 ```
 
 ```{{r top-down-degs-{i} }}
@@ -324,7 +322,7 @@ if (deg_flags[2] > 0){{
 }} else {{
   cat("No upregulated genes found\\n\\n")
 }}
-  
+
 ```
 
 
@@ -338,8 +336,8 @@ the term is enriched
 
 ```{{r gsea-{i}, out.width="100%", out.height="100%"}}
 # Display GSEA results from file
-gsea_path <- file.path(out_dirs$gsea, paste0("{name}_GSEA.png"))
-if (file.exists(gsea_path)) {{
+gsea_path <- file.path("figures/gsea", paste0("{name}_GSEA.png"))
+if (file.exists(file.path(dirname(knitr::current_input()), gsea_path))) {{
   knitr::include_graphics(gsea_path)
 }} else {{
   cat("GSEA results not available for this comparison")
@@ -426,13 +424,14 @@ Please include the following statements in your acknowledgements manuscript sect
   
 
   # Write the R Markdown file
-  fn <- glue('{report_prefix}_{timestamp}.Rmd')
+  fn <- glue("{report_prefix}_{timestamp}.Rmd")
   rmd_file <- file.path(output_dir, fn)
+
   writeLines(rmd_content, rmd_file)
-  
+
   # Render the R Markdown to HTML
   rmarkdown::render(rmd_file, output_file = output_file, quiet = FALSE)
-  
+
   # Return the path to the generated report
   return(output_file)
 }

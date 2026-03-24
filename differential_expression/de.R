@@ -1,64 +1,68 @@
-# Package installation and loading
+# Package loading
+# When using renv, packages are pre-installed and managed by the lockfile
+# No auto-installation is performed
 
+# Set CRAN repository
 options(repos = c(CRAN = "https://cran.r-project.org"))
 
-if (!requireNamespace("BiocManager"))
-    install.packages("BiocManager")
+# Load required packages
+# Note: These should already be installed via renv or container
+suppressPackageStartupMessages({
+  library(here)
+  library(dplyr)
+  library(data.table)
+  library(tidyverse)
+  library(janitor)
+  library(scales)
+  library(ggrepel)
+  library(clusterProfiler)
+  library(enrichplot)
+  library(readr)
+  library(DT)
+  library(DESeq2)
+  library(edgeR)
+  library(ggplot2)
+  library(AnnotationDbi)
+  library(gplots)
+  library(RColorBrewer)
+  library(purrr)
+  library(plotly)
+  library(stats)
+  library(optparse)
+  library(htmlwidgets)
+})
 
-if (!require("pacman"))
-  install.packages("pacman")
-pacman::p_load(here,
-               dplyr,
-               data.table,
-               tidyverse,
-               janitor,
-               scales,
-               ggrepel,
-               clusterProfiler,
-               enrichplot,
-               tidyverse,
-               readr,
-               DT,
-               DESeq2,
-               edgeR,
-               ggplot2,
-               AnnotationDbi,
-               gplots,
-               RColorBrewer,
-               purrr,
-               plotly,
-               stats,
-               orca,
-               reticulate,
-               optparse,
-               htmlwidgets
-)
 
 # Define command-line flags.
-option_list = list(
-  make_option(c("-c", "--counts"), type = "character", default = NULL,
-              help = "Required. A path for the merged counts.tsv file"),
-
-  make_option(c("-s", "--samplesheet"), type = "character", default = NULL,
-              help = "Required. A path for the samplesheet.csv file"),
-
-  make_option(c("-o", "--outdir"), type = "character", default = "./output",
-              help = "path for the output directory to store results. \
+option_list <- list(
+  make_option(c("-c", "--counts"),
+    type = "character", default = NULL,
+    help = "Required. A path for the merged counts.tsv file"
+  ),
+  make_option(c("-s", "--samplesheet"),
+    type = "character", default = NULL,
+    help = "Required. A path for the samplesheet.csv file"
+  ),
+  make_option(c("-o", "--outdir"),
+    type = "character", default = "./output",
+    help = "path for the output directory to store results. \
                     A new directory will be created with the given path and \
                     name, otherwise a default directory will be created in \
-                    the current directory: [default= %default]"),
-
-  make_option(c("-r", "--runid"), type = "character", default = NULL,
-              help = "Required. A unique name for this analysis.",
-              metavar = "character"),
-
-  make_option(c("-a", "--annotation"), type = "character", default = "mouse",
-              help = "Specify genome for annotation: 'mouse' or 'human' [default= %default]")
-);
-
+                    the current directory: [default= %default]"
+  ),
+  make_option(c("-r", "--runid"),
+    type = "character", default = NULL,
+    help = "Required. A unique name for this analysis.",
+    metavar = "character"
+  ),
+  make_option(c("-a", "--annotation"),
+    type = "character", default = "mouse",
+    help = "Specify genome for annotation: 'mouse' or 'human' [default= %default]"
+  )
+)
 # Parse the arguments
-opt_parser = OptionParser(option_list=option_list);
-opt = parse_args(opt_parser);
+opt_parser <- OptionParser(option_list = option_list)
+opt <- parse_args(opt_parser)
 runID <- opt$runid
 countData <- opt$counts
 samplesheetData <- opt$samplesheet
@@ -68,7 +72,7 @@ annotation <- opt$annotation
 # Implementing all hard-coded files here for debugging.
 #### Debug Options
 debug <- FALSE
-if (debug){
+if (debug) {
   runID <- "test_run"
   countData <- "./rsem.merged.gene_counts.tsv"
   samplesheetData <- "./samplesheet.csv"
@@ -77,13 +81,12 @@ if (debug){
 }
 
 # Load appropriate annotation package based on annotation selection
+# These should already be installed via renv or container
 if (opt$annotation == "human") {
-  if (!require("org.Hs.eg.db"))
-    BiocManager::install("org.Hs.eg.db")
+  library(org.Hs.eg.db)
   annotation_db <- org.Hs.eg.db
 } else if (opt$annotation == "mouse") {
-  if (!require("org.Mm.eg.db"))
-    BiocManager::install("org.Mm.eg.db")
+  library(org.Mm.eg.db)
   annotation_db <- org.Mm.eg.db
 } else {
   stop("Invalid annotation specified. Use 'mouse' or 'human'")
@@ -135,21 +138,21 @@ save_plot <- function(plot, filename, width = 15, height = 17) {
 #' that can be opened in a web browser. Includes error handling for invalid inputs.
 #' @export
 export_plotly_to_html <- function(plotly_obj, file_path) {
+  tryCatch(
+    {
+      # Check if the plotly object is valid
+      if (!inherits(plotly_obj, "plotly")) {
+        stop("Invalid plotly object")
+      }
 
-  tryCatch({
-    # Check if the plotly object is valid
-    if (!inherits(plotly_obj, "plotly")) {
-      stop("Invalid plotly object")
+      # Save the plotly object to an html file
+      htmlwidgets::saveWidget(plotly_obj, file_path, selfcontained = TRUE)
+    },
+    error = function(e) {
+      cat(paste0("Error: ", e$message, "\n"))
     }
-
-    # Save the plotly object to an html file
-    htmlwidgets::saveWidget(plotly_obj, file_path, selfcontained = TRUE)
-
-  }, error = function(e) {
-    cat(paste0("Error: ", e$message, "\n"))
-  })
+  )
 }
-
 
 
 # ANALYSIS FUNCTIONS
@@ -165,37 +168,42 @@ export_plotly_to_html <- function(plotly_obj, file_path) {
 #' of the condition factor.
 #' @export
 perform_deseq2_analysis <- function(dds, exp, ctrl) {
-  tryCatch({
-    print(paste("Performing DESeq2 analysis for", exp, "vs", ctrl))
-    print("Current condition levels:")
-    print(levels(dds$condition))
-    
-    # Verify groups exist in the data
-    if(!(exp %in% levels(dds$condition))) {
-      stop(paste("Experimental group", exp, "not found in condition levels"))
+  tryCatch(
+    {
+      print(paste("Performing DESeq2 analysis for", exp, "vs", ctrl))
+      print("Current condition levels:")
+      print(levels(dds$condition))
+
+      # Verify groups exist in the data
+      if (!(exp %in% levels(dds$condition))) {
+        stop(paste("Experimental group", exp, "not found in condition levels"))
+      }
+      if (!(ctrl %in% levels(dds$condition))) {
+        stop(paste("Control group", ctrl, "not found in condition levels"))
+      }
+
+      # Make sure the reference level is set correctly
+      dds$condition <- relevel(dds$condition, ref = ctrl)
+
+      # Run DESeq
+      print("Running DESeq...")
+      dds <- DESeq(dds)
+
+      # Get results
+      print("Getting results...")
+      res <- results(dds,
+        contrast = c("condition", exp, ctrl),
+        cooksCutoff = TRUE, independentFiltering = FALSE
+      )
+
+      print(paste("Analysis complete. Number of results:", nrow(res)))
+      return(as.data.frame(res))
+    },
+    error = function(e) {
+      print(paste("Error in DESeq2 analysis:", e$message))
+      stop(e)
     }
-    if(!(ctrl %in% levels(dds$condition))) {
-      stop(paste("Control group", ctrl, "not found in condition levels"))
-    }
-    
-    # Make sure the reference level is set correctly
-    dds$condition <- relevel(dds$condition, ref = ctrl)
-    
-    # Run DESeq
-    print("Running DESeq...")
-    dds <- DESeq(dds)
-    
-    # Get results
-    print("Getting results...")
-    res <- results(dds, contrast = c("condition", exp, ctrl),
-                   cooksCutoff = TRUE, independentFiltering = FALSE)
-    
-    print(paste("Analysis complete. Number of results:", nrow(res)))
-    return(as.data.frame(res))
-  }, error = function(e) {
-    print(paste("Error in DESeq2 analysis:", e$message))
-    stop(e)
-  })
+  )
 }
 
 #' @description Annotate DESeq2 results with gene symbols and names
@@ -213,10 +221,11 @@ annotate_results <- function(results) {
     columns = c("SYMBOL", "GENENAME")
   )
   merge(as.data.frame(results),
-        annotations, 
-        by.x = "row.names",
-        by.y = "ENSEMBL", 
-        all.x = TRUE) %>%
+    annotations,
+    by.x = "row.names",
+    by.y = "ENSEMBL",
+    all.x = TRUE
+  ) %>%
     rename(ENSEMBL_ID = Row.names)
 }
 
@@ -231,15 +240,16 @@ annotate_results <- function(results) {
 #' @param out_dir Output directory for saving the plot
 #' @return ggplot object containing the volcano plot
 #' @export
-generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, 
-                           sig = "padj", out_dir) {
-   labeled_dat <-data %>% 
+generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
+                             sig = "padj", out_dir) {
+  labeled_dat <- data %>%
     mutate(
       color_tag = case_when(
         eval(as.symbol(sig)) < p & log2FoldChange < -lfc ~ "Under expressed",
         eval(as.symbol(sig)) < p & log2FoldChange > lfc ~ "Over expressed",
         TRUE ~ NA_character_
-            ))
+      )
+    )
 
   top_20_genes_up <- labeled_dat %>%
     filter(pvalue <= p & log2FoldChange >= lfc) %>%
@@ -253,17 +263,19 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
     slice_head(n = 20) %>%
     pull(ENSEMBL_ID)
 
-  labeled_dat%>%
+  labeled_dat %>%
     mutate(
       highlight = ifelse(ENSEMBL_ID %in% c(top_20_genes_up, top_20_genes_dn), SYMBOL, NA)
-    ) %>% 
-    ggplot(aes(x = log2FoldChange, 
-               y = -log10(pvalue), 
-               color = color_tag,
-               label = ifelse(highlight == TRUE, SYMBOL, NA))) +
+    ) %>%
+    ggplot(aes(
+      x = log2FoldChange,
+      y = -log10(pvalue),
+      color = color_tag,
+      label = ifelse(highlight == TRUE, SYMBOL, NA)
+    )) +
     geom_point(alpha = 0.5) +
     theme_minimal() +
-    geom_label_repel(aes(label = highlight), max.overlaps = Inf,show.legend = FALSE) +
+    geom_label_repel(aes(label = highlight), max.overlaps = Inf, show.legend = FALSE) +
     scale_color_manual(values = c("firebrick", "steelblue")) +
     geom_hline(yintercept = -log10(p), col = "red", linetype = 2) +
     geom_vline(xintercept = c(-lfc, lfc)) +
@@ -288,28 +300,29 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
 #' @details Creates a heatmap using filtered data based on p-value and log fold change thresholds.
 #' The values are z-score normalized and displayed using a blue-white-red color scheme.
 #' @export
-generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58, 
-                           exp_name, ctrl_name, fig_dir) {
-  filtered_data <- results_df %>% 
+generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58,
+                             exp_name, ctrl_name, fig_dir) {
+  filtered_data <- results_df %>%
     dplyr::filter((padj < p & abs(log2FoldChange) >= lfc))
-  
+
   values <- normalized_counts[rownames(filtered_data), ] %>%
     as.matrix() %>%
     jitter(factor = 1, amount = 0.00001)
-  
+
   zscores <- t(scale(t(values)))
-  
+
   heatmap.2(zscores,
-            col = colorRampPalette(c("blue", "white", "firebrick"))(20),
-            density.info = "none",
-            dendrogram = "both",
-            Colv = TRUE,
-            trace = "none",
-            margins = c(10, 10),
-            labRow = NA)
+    col = colorRampPalette(c("blue", "white", "firebrick"))(20),
+    density.info = "none",
+    dendrogram = "both",
+    Colv = TRUE,
+    trace = "none",
+    margins = c(10, 10),
+    labRow = NA
+  )
 }
 
-#' @description Process Gene Set Enrichment Analysis with GO terms (GSEA)
+#' @description Process Gene Set Enrichment Analysis (GSEA)
 #'
 #' @param result DESeq2 results data frame
 #' @param p P-value threshold for significance (default: 0.05)
@@ -317,53 +330,49 @@ generate_heatmap <- function(results_df, normalized_counts, p = 0.05, lfc = 0.58
 #' @details Performs GSEA analysis on significant genes using GO terms.
 #' @export
 process_gsea <- function(result, p = 1) {
+  tryCatch(
+    {
+      # Get significant genes
+      result <- result %>%
+        rownames_to_column("gene")
+      # Geneset enrichment using clusterProfiler and enrichPlot
+      set.seed(1000)
+      # we want the log2 fold change values of signicant genes in a vector form
+      original_gene_list <- result[result$baseMean > 0, ]$log2FoldChange
+      # name the vector with the ENSEMBL gene names.
+      names(original_gene_list) <- result[result$baseMean > 0, ]$gene
+      # omit any NA values
+      gene_list <- na.omit(original_gene_list)
+      # sort the list in decreasing order (required for clusterProfiler)
+      gene_list <- sort(gene_list, decreasing = TRUE)
 
-  tryCatch({
+      gse <- gseGO(
+        geneList = gene_list,
+        ont = "ALL",
+        minGSSize = 10,
+        maxGSSize = 1000,
+        keyType = "ENSEMBL",
+        pvalueCutoff = p,
+        pAdjustMethod = "fdr",
+        OrgDb = annotation_db
+      )
 
-    # Get significant genes
-    result <- result %>%
-      rownames_to_column("gene")
-    # Geneset enrichment using clusterProfiler and enrichPlot
-    set.seed(1000)
-    # we want the log2 fold change values of signicant genes in a vector form
-    original_gene_list <- result[result$baseMean > 0,]$log2FoldChange  
-    # name the vector with the ENSEMBL gene names. 
-    names(original_gene_list) <-  result[result$baseMean > 0,]$gene
-    # omit any NA values
-    gene_list <- na.omit(original_gene_list)
-    # sort the list in decreasing order (required for clusterProfiler)
-    gene_list = sort(gene_list, decreasing = TRUE)
-    
-    # Check if we have enough significant genes
-    if(nrow(gene_list) < 2) {
-      message("Not enough significant genes for GSEA analysis")
+      # Check if any terms were enriched
+      if (nrow(gse@result) == 0) {
+        message("No enriched terms found in GSEA analysis")
+        return(NULL)
+      }
+
+      # Convert to readable format
+      # Return the full object for use with dotplot() - filtering can be done when saving
+      readable_gse <- setReadable(gse, OrgDb = annotation_db, keyType = "ENSEMBL")
+      return(readable_gse)
+    },
+    error = function(e) {
+      message("Error in GSEA processing: ", e$message)
       return(NULL)
     }
-    
-    # Perform GSEA
-    gse_result <- gseGO(geneList = gene_list,
-          ont = "ALL",
-          minGSSize = 10,
-          maxGSSize = 1000,
-          keyType = "ENSEMBL",
-          pvalueCutoff = p,
-          pAdjustMethod = "fdr",
-          OrgDb = annotation_db)
-    
-    # Check if any terms were enriched
-    if(nrow(gse_result@result) == 0) {
-      message("No enriched terms found in GSEA analysis")
-      return(NULL)
-    }
-
-    setReadable(gse_result, OrgDb = annotation_db, keyType = "ENSEMBL")
-    gse_result <- readable_gse@result %>% as_tibble() %>% filter(abs(NES)>=1.5)
-    return(gse_result)
-    
-  }, error = function(e) {
-    message("Error in GSEA processing: ", e$message)
-    return(NULL)
-  })
+  )
 }
 
 #' @description Create a dotplot visualization of GSEA results
@@ -376,15 +385,15 @@ process_gsea <- function(result, p = 1) {
 #' @export
 create_dotplot <- function(gse, title) {
   dotplot(gse,
-          showCategory = 15,
-          title = title,
-          split = ".sign",
-          orderBy = "p.adjust",
-          label_format = 31,
-          font.size = 9) +
-    facet_grid(.~.sign)
+    showCategory = 15,
+    title = title,
+    split = ".sign",
+    orderBy = "p.adjust",
+    label_format = 31,
+    font.size = 9
+  ) +
+    facet_grid(. ~ .sign)
 }
-
 
 
 # Main analysis pipeline
@@ -404,71 +413,87 @@ create_dotplot <- function(gse, title) {
 #' - GSEA analysis and visualization
 #' @export
 run_analysis <- function(comparison, dds, normalized_counts, out_dirs) {
-  tryCatch({
-    print(paste("\nStarting analysis for comparison:", comparison$name))
-    print(paste("Experimental group:", comparison$exp))
-    print(paste("Control group:", comparison$ctrl))
-    
-    # Perform DESeq2 analysis
-    deseq_results <- perform_deseq2_analysis(dds, comparison$exp, comparison$ctrl)
-    if(is.null(deseq_results)) {
-      message("DESeq2 analysis returned NULL results")
+  tryCatch(
+    {
+      print(paste("\nStarting analysis for comparison:", comparison$name))
+      print(paste("Experimental group:", comparison$exp))
+      print(paste("Control group:", comparison$ctrl))
+
+      # Perform DESeq2 analysis
+      deseq_results <- perform_deseq2_analysis(dds, comparison$exp, comparison$ctrl)
+      if (is.null(deseq_results)) {
+        message("DESeq2 analysis returned NULL results")
+        return(NULL)
+      }
+
+      # Annotate results
+      print("Annotating results...")
+      annotated_results <- annotate_results(deseq_results)
+
+      # Save DESeq2 results
+      output_file <- create_file_path(out_dirs$de_data, "DESeq2_", comparison$name)
+      print(paste("Saving results to:", output_file))
+      write.csv(annotated_results, output_file)
+
+      # Generate and save volcano plot
+      print("Generating volcano plot...")
+      volcano_plot <- generate_volcano(
+        annotated_results,
+        comparison$exp,
+        comparison$ctrl
+      )
+      save_plot(
+        volcano_plot,
+        create_file_path(out_dirs$volcano, "", comparison$name, "_volcano.png")
+      )
+
+      # Generate and save heatmap
+      print("Generating heatmap...")
+      png(create_file_path(out_dirs$heatmap, "", comparison$name, "_heatmap.png"),
+        width = 800, height = 1200, res = 150
+      )
+      generate_heatmap(deseq_results,
+        normalized_counts,
+        exp_name = comparison$exp,
+        ctrl_name = comparison$ctrl
+      )
+      dev.off()
+
+      # Process and save GSEA results
+      print("Processing GSEA...")
+      gse <- process_gsea(deseq_results)
+
+      if (!is.null(gse)) {
+        write.csv(
+          as.data.frame(gse),
+          create_file_path(out_dirs$gsea_data, "GO_Analysis_", comparison$name)
+        )
+
+        # Generate and save GSEA plot
+        print("Generating GSEA plot...")
+        gsea_plot <- create_dotplot(
+          gse,
+          create_comparison_name(
+            comparison$exp,
+            comparison$ctrl,
+            "GSEA "
+          )
+        )
+        save_plot(
+          gsea_plot,
+          create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png")
+        )
+      } else {
+        message("Skipping GSEA visualization - no enrichment results available")
+      }
+
+      return(list(deseq = annotated_results, gsea = gse))
+    },
+    error = function(e) {
+      message("Error in run_analysis: ", e$message)
       return(NULL)
     }
-    
-    # Annotate results
-    print("Annotating results...")
-    annotated_results <- annotate_results(deseq_results)
-    
-    # Save DESeq2 results
-    output_file <- create_file_path(out_dirs$de_data, "DESeq2_", comparison$name)
-    print(paste("Saving results to:", output_file))
-    write.csv(annotated_results, output_file)
-    
-    # Generate and save volcano plot
-    print("Generating volcano plot...")
-    volcano_plot <- generate_volcano(annotated_results, 
-                                   comparison$exp, 
-                                   comparison$ctrl)
-    save_plot(volcano_plot, 
-             create_file_path(out_dirs$volcano, "", comparison$name, "_volcano.png"))
-    
-    # Generate and save heatmap
-    print("Generating heatmap...")
-    png(create_file_path(out_dirs$heatmap, "", comparison$name, "_heatmap.png"),
-        width = 800, height = 1200, res = 150)
-    generate_heatmap(deseq_results, 
-                    normalized_counts, 
-                    exp_name = comparison$exp, 
-                    ctrl_name = comparison$ctrl)
-    dev.off()
-    
-    # Process and save GSEA results
-    print("Processing GSEA...")
-    gse <- process_gsea(deseq_results)
-    
-    if(!is.null(gse)) {
-      write.csv(as.data.frame(gse), 
-                create_file_path(out_dirs$gsea_data, "GO_Analysis_", comparison$name))
-      
-      # Generate and save GSEA plot
-      print("Generating GSEA plot...")
-      gsea_plot <- create_dotplot(gse, 
-                                 create_comparison_name(comparison$exp, 
-                                                      comparison$ctrl, 
-                                                      "GSEA "))
-      save_plot(gsea_plot, 
-               create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png"))
-    } else {
-      message("Skipping GSEA visualization - no enrichment results available")
-    }
-    
-    return(list(deseq = annotated_results, gsea = gse))
-    
-  }, error = function(e) {
-    message("Error in run_analysis: ", e$message)
-    return(NULL)
-  })
+  )
 }
 
 #' @description Set up analysis output directories
@@ -494,7 +519,7 @@ setup_directories <- function(base_dir) {
     gsea = file.path(base_dir, "figures/gsea"),
     pca = file.path(base_dir, "figures/pca")
   )
-  
+
   walk(dirs, dir.create, recursive = TRUE, showWarnings = FALSE)
   dirs
 }
@@ -511,7 +536,7 @@ setup_directories <- function(base_dir) {
 # Check for the commad-line arguments for the script.
 # If no arguments are provided exit and print help.
 if (is.null(runID) | is.null(countData) |
-      is.null(samplesheetData) | is.null(annotation)) {
+  is.null(samplesheetData) | is.null(annotation)) {
   print_help(opt_parser)
   stop("All required arguments must be supplied (input file)", call. = FALSE)
 }
@@ -527,15 +552,17 @@ cat("annotation:", annotation, "\n")
 out_dirs <- setup_directories(outDir)
 
 # Read in raw merged counts, samplesheet
-counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>% 
+counts <- data.frame(read_tsv(countData, col_names = TRUE), row.names = 1) %>%
   # attempting to re-write this line to only read in numeric columns, and the *first* column
-  dplyr::select(where(is.numeric)) 
-  
+  dplyr::select(where(is.numeric))
+
 # select only numeric columns
 rownames(counts) <- rownames(counts) %>% str_remove("\\..*")
 
-contrasts_raw <- read.delim(samplesheetData, sep = ",", header = TRUE,
-                            stringsAsFactors = FALSE)
+contrasts_raw <- read.delim(samplesheetData,
+  sep = ",", header = TRUE,
+  stringsAsFactors = FALSE
+)
 
 # Get all contrast columns (columns after GroupID)
 contrast_cols <- colnames(contrasts_raw)[3:ncol(contrasts_raw)]
@@ -544,19 +571,19 @@ print(contrast_cols)
 
 # Create the comparisons list
 comparisons <- list()
-for(i in seq_along(contrast_cols)) {
+for (i in seq_along(contrast_cols)) {
   contrast_name <- contrast_cols[i]
   contrast_data <- contrasts_raw[[contrast_name]]
 
   print(paste("\nProcessing contrast:", contrast_name))
   print("Contrast data:")
-  print(table(contrast_data, useNA="ifany"))
+  print(table(contrast_data, useNA = "ifany"))
 
   # Find unique groups for exp (1) and ctrl (0)
   exp_group <- unique(contrasts_raw$GroupID[contrast_data == 1 &
-                                              !is.na(contrast_data)])
+    !is.na(contrast_data)])
   ctrl_group <- unique(contrasts_raw$GroupID[contrast_data == 0 &
-                                               !is.na(contrast_data)])
+    !is.na(contrast_data)])
 
   print(paste("exp_group found:", paste(exp_group, collapse = ", ")))
   print(paste("ctrl_group found:", paste(ctrl_group, collapse = ", ")))
@@ -583,17 +610,21 @@ countsdf <- counts %>%
 x <- DGEList(counts = countsdf)
 dge <- calcNormFactors(x, method = "TMM")
 tmm <- cpm(dge)
-write.csv(tmm, str_c(out_dirs$de_data, "normalizedCounts_tmm",
-                     Sys.Date(), ".csv"))
+write.csv(tmm, str_c(
+  out_dirs$de_data, "normalizedCounts_tmm",
+  Sys.Date(), ".csv"
+))
 
 # DESEQ2 SETUP
-sample_info <- data.frame(sample = contrasts_raw$SampleID,
-                          condition = contrasts_raw$GroupID)
+sample_info <- data.frame(
+  sample = contrasts_raw$SampleID,
+  condition = contrasts_raw$GroupID
+)
 
 dds <- DESeqDataSetFromMatrix(
   countData = countsdf,
   colData = sample_info,
-  design = ~ condition
+  design = ~condition
 )
 
 # Pre-filtering
@@ -602,7 +633,7 @@ keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
 dds <- dds[keep, ]
 
 # Run analysis for all comparisons
-#results <- map(comparisons, ~run_analysis(., dds, tmm, out_dirs))
+# results <- map(comparisons, ~run_analysis(., dds, tmm, out_dirs))
 print("Verifying DDS setup...")
 print("Condition levels in DDS:")
 print(levels(dds$condition))
@@ -614,7 +645,7 @@ results <- list()
 for (i in seq_along(comparisons)) {
   print(paste("\nProcessing comparison", i, "of", length(comparisons)))
   result <- run_analysis(comparisons[[i]], dds, tmm, out_dirs)
-  
+
   # Store results even if GSEA is NULL
   if (!is.null(result)) {
     results[[i]] <- result
@@ -663,55 +694,59 @@ rownames(pc_scores) <- colnames(data_reduced_zero)
 
 # extract stuff for pca scree plot
 pca_var <- data_pca$sdev^2
-pca_var_per <- round(pca_var/sum(pca_var)*100, 1)
+pca_var_per <- round(pca_var / sum(pca_var) * 100, 1)
 
 # create a data frame for ggplot
-pca_df <- data.frame(Sample=rownames(data_pca$x),
-                       X=data_pca$x[,1],
-                       Y=data_pca$x[,2])
+pca_df <- data.frame(
+  Sample = rownames(data_pca$x),
+  X = data_pca$x[, 1],
+  Y = data_pca$x[, 2]
+)
 
-#add groups
+# add groups
 pca_df$Group <- sample_info$condition
 
 # Create PCA plot using ggplot2
-pca_plot <- ggplot(data=pca_df, aes(x=X, y=Y, label=Sample, color = Group)) +
+pca_plot <- ggplot(data = pca_df, aes(x = X, y = Y, label = Sample, color = Group)) +
   geom_text() +
-  #CM: Code Change HERE - edit limits to reflect the x-axis for better visualization of clustering
-  xlab(paste("PC1 - ", pca_var_per[1], "%", sep="")) +
-  ylab(paste("PC2 - ", pca_var_per[2], "%", sep="")) +
+  # CM: Code Change HERE - edit limits to reflect the x-axis for better visualization of clustering
+  xlab(paste("PC1 - ", pca_var_per[1], "%", sep = "")) +
+  ylab(paste("PC2 - ", pca_var_per[2], "%", sep = "")) +
   theme_bw()
 
 ggsave(pca_plot, filename = str_c(out_dirs$pca, "/PCA_plot.png"))
 
 
-
 # interactive pca
-fig <- plot_ly(pca_df, x = ~X, y = ~Y, color = ~Group,
-               colors = c('steelblue','firebrick','olivedrab', 'plum'),
-               type = 'scatter', mode = 'markers',
-               size = 5.7,
-               span = 4.9,
-               alpha = 2.5,
-               alpha_stroke = .5
-               ) %>%
-  layout(legend=list(title=list(text='color')),
-    plot_bgcolor='#e5ecf6',
+fig <- plot_ly(pca_df,
+  x = ~X, y = ~Y, color = ~Group,
+  colors = c("steelblue", "firebrick", "olivedrab", "plum"),
+  type = "scatter", mode = "markers",
+  size = 5.7,
+  span = 4.9,
+  alpha = 2.5,
+  alpha_stroke = .5
+) %>%
+  layout(
+    legend = list(title = list(text = "color")),
+    plot_bgcolor = "#e5ecf6",
     xaxis = list(
-      title = paste("PC1 - ", pca_var_per[1], "%", sep=""),
+      title = paste("PC1 - ", pca_var_per[1], "%", sep = ""),
       zerolinecolor = "#ffff",
       zerolinewidth = 2,
-      gridcolor='#ffff'),
+      gridcolor = "#ffff"
+    ),
     yaxis = list(
-      title = paste("PC2 - ", pca_var_per[2], "%", sep=""),
+      title = paste("PC2 - ", pca_var_per[2], "%", sep = ""),
       zerolinecolor = "#ffff",
       zerolinewidth = 2,
-      gridcolor='#ffff')
+      gridcolor = "#ffff"
     )
+  )
 
 # Define variable and save plot
 file_name_plotly <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot.html")
 export_plotly_to_html(fig, file_name_plotly)
-
 
 
 #### Interactive 3D PCA plot.
@@ -720,22 +755,24 @@ components <- prin_comp[["x"]]
 components <- data.frame(components)
 components$PC2 <- -components$PC2
 components$PC3 <- -components$PC3
-components = cbind(components, pca_df$Group)
+components <- cbind(components, pca_df$Group)
 
-tot_explained_variance_ratio <- summary(prin_comp)[["importance"]]['Proportion of Variance',]
+tot_explained_variance_ratio <- summary(prin_comp)[["importance"]]["Proportion of Variance", ]
 tot_explained_variance_ratio <- 100 * sum(tot_explained_variance_ratio)
 
-tit = paste('Total Explained Variance = ', tot_explained_variance_ratio)
+tit <- paste("Total Explained Variance = ", tot_explained_variance_ratio)
 
-fig3D <- plot_ly(components, x = ~PC1, y = ~PC2, z = ~PC3, color = ~pca_df$Group,
-               colors = c('steelblue','firebrick','olivedrab', 'plum')) %>%
+fig3D <- plot_ly(components,
+  x = ~PC1, y = ~PC2, z = ~PC3, color = ~ pca_df$Group,
+  colors = c("steelblue", "firebrick", "olivedrab", "plum")
+) %>%
   add_markers(size = 12)
 
 fig3D <- fig3D %>%
   layout(
     title = tit,
     scene = list(bgcolor = "#e5ecf6")
-)
+  )
 
 # Define variable and save
 file_name_plotlyPCA3D <- paste0(out_dirs$pca, "/", "allsamples_PCA_plot3D.html")
@@ -750,9 +787,12 @@ saveRDS(rds, rds_name)
 
 
 # trigger reporter
-report_generator <- file.path(getwd(),"bulk_rnaseq_analyses/differential_expression/report_generator.R")
+report_generator <- file.path(getwd(), "report_generator.R")
 source(report_generator)
-report_path <- generate_report(analysis_results_path = paste0("./", rds_name))
+report_path <- generate_report(
+  analysis_results_path = normalizePath(rds_name, mustWork = TRUE),
+  output_dir = normalizePath(outDir, mustWork = TRUE)
+)
 print(paste("Report generated at:", report_path))
 
 

@@ -1,0 +1,103 @@
+Bootstrap: docker
+From: rocker/r-ver:4.2.1
+
+%labels
+    Author Mikail Bala
+    Description Singularity container for bulk RNA-seq differential expression analysis
+    R_Version 4.2.1
+    Bioconductor_Version 3.16
+
+%help
+    This container provides a complete environment for differential expression analysis
+    with all required R packages pre-installed from the dge_renv.lock file.
+    
+    Usage:
+        apptainer run dge_analysis.sif --help
+        apptainer exec dge_analysis.sif Rscript de.R --counts <file> --samplesheet <file> ...
+
+%files
+    # Copy the lockfile into the container
+    dge_renv.lock /opt/dge_renv.lock
+
+%post
+    # Update system and install dependencies
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libpng-dev \
+        libjpeg-dev \
+        libfontconfig1-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
+        libfreetype6-dev \
+        libtiff5-dev \
+        libgit2-dev \
+        zlib1g-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libicu-dev \
+        libpcre2-dev \
+        libgsl-dev \
+        libglpk-dev \
+        cmake \
+        pandoc \
+        wget \
+        ca-certificates
+    
+    # Clean up apt cache to reduce image size
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    
+    # Set compiler flags to handle newer C++ standards
+    export CXXFLAGS="-std=c++14 -Wno-error"
+    export CXX14FLAGS="-std=c++14 -Wno-error"
+    
+    # Install renv
+    R -e "install.packages('renv', repos='https://cran.r-project.org')"
+    
+    # Create project directory
+    mkdir -p /opt/dge_project
+    cd /opt/dge_project
+    
+    # Initialize renv
+    R -e "renv::init(bare = TRUE, restart = FALSE)"
+    
+    # Copy lockfile
+    cp /opt/dge_renv.lock /opt/dge_project/renv.lock
+    
+    # Try to restore packages from lockfile
+    # Use --continue-on-failure style approach
+    R -e "options(warn = 1); renv::restore(prompt = FALSE, library = '/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu')" || true
+    
+    # Install critical packages that might have failed
+    R -e "if (!requireNamespace('fgsea', quietly = TRUE)) { \
+            BiocManager::install('fgsea', force = TRUE, update = FALSE) \
+          }"
+    
+    # Create symbolic link for easier access
+    ln -s /opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu /usr/local/lib/R/site-library/dge_libs
+    
+    # Set R library path
+    echo 'R_LIBS_USER=/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu' >> /usr/local/lib/R/etc/Renviron.site
+    
+    # Verify critical packages
+    R -e "if(!require('DESeq2')) stop('DESeq2 not installed')"
+    R -e "if(!require('clusterProfiler')) stop('clusterProfiler not installed')"
+    R -e "if(!require('tidyverse')) stop('tidyverse not installed')"
+    
+    echo "Container build complete!"
+
+%environment
+    # Set environment variables
+    export LC_ALL=C
+    export R_LIBS_USER=/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu
+    export RENV_PATHS_LIBRARY=/opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu
+
+%runscript
+    # Default runscript - display help
+    exec echo "Differential Expression Analysis Container"
+    exec echo "Usage: apptainer exec dge_analysis.sif Rscript de.R [arguments]"
+    exec echo ""
+    exec echo "For help: apptainer exec dge_analysis.sif Rscript de.R --help"
