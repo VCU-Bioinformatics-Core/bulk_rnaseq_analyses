@@ -22,7 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "======================================================================"
-echo "Differential Expression Analysis - Smart Launcher"
+echo "Differential Expression Analysis - Launcher"
 echo "======================================================================"
 echo ""
 
