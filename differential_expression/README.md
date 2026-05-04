@@ -60,7 +60,7 @@ differential_expression/
 
 ## Pipeline
 
-![colored_pipeline_nums](https://github.com/user-attachments/assets/3a8c49cb-4258-4674-9011-f8d85e3401e0)
+![Pipeline diagram](assets/dge.png)
 
 1. **Parse contrasts** from the samplesheet (one column per `experiment_vs_control`; `1` = exp, `0` = ctrl, blank = exclude).
 2. **Align + filter** the counts matrix to the samplesheet's `SampleID` order; pre-filter genes with fewer than 3 samples having ≥10 reads.
