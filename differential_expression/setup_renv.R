@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 #
 # setup_renv.R
-# Bootstrap script to initialize renv and restore packages from dge_renv.lock
+# Bootstrap script to initialize renv and restore packages from renv.lock
 #
 # Usage:
 #   Rscript setup_renv.R
@@ -58,17 +58,15 @@ if (dir.exists("renv")) {
     cat("✓ renv initialized\n\n")
 }
 
-# Check if dge_renv.lock exists
-if (file.exists("dge_renv.lock")) {
-    cat("Found dge_renv.lock file\n")
+# Phase 8.1: collapsed dge_renv.lock into renv.lock. The bootstrap now
+# checks for renv.lock directly (no copy step needed).
+if (file.exists("renv.lock")) {
+    cat("Found renv.lock file\n")
     cat("Restoring packages from lockfile...\n")
     cat("NOTE: This will take 30-60 minutes on first run.\n")
     cat("      Required packages:\n")
     cat("      - Bioconductor packages (DESeq2, clusterProfiler, etc.)\n")
     cat("      - CRAN packages (tidyverse, plotly, etc.)\n\n")
-
-    # Copy dge_renv.lock to renv.lock
-    file.copy("dge_renv.lock", "renv.lock", overwrite = TRUE)
 
     # Restore packages from the lockfile
     cat("Starting package restoration...\n")
@@ -85,8 +83,8 @@ if (file.exists("dge_renv.lock")) {
     cat("  2. Check that renv activates automatically\n")
     cat("  3. Run: library(DESeq2)\n\n")
 } else {
-    cat("⚠ WARNING: dge_renv.lock not found!\n")
-    cat("  Expected location:", file.path(getwd(), "dge_renv.lock"), "\n")
+    cat("⚠ WARNING: renv.lock not found!\n")
+    cat("  Expected location:", file.path(getwd(), "renv.lock"), "\n")
     cat("  renv is initialized but no packages have been installed.\n")
 }
 

@@ -5,6 +5,143 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-01
+
+The biggest release since the pipeline was first published. The monolithic
+`de.R` (~1880 lines) and glue-built `report_generator.R` (~625 lines) have
+been refactored into a real R package (`bisrDE`) with a thin CLI wrapper, a
+Quarto-templated report, a Nextflow DSL2 module, and a testthat suite.
+
+### Added
+
+- **`bisrDE` R package** at `differential_expression/bisrDE/` with 33
+  exported functions across 11 R files (io / normalize / de / annotate /
+  enrich / 4× plots_* / pipeline / cli / utils / report). Installable via
+  `remotes::install_local("bisrDE")`. Roxygen-documented; all public
+  functions have proper `@param` / `@return` / `@details` / `@export`
+  blocks.
+- **Top-level orchestrator** `bisrDE::run_pipeline(counts_path,
+  samplesheet_path, outdir, runid, annotation, id_type, brs_ticket)` —
+  end-to-end pipeline as a callable function.
+- **Quarto report template** at `bisrDE/inst/qmd/report.qmd` (with a
+  `_sections/_comparison.qmd` child for the per-comparison loop). Replaces
+  the parent's glue-built Rmd; uses native `params:`, `knit_child`, and
+  Quarto callouts. Rendered via `bisrDE::generate_report()`.
+- **Executive Summary** at the top of the report: programmatic 1-paragraph
+  brief per comparison (DEG counts + top 3 up + top 3 down + strongest
+  enriched gene set across the 4 backends).
+- **Four-part interpretation callouts** for every plot section: "How to
+  read this", "What to look for", "Common pitfalls", "Next steps" — for
+  PCA, sample-level QC, volcano, heatmaps, and enrichment dotplots.
+- **End-of-report Glossary** with 22 plain-English term definitions
+  (padj, log2FC, NES, vst, TMM, GSEA, GO/KEGG/Reactome/Hallmark, FDR,
+  z-score, etc.).
+- **Annotation expansion** — every DE CSV now carries Ensembl ID, Entrez
+  ID, gene Symbol, and gene name regardless of input identifier type.
+- **`--id-type {ensembl,entrez,symbol}` flag** for non-Ensembl input
+  count matrices. Symbol/Entrez inputs map to Ensembl IDs internally so
+  downstream code that hardcodes `ENSEMBL_ID` keeps working.
+- **`--brs-ticket BRS-XXXX` flag** plumbed through the pipeline; rendered
+  as a YAML `subtitle:` under the report title.
+- **Three new enrichment backends**: KEGG pathways (`gseKEGG`), Reactome
+  pathways (`ReactomePA::gsePathway`), MSigDB Hallmark gene sets
+  (`clusterProfiler::GSEA` + `msigdbr` H collection). Each produces its
+  own dotplot and CSV alongside the existing GO results.
+- **Top-100 heatmap variant** alongside the all-significant heatmap, with
+  gene-symbol row labels for visual interpretation.
+- **Sample-level QC plots** (4): Spearman correlation heatmap on DE genes,
+  vst-transformed Euclidean distance heatmap, library-size + detected-gene
+  barplot, hierarchical clustering (Ward.D2) + log-CPM density.
+- **CLI overhaul** — replaced bare `print()` / `cat()` with `cli::*` for
+  structured terminal output (banners, progress bars, ETA, color status,
+  structured errors). Per-run session log file under `<outdir>/logs/`
+  captures every cli/print/cat output via tee'd `sink()`.
+- **Inline plotly PCA** — both 2D and 3D interactive plots now embedded
+  in the report HTML, alongside the existing standalone HTML files.
+- **Dynamic Methods text** — tool versions read from
+  `bisrDE/inst/extdata/upstream_versions.yml` (single source of truth);
+  R package versions read live via `packageVersion()`. Genome assembly
+  string ("GRCh38 human" / "GRCm39 mouse") populated from the
+  `--annotation` flag.
+- **Nextflow DSL2 wrapper** at `differential_expression/nf-module/`:
+  `main.nf` + `modules/local/bisr_de.nf` + `nextflow.config` (3 profiles:
+  `local`, `container`, `slurm`). Drops in downstream of
+  `nf-core/rnaseq`'s merged-counts output. See `nf-module/README.md`.
+- **`nf-test` suite** at `nf-module/tests/main.nf.test` validating the
+  process end-to-end against the bundled `assets/example_*` mouse fixture.
+- **`testthat` suite** at `bisrDE/tests/testthat/` with 4 test files
+  covering the bug-fix surface area: contrast parsing, annotation,
+  heatmap sample-subset, volcano color/threshold alignment.
+  `devtools::test()` reports `52 PASS / 0 FAIL`.
+- **`dge_analysis.def` install step** for `bisrDE` via
+  `remotes::install_local('/opt/dge_project/bisrDE', upgrade = 'never')`,
+  preserving renv-pinned dep versions inside the container.
+
+### Fixed
+
+- **Volcano plot color/threshold mismatch** — y-axis, dot color, threshold
+  line, and top-genes label selection all now use the same significance
+  field (`sig`, default `padj`). The red dashed line now aligns with the
+  grey/colored boundary it was supposed to represent.
+- **Heatmap sample-subset bug** — the heatmap matrix is now restricted to
+  the comparison's experimental + control samples only, instead of
+  showing every sample in the full samplesheet (which previously made
+  multi-contrast reports unreadable).
+- **Manuscript text species mismatch** — mouse runs no longer say
+  "GRCh38"; the genome-assembly string is now driven by the
+  `--annotation` flag.
+- **Report references renumbered + alphabetized** by first-author
+  surname; every `[n]` in the Methods text now resolves uniquely. Added
+  edgeR (Robinson) and ReactomePA (Yu) citations that were missing despite
+  the tools being used.
+- **Ambiguous one-to-many ID mappings** — `annotate_results` now resolves
+  these by keeping the first match and emits a `cli_alert_warning` so the
+  user is aware. Pre-checks input rownames for duplicates and warns.
+
+### Changed
+
+- **`de.R` reduced 1880 → 118 lines (94% reduction)** — now a thin
+  optparse driver that delegates to `bisrDE::run_pipeline` +
+  `bisrDE::generate_report`. The wrapper has a smart `library(bisrDE)` →
+  `devtools::load_all("bisrDE")` fallback for local-dev iteration without
+  reinstalls.
+- **Report format**: Rmd → Quarto. Native `params:`, callouts, child
+  templates eliminate the prior glue-concatenation bug class. Self-contained
+  HTML (`embed-resources: true`) bundles every plot, table, and widget
+  into one file.
+- **Pipeline structure**: pre-existing functions migrated into per-domain
+  R files under `bisrDE/R/` (io, normalize, de, annotate, enrich,
+  plots_volcano, plots_heatmap, plots_pca, plots_qc, pipeline, cli, utils,
+  report). NSE modernized to `.data$col` syntax for R CMD check
+  compatibility; `%>%` → `|>` (R 4.2+).
+
+
+### Deferred to HPC deployment
+
+The package, Nextflow module, and local-R workflow are all complete and
+verified independently. The container rebuild is a deployment artefact,
+not a release artefact.
+
+- **`dge_analysis.sif` container rebuild + in-container smoke**
+  : def file is rebuild-ready (Quarto CLI install +
+  lockfile collapse), but the actual `bash
+  build_container.sh` invocation requires Linux x86_64 + Apptainer.
+  Will land on the VCU HPRC login node at deployment time, where build
+  env matches deploy env.
+
+### Acceptance highlights
+
+- `devtools::check()` 0 errors / 0 warnings / 1 NOTE (Quarto runtime deps,
+  intentional).
+- `devtools::test()` 52 PASS / 0 FAIL.
+- `lintr::lint_package()` 271 → 20 lints (-93%, 0 dead-code findings).
+- `bash run_analysis.sh ...` end-to-end smoke produces a 7.76 MB Quarto
+  HTML report with embedded plotly widgets, base64 images, DT tables,
+  Quarto callouts, complete TOC, BRS subtitle.
+- `nextflow run nf-module/main.nf --help` lists all 7 params.
+- `nf-test test nf-module/tests/main.nf.test` PASSES end-to-end against
+  the example fixture (~90 s).
+
 ## [1.3.0] - 2026-02-02
 
 ### Added
@@ -34,14 +171,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- Support for additional annotation databases
-- Batch correction options
-- Enhanced QC metrics reporting
+- Container rebuild with Quarto CLI + retry of Glimma 4.6.
+- Multi-factor designs and covariate support.
+- Batch correction options (sva / ComBat).
+- Single-cell RNA-seq adapter (separate package, not bisrDE).
 
 ---
 
 ## Version History
 
-| Version | Date       | Description                          |
-| ------- | ---------- | ------------------------------------ |
-| 1.3.0   | 2026-02-02 | Stable release with full DE pipeline |
+| Version | Date       | Description                                                                                  |
+| ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.4.0   | 2026-05-01 | Refactor to `bisrDE` R package + Quarto report + Nextflow DSL2 wrapper + 4-backend GSEA + QC |
+| 1.3.0   | 2026-02-02 | Stable release with full DE pipeline                                                         |

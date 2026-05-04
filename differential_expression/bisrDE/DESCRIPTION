@@ -1,0 +1,70 @@
+Package: bisrDE
+Title: Bulk RNA-Seq Differential Expression Pipeline (BISR)
+Version: 0.0.0.9000
+Authors@R:
+    person("Mikail", "Bala", , "balami@vcu.edu", role = c("aut", "cre"),
+           comment = c(affiliation = "VCU Massey BISR"))
+Description: DESeq2-based bulk RNA-seq differential expression pipeline
+    for the Bioinformatics Shared Resource at VCU Massey Comprehensive
+    Cancer Center. Per-comparison DE, sample-level QC, GO + KEGG +
+    Reactome + MSigDB Hallmark enrichment, and a parameterized Quarto
+    report. Designed to plug in downstream of nf-core/rnaseq merged-counts
+    output.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.2.0)
+Imports:
+    AnnotationDbi,
+    circlize,
+    cli,
+    ComplexHeatmap,
+    clusterProfiler,
+    DESeq2,
+    dplyr,
+    DT,
+    edgeR,
+    enrichplot,
+    ggdendro,
+    ggplot2,
+    ggrepel,
+    gplots,
+    grDevices,
+    grid,
+    htmlwidgets,
+    knitr,
+    msigdbr,
+    patchwork,
+    plotly,
+    quarto,
+    ReactomePA,
+    readr,
+    rlang,
+    rmarkdown,
+    stats,
+    stringr,
+    SummarizedExperiment,
+    tidyselect,
+    tools,
+    utils,
+    yaml
+Suggests:
+    org.Hs.eg.db,
+    org.Mm.eg.db,
+    optparse,
+    testthat (>= 3.0.0),
+    lintr
+Config/testthat/edition: 3
+biocViews:
+    DifferentialExpression,
+    GeneSetEnrichment,
+    GeneExpression,
+    RNASeq,
+    Sequencing,
+    Transcriptomics,
+    Visualization
+URL: https://github.com/VCUMasseyBISR/bisrDE
+BugReports: https://github.com/VCUMasseyBISR/bisrDE/issues
