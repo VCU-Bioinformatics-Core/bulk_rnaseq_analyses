@@ -100,6 +100,22 @@ option_list <- list(
   make_option(c("-i", "--id-type"),
     type = "character", default = "ensembl",
     help = "Gene identifier type used in the counts matrix rownames: 'ensembl' (default), 'entrez', or 'symbol'."
+  ),
+  make_option("--exclude-samples",
+    type = "character", default = NULL,
+    help = "Optional comma-separated SampleIDs to drop from the entire analysis (e.g. 'SRR1,SRR2')."
+  ),
+  make_option("--exclude-groups",
+    type = "character", default = NULL,
+    help = "Optional comma-separated GroupIDs to drop from the entire analysis."
+  ),
+  make_option("--include-contrasts",
+    type = "character", default = NULL,
+    help = "Optional comma-separated contrast columns to process exclusively (allowlist)."
+  ),
+  make_option("--exclude-contrasts",
+    type = "character", default = NULL,
+    help = "Optional comma-separated contrast columns to skip (denylist)."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -117,17 +133,33 @@ if (is.null(opt$runid) | is.null(opt$counts) |
 brs_ticket <- if (is.null(opt[["brs-ticket"]])) "" else opt[["brs-ticket"]]
 id_type    <- if (is.null(opt[["id-type"]]))    "ensembl" else opt[["id-type"]]
 
+# Comma-separated list flags -> character vectors (NULL when unset/empty).
+split_csv <- function(x) {
+  if (is.null(x) || !nzchar(trimws(x))) return(NULL)
+  vals <- trimws(strsplit(x, ",")[[1]])
+  vals <- vals[nzchar(vals)]
+  if (length(vals) == 0) NULL else vals
+}
+exclude_samples   <- split_csv(opt[["exclude-samples"]])
+exclude_groups    <- split_csv(opt[["exclude-groups"]])
+include_contrasts <- split_csv(opt[["include-contrasts"]])
+exclude_contrasts <- split_csv(opt[["exclude-contrasts"]])
+
 # ---------------------------------------------------------------------------
 # Run the pipeline + render the report.
 # ---------------------------------------------------------------------------
 res <- bisrDE::run_pipeline(
-  counts_path      = opt$counts,
-  samplesheet_path = opt$samplesheet,
-  outdir           = opt$outdir,
-  runid            = opt$runid,
-  annotation       = opt$annotation,
-  id_type          = id_type,
-  brs_ticket       = brs_ticket
+  counts_path       = opt$counts,
+  samplesheet_path  = opt$samplesheet,
+  outdir            = opt$outdir,
+  runid             = opt$runid,
+  annotation        = opt$annotation,
+  id_type           = id_type,
+  brs_ticket        = brs_ticket,
+  exclude_samples   = exclude_samples,
+  exclude_groups    = exclude_groups,
+  include_contrasts = include_contrasts,
+  exclude_contrasts = exclude_contrasts
 )
 
 bisrDE::generate_report(

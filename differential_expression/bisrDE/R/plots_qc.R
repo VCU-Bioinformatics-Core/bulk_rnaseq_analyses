@@ -59,6 +59,13 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
   groups <- group_lookup[colnames(cor_mat)]
   groups[is.na(groups)] <- "Unknown"
 
+  # Display labels (DisplayName column when present; munged ID otherwise).
+  disp <- .display_lookup(sample_info)
+  row_labs <- unname(ifelse(is.na(disp[rownames(cor_mat)]),
+                            rownames(cor_mat), disp[rownames(cor_mat)]))
+  col_labs <- unname(ifelse(is.na(disp[colnames(cor_mat)]),
+                            colnames(cor_mat), disp[colnames(cor_mat)]))
+
   uniq_groups <- unique(groups)
   group_palette <- stats::setNames(
     grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
@@ -80,6 +87,8 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
       breaks = c(min(cor_mat, 0), stats::median(cor_mat), 1),
       colors = c("blue", "white", "firebrick")
     ),
+    row_labels           = row_labs,
+    column_labels        = col_labs,
     show_row_names       = TRUE,
     show_column_names    = TRUE,
     row_names_gp         = grid::gpar(fontsize = 8),
@@ -143,6 +152,13 @@ qc_vst_dist_heatmap <- function(dds, sample_info, fig_path) {
   groups <- group_lookup[colnames(dist_mat)]
   groups[is.na(groups)] <- "Unknown"
 
+  # Display labels (DisplayName column when present; munged ID otherwise).
+  disp <- .display_lookup(sample_info)
+  row_labs <- unname(ifelse(is.na(disp[rownames(dist_mat)]),
+                            rownames(dist_mat), disp[rownames(dist_mat)]))
+  col_labs <- unname(ifelse(is.na(disp[colnames(dist_mat)]),
+                            colnames(dist_mat), disp[colnames(dist_mat)]))
+
   uniq_groups <- unique(groups)
   group_palette <- stats::setNames(
     grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
@@ -164,6 +180,8 @@ qc_vst_dist_heatmap <- function(dds, sample_info, fig_path) {
       breaks = c(0, stats::median(dist_mat), max(dist_mat)),
       colors = c("midnightblue", "lightblue", "white")
     ),
+    row_labels           = row_labs,
+    column_labels        = col_labs,
     show_row_names       = TRUE,
     show_column_names    = TRUE,
     row_names_gp         = grid::gpar(fontsize = 8),
@@ -198,7 +216,7 @@ qc_vst_dist_heatmap <- function(dds, sample_info, fig_path) {
 #' @param fig_path Output PNG path.
 #' @return Invisibly returns `fig_path`.
 #'
-#' @importFrom ggplot2 ggplot aes geom_col scale_fill_manual labs theme_minimal theme element_text ggsave
+#' @importFrom ggplot2 ggplot aes geom_col scale_fill_manual scale_x_discrete labs theme_minimal theme element_text ggsave
 #' @importFrom grDevices hcl.colors
 #' @export
 qc_libsize_detected_barplot <- function(counts, sample_info, fig_path) {
@@ -209,6 +227,14 @@ qc_libsize_detected_barplot <- function(counts, sample_info, fig_path) {
 
   ss_munged <- make.names(as.character(sample_info$sample))
   group_lookup <- stats::setNames(as.character(sample_info$condition), ss_munged)
+
+  # Display-label mapper for the x axis (munged ID -> DisplayName / munged).
+  disp <- .display_lookup(sample_info)
+  disp_labeller <- function(b) {
+    out <- unname(disp[b])
+    out[is.na(out)] <- b[is.na(out)]
+    out
+  }
 
   per_sample <- data.frame(
     sample    = colnames(counts),
@@ -229,6 +255,7 @@ qc_libsize_detected_barplot <- function(counts, sample_info, fig_path) {
                                   fill = .data$group)) +
     geom_col() +
     scale_fill_manual(values = group_palette) +
+    scale_x_discrete(labels = disp_labeller) +
     labs(x = NULL, y = "Library size (M reads)",
          title = "Library size per sample", fill = "Group") +
     theme_minimal(base_size = 13) +
@@ -239,6 +266,7 @@ qc_libsize_detected_barplot <- function(counts, sample_info, fig_path) {
                                   fill = .data$group)) +
     geom_col(show.legend = FALSE) +
     scale_fill_manual(values = group_palette) +
+    scale_x_discrete(labels = disp_labeller) +
     labs(x = "Sample", y = "Detected genes (counts > 0)",
          title = "Detected genes per sample") +
     theme_minimal(base_size = 13) +
@@ -301,6 +329,14 @@ qc_hclust_density <- function(tmm, sample_info, fig_path,
   leaf_labs$group <- group_lookup[as.character(leaf_labs$label)]
   leaf_labs$group[is.na(leaf_labs$group)] <- "Unknown"
 
+  # Display labels (DisplayName when present; munged dendrogram leaf
+  # label otherwise). The dendrogram structure stays keyed by the munged
+  # IDs; only the visible text changes.
+  disp <- .display_lookup(sample_info)
+  leaf_labs$display <- unname(disp[as.character(leaf_labs$label)])
+  leaf_labs$display[is.na(leaf_labs$display)] <-
+    as.character(leaf_labs$label)[is.na(leaf_labs$display)]
+
   uniq_groups <- unique(leaf_labs$group)
   group_palette <- stats::setNames(
     grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
@@ -320,7 +356,7 @@ qc_hclust_density <- function(tmm, sample_info, fig_path,
     geom_text(
       data = leaf_labs,
       aes(x = .data$x, y = .data$y,
-          label = .data$label, color = .data$group),
+          label = .data$display, color = .data$group),
       hjust = 1, angle = 90, vjust = 0.5, size = 3,
       nudge_y = -y_max * 0.02
     ) +

@@ -34,6 +34,11 @@ process BISR_DE {
 
     script:
     def brs_arg = params.brs_ticket?.trim() ? "--brs-ticket ${params.brs_ticket}" : ""
+    // v1.5.0 — optional sample/group/contrast selection flags.
+    def excl_samp_arg = params.exclude_samples?.trim()   ? "--exclude-samples ${params.exclude_samples}"     : ""
+    def excl_grp_arg  = params.exclude_groups?.trim()    ? "--exclude-groups ${params.exclude_groups}"       : ""
+    def incl_con_arg  = params.include_contrasts?.trim() ? "--include-contrasts ${params.include_contrasts}" : ""
+    def excl_con_arg  = params.exclude_contrasts?.trim() ? "--exclude-contrasts ${params.exclude_contrasts}" : ""
     def de_dir  = "${projectDir}/.."
     """
     # Capture absolute paths BEFORE cd-ing away (Nextflow stages inputs as
@@ -53,6 +58,6 @@ process BISR_DE {
         --runid ${params.runid} \\
         --annotation ${params.annotation} \\
         --id-type ${params.id_type} \\
-        ${brs_arg}
+        ${brs_arg} ${excl_samp_arg} ${excl_grp_arg} ${incl_con_arg} ${excl_con_arg}
     """
 }

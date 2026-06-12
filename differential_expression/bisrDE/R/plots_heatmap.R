@@ -112,6 +112,15 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
     as.matrix() |>
     jitter(factor = 1, amount = 0.00001)
 
+  # Relabel sample columns with display names (DisplayName column when
+  # present; munged ID otherwise, so default output is unchanged). The
+  # column SUBSET above used the munged join key; only the visible labels
+  # change here.
+  disp <- .display_lookup(sample_info)
+  new_cols <- unname(disp[colnames(values)])
+  new_cols[is.na(new_cols)] <- colnames(values)[is.na(new_cols)]
+  colnames(values) <- new_cols
+
   zscores <- t(scale(t(values)))
 
   row_labels <- NA

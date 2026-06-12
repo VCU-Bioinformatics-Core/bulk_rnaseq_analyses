@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-06-12
+
+User-experience release: selective sample/group/contrast inclusion, custom
+plot labels, and (in progress) a charmbracelet-powered interactive CLI.
+
+### Added
+
+- **Sample / group exclusion** — drop samples from the *entire* analysis
+  (contrasts, normalization, DESeq2, plots) via four complementary
+  mechanisms, all unioned:
+  - `--exclude-samples SRR1,SRR2` — drop by `SampleID` (ad-hoc, no
+    samplesheet edit).
+  - `--exclude-groups GroupA,GroupB` — drop every sample in those groups.
+  - Optional `Exclude` samplesheet column — declarative per-sample drop
+    (`1` / `TRUE` / `yes`), a permanent record kept with the data.
+  - `filter_samplesheet()` (new exported fn) implements the union and
+    errors if fewer than two samples survive.
+- **Contrast selection** — process a subset of contrasts without editing
+  the samplesheet:
+  - `--include-contrasts a_vs_b` — allowlist.
+  - `--exclude-contrasts c_vs_d` — denylist.
+  - `parse_contrasts()` gained `include_contrasts` / `exclude_contrasts`
+    args and is now metadata-aware (skips `SampleID` / `GroupID` /
+    `Exclude` / `DisplayName` columns by name, so a metadata column between
+    `GroupID` and the contrasts is never mistaken for a contrast).
+- **Custom plot labels** — optional `DisplayName` samplesheet column. When
+  present, all sample-labelled figures (correlation + vst-distance
+  heatmaps, library-size barplot, hclust dendrogram, static + interactive
+  PCA, per-comparison DE heatmaps) show the display label instead of the
+  SRA accession / SampleID. The matrix join key (`make.names(SampleID)`)
+  is untouched — only labels change. Blank `DisplayName` cells fall back to
+  the SampleID. New internal `.display_lookup()` centralises the mapping.
+- **Nextflow params** `--exclude_samples`, `--exclude_groups`,
+  `--include_contrasts`, `--exclude_contrasts` forwarded through the
+  `nf-module` wrapper.
+- **Interactive launcher** `run_interactive.sh` (charmbracelet, Phase A) —
+  a guided, styled front-door that collects every parameter and offers
+  interactive group / sample / contrast multi-select (wiring into the new
+  selection features), then hands off to `run_analysis.sh`. Uses
+  [`gum`](https://github.com/charmbracelet/gum) (lipgloss borders + huh
+  forms + bubbles spinner/multi-select), [`glow`](https://github.com/charmbracelet/glow)
+  (terminal-markdown run summary) and [`freeze`](https://github.com/charmbracelet/freeze)
+  (CLI screenshots for docs) when installed; degrades gracefully to plain
+  prompts otherwise. Scriptable via `BISR_*` env vars + `--print-cmd`.
+  A dedicated Go TUI (bubbletea) is scoped as an optional Phase B.
+- New testthat files `test-exclude.R` (11 tests) and `test-display-names.R`
+  (7 tests) covering exclusion union, contrast filtering, metadata-column
+  skipping, and the display-label join-key invariant.
+
+### Changed
+
+- `run_pipeline()` gained `exclude_samples` / `exclude_groups` /
+  `include_contrasts` / `exclude_contrasts` parameters (all `NULL` by
+  default — behaviour unchanged when unset).
+
 ## [1.4.0] - 2026-05-01
 
 The biggest release since the pipeline was first published. The monolithic
@@ -182,5 +237,6 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.5.0   | 2026-06-12 | Sample/group/contrast selection, DisplayName plot labels, charmbracelet (gum) interactive CLI |
 | 1.4.0   | 2026-05-01 | Refactor to `bisrDE` R package + Quarto report + Nextflow DSL2 wrapper + 4-backend GSEA + QC |
 | 1.3.0   | 2026-02-02 | Stable release with full DE pipeline                                                         |

@@ -37,11 +37,15 @@ Required:
     --runid         Unique identifier for this run.
 
 Optional:
-    --outdir        Output directory.                                          [default: ${params.outdir}]
-    --annotation    Genome annotation: 'mouse' or 'human'.                     [default: ${params.annotation}]
-    --brs_ticket    BRS ticket identifier (e.g. BRS-1234) for the report.       [default: '']
-    --id_type       Gene identifier type: 'ensembl', 'entrez', or 'symbol'.    [default: ${params.id_type}]
-    --help          Show this help and exit.
+    --outdir             Output directory.                                          [default: ${params.outdir}]
+    --annotation         Genome annotation: 'mouse' or 'human'.                     [default: ${params.annotation}]
+    --brs_ticket         BRS ticket identifier (e.g. BRS-1234) for the report.       [default: '']
+    --id_type            Gene identifier type: 'ensembl', 'entrez', or 'symbol'.    [default: ${params.id_type}]
+    --exclude_samples    Comma-separated SampleIDs to drop from the analysis.        [default: '']
+    --exclude_groups     Comma-separated GroupIDs to drop from the analysis.         [default: '']
+    --include_contrasts  Comma-separated contrast columns to process exclusively.    [default: '']
+    --exclude_contrasts  Comma-separated contrast columns to skip.                   [default: '']
+    --help               Show this help and exit.
 
 Profiles (-profile <name>):
     local           Run with local R (requires bisrDE + Quarto installed locally).

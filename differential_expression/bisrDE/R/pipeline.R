@@ -256,6 +256,14 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #' @param brs_ticket Optional BRS ticket identifier (e.g. `"BRS-1234"`).
 #'   Default `""`. Currently passed through into the returned artifact
 #'   list for the report renderer.
+#' @param exclude_samples Optional character vector of `SampleID`s to drop
+#'   from the entire analysis (see [filter_samplesheet()]). Default `NULL`.
+#' @param exclude_groups Optional character vector of `GroupID`s to drop.
+#'   Default `NULL`.
+#' @param include_contrasts Optional character vector. When non-NULL, only
+#'   these contrast columns are processed (allowlist). Default `NULL`.
+#' @param exclude_contrasts Optional character vector of contrast columns to
+#'   skip (denylist). Default `NULL`.
 #' @return Invisibly, a named list of pipeline artifacts:
 #'   `results`, `comparisons`, `out_dirs`, `pca_plot` (ggplot),
 #'   `pca_plotly` (plotly 2D), `pca_plotly_3d` (plotly 3D),
@@ -278,8 +286,12 @@ run_pipeline <- function(counts_path,
                          outdir,
                          runid,
                          annotation,
-                         id_type    = "ensembl",
-                         brs_ticket = "") {
+                         id_type           = "ensembl",
+                         brs_ticket        = "",
+                         exclude_samples   = NULL,
+                         exclude_groups    = NULL,
+                         include_contrasts = NULL,
+                         exclude_contrasts = NULL) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
 
@@ -323,9 +335,29 @@ run_pipeline <- function(counts_path,
     "Loaded {nrow(counts)} genes x {ncol(counts)} samples; {nrow(samplesheet)} samplesheet rows"
   )
 
-  # ---- 4. Parse contrasts ----
+  # ---- 3b. Apply sample / group exclusions (Exclude column + flags) ----
+  if (length(exclude_samples) > 0 || length(exclude_groups) > 0 ||
+      "Exclude" %in% colnames(samplesheet)) {
+    cli::cli_h1("Applying sample exclusions")
+    samplesheet <- filter_samplesheet(
+      samplesheet,
+      exclude_samples = exclude_samples,
+      exclude_groups  = exclude_groups
+    )
+  }
+
+  # ---- 4. Parse contrasts (with optional include/exclude filtering) ----
   cli::cli_h1("Parsing contrasts")
-  comparisons <- parse_contrasts(samplesheet)
+  comparisons <- parse_contrasts(
+    samplesheet,
+    include_contrasts = include_contrasts,
+    exclude_contrasts = exclude_contrasts
+  )
+  if (length(comparisons) == 0) {
+    cli::cli_abort(
+      "No contrasts to analyse after include/exclude filtering and group checks."
+    )
+  }
 
   # ---- 5. Coerce + align ----
   countsdf <- counts |>
@@ -350,6 +382,28 @@ run_pipeline <- function(counts_path,
     condition = samplesheet$GroupID,
     stringsAsFactors = FALSE
   )
+  # Optional per-sample display labels for plots (matrix join key stays
+  # SampleID; only labels change). Blank/NA DisplayName cells fall back to
+  # the SampleID.
+  if ("DisplayName" %in% colnames(samplesheet)) {
+    d <- as.character(samplesheet$DisplayName)
+    blank <- is.na(d) | !nzchar(trimws(d))
+    d[blank] <- as.character(samplesheet$SampleID)[blank]
+    sample_info$display <- d
+    cli::cli_alert_info(
+      "DisplayName column detected: plot labels will use display names"
+    )
+  }
+
+  # Defensive: counts columns and colData rows must line up 1:1. After
+  # exclusions this is the place a desync would surface, so fail with a
+  # clear message rather than DESeq2's opaque "ncol == nrow is not TRUE".
+  if (ncol(countsdf) != nrow(sample_info)) {
+    cli::cli_abort(c(
+      "Count columns ({ncol(countsdf)}) do not match samplesheet rows ({nrow(sample_info)}).",
+      "i" = "This usually means sample alignment / exclusion left the two out of sync."
+    ))
+  }
 
   dds <- DESeq2::DESeqDataSetFromMatrix(
     countData = countsdf,

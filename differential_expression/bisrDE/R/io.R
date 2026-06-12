@@ -63,6 +63,120 @@ read_samplesheet <- function(path) {
 }
 
 
+#' Drop excluded samples / groups from a samplesheet
+#'
+#' @description Remove rows from a samplesheet so they are dropped from the
+#'   entire analysis (contrasts, normalization, DESeq2, plots). Three
+#'   exclusion sources are combined (union):
+#'   \enumerate{
+#'     \item An optional declarative `Exclude` column — any row whose value
+#'           is `1` / `TRUE` / `"yes"` (case-insensitive) is dropped. Good
+#'           for a permanent "this sample was contaminated" record kept with
+#'           the samplesheet.
+#'     \item `exclude_samples` — `SampleID`s to drop (ad-hoc, e.g. a CLI
+#'           flag) without editing the canonical samplesheet.
+#'     \item `exclude_groups` — every sample whose `GroupID` matches is
+#'           dropped.
+#'   }
+#'
+#' @param samplesheet Data frame from [read_samplesheet()].
+#' @param exclude_samples Optional character vector of `SampleID`s to drop.
+#' @param exclude_groups Optional character vector of `GroupID`s to drop.
+#' @param sample_col Sample-ID column name (default `"SampleID"`).
+#' @param group_col Group-ID column name (default `"GroupID"`).
+#' @return The samplesheet with excluded rows removed (row order otherwise
+#'   preserved). Errors via `cli::cli_abort` if fewer than two samples
+#'   remain.
+#' @details The `SampleID` join key is untouched — exclusion only removes
+#'   rows, so downstream `make.names()`-based alignment to the count matrix
+#'   is unaffected for the surviving samples.
+#'
+#' @export
+filter_samplesheet <- function(samplesheet,
+                               exclude_samples = NULL,
+                               exclude_groups  = NULL,
+                               sample_col = "SampleID",
+                               group_col  = "GroupID") {
+  ss <- samplesheet
+  n0 <- nrow(ss)
+  drop <- rep(FALSE, n0)
+
+  # 1) Declarative Exclude column.
+  if ("Exclude" %in% colnames(ss)) {
+    ex <- ss[["Exclude"]]
+    ex_chr <- trimws(tolower(as.character(ex)))
+    ex_drop <- !is.na(ex) & ex_chr %in% c("1", "true", "yes", "y", "t")
+    if (any(ex_drop)) {
+      cli::cli_alert_info(
+        "Exclude column: dropping {sum(ex_drop)} sample{?s}: {.val {as.character(ss[[sample_col]][ex_drop])}}"
+      )
+    }
+    drop <- drop | ex_drop
+  }
+
+  # 2) --exclude-samples (by SampleID).
+  if (length(exclude_samples) > 0) {
+    s_drop <- as.character(ss[[sample_col]]) %in% as.character(exclude_samples)
+    matched <- intersect(as.character(exclude_samples),
+                         as.character(ss[[sample_col]]))
+    missing <- setdiff(as.character(exclude_samples),
+                       as.character(ss[[sample_col]]))
+    if (length(matched) > 0) {
+      cli::cli_alert_info("exclude-samples: dropping {.val {matched}}")
+    }
+    if (length(missing) > 0) {
+      cli::cli_alert_warning(
+        "exclude-samples: {length(missing)} ID{?s} not in samplesheet: {.val {missing}}"
+      )
+    }
+    drop <- drop | s_drop
+  }
+
+  # 3) --exclude-groups (by GroupID).
+  if (length(exclude_groups) > 0) {
+    g_drop <- as.character(ss[[group_col]]) %in% as.character(exclude_groups)
+    matched <- intersect(as.character(exclude_groups),
+                         as.character(ss[[group_col]]))
+    missing <- setdiff(as.character(exclude_groups),
+                       as.character(ss[[group_col]]))
+    if (length(matched) > 0) {
+      cli::cli_alert_info("exclude-groups: dropping group{?s} {.val {matched}}")
+    }
+    if (length(missing) > 0) {
+      cli::cli_alert_warning(
+        "exclude-groups: {length(missing)} group{?s} not in samplesheet: {.val {missing}}"
+      )
+    }
+    drop <- drop | g_drop
+  }
+
+  ss <- ss[!drop, , drop = FALSE]
+
+  if (sum(drop) > 0) {
+    cli::cli_alert_success(
+      "Sample exclusion: kept {nrow(ss)} / {n0} sample{?s}"
+    )
+  }
+  if (nrow(ss) < 2) {
+    cli::cli_abort(
+      "After exclusions only {nrow(ss)} sample{?s} remain (need >= 2)."
+    )
+  }
+
+  ss
+}
+
+
+#' Metadata column names recognised in a samplesheet
+#'
+#' @description The reserved, non-contrast columns a samplesheet may carry.
+#'   Everything from `first_contrast_col` onward that is NOT one of these is
+#'   treated as a contrast column. Centralised so [parse_contrasts()] and
+#'   [run_pipeline()] agree on what counts as metadata.
+#' @keywords internal
+.samplesheet_meta_cols <- c("SampleID", "GroupID", "Exclude", "DisplayName")
+
+
 #' Parse contrast columns into a comparisons list
 #'
 #' @description Convert a samplesheet's contrast columns into a list of
@@ -74,8 +188,16 @@ read_samplesheet <- function(path) {
 #' @param samplesheet Data frame returned by [read_samplesheet()].
 #' @param group_col Column name holding the GroupID labels used to populate
 #'   `exp`/`ctrl` in the output (default `"GroupID"`).
-#' @param first_contrast_col Index of the first contrast column. Defaults to
-#'   `3` to skip the conventional `SampleID`/`GroupID` columns.
+#' @param first_contrast_col Index of the first candidate contrast column.
+#'   Defaults to `3` to skip the conventional `SampleID`/`GroupID` columns.
+#'   Reserved metadata columns ([.samplesheet_meta_cols]: `SampleID`,
+#'   `GroupID`, `Exclude`, `DisplayName`) at or after this index are still
+#'   skipped by name, so an `Exclude`/`DisplayName` column inserted between
+#'   `GroupID` and the first contrast does not get mistaken for a contrast.
+#' @param include_contrasts Optional character vector. When non-NULL, only
+#'   these contrast columns are processed (allowlist).
+#' @param exclude_contrasts Optional character vector of contrast columns to
+#'   skip (denylist). Applied after `include_contrasts`.
 #' @return A list. Each element is `list(name = <contrast column name>,
 #'   exp = <unique experimental GroupID(s)>, ctrl = <unique control
 #'   GroupID(s)>)`. Contrasts with an empty exp or ctrl group are skipped
@@ -84,8 +206,40 @@ read_samplesheet <- function(path) {
 #' @export
 parse_contrasts <- function(samplesheet,
                             group_col = "GroupID",
-                            first_contrast_col = 3) {
+                            first_contrast_col = 3,
+                            include_contrasts = NULL,
+                            exclude_contrasts = NULL) {
   contrast_cols <- colnames(samplesheet)[first_contrast_col:ncol(samplesheet)]
+  # Drop reserved metadata columns by name (preserving order) so an
+  # Exclude / DisplayName column sitting before the first contrast is not
+  # treated as a contrast.
+  contrast_cols <- setdiff(contrast_cols,
+                           union(.samplesheet_meta_cols, group_col))
+
+  if (!is.null(include_contrasts)) {
+    keep <- intersect(contrast_cols, include_contrasts)
+    dropped <- setdiff(contrast_cols, keep)
+    if (length(dropped) > 0) {
+      cli::cli_alert_info(
+        "include-contrasts: keeping {length(keep)} contrast{?s}, skipping {.val {dropped}}"
+      )
+    }
+    missing_req <- setdiff(include_contrasts, contrast_cols)
+    if (length(missing_req) > 0) {
+      cli::cli_alert_warning(
+        "include-contrasts: requested contrast{?s} not in samplesheet: {.val {missing_req}}"
+      )
+    }
+    contrast_cols <- keep
+  }
+  if (!is.null(exclude_contrasts)) {
+    hit <- intersect(contrast_cols, exclude_contrasts)
+    if (length(hit) > 0) {
+      cli::cli_alert_info("exclude-contrasts: skipping {.val {hit}}")
+    }
+    contrast_cols <- setdiff(contrast_cols, exclude_contrasts)
+  }
+
   cli::cli_inform("Contrast columns found: {.val {contrast_cols}}")
 
   comparisons <- list()

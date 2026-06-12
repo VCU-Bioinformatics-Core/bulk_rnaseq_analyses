@@ -2,6 +2,52 @@
 # Source-of-truth during Phase 5.2-5.7 is still the parent's de.R; this
 # package copy is a snapshot per the Phase 5.5 spec.
 
+#' Build a munged-SampleID -> display-label lookup
+#'
+#' @description Construct a named character vector mapping each sample's
+#'   `make.names()`-munged ID (the form used as count-matrix column names
+#'   and plot label keys) to the label that should be shown on plots.
+#'
+#'   When `sample_info` carries a `display` column (populated from the
+#'   samplesheet's optional `DisplayName` column), those values are used.
+#'   Otherwise the lookup is the identity on the munged ID, so plots render
+#'   exactly as they did before display names existed.
+#'
+#' @param sample_info Data frame with at least a `sample` column; optionally
+#'   a `display` column.
+#' @return Named character vector: names are `make.names(sample_info$sample)`,
+#'   values are the display labels (falling back to the munged ID per cell
+#'   when a `display` entry is blank/`NA`).
+#' @keywords internal
+.display_lookup <- function(sample_info) {
+  munged <- make.names(as.character(sample_info$sample))
+  disp <- munged
+  if (!is.null(sample_info$display)) {
+    d <- as.character(sample_info$display)
+    has <- !is.na(d) & nzchar(trimws(d))
+    disp[has] <- d[has]
+  }
+  stats::setNames(disp, munged)
+}
+
+
+#' Build a munged-SampleID -> condition (group) lookup
+#'
+#' @description Named vector mapping each sample's `make.names()`-munged ID
+#'   to its `condition`/group label. Use this to align group labels to a
+#'   matrix's column order (or a `prcomp` rowname order) rather than
+#'   relying on `sample_info` row order matching the data column order.
+#'
+#' @param sample_info Data frame with `sample` and `condition` columns.
+#' @return Named character vector: names are `make.names(sample_info$sample)`,
+#'   values are the group labels.
+#' @keywords internal
+.group_lookup <- function(sample_info) {
+  munged <- make.names(as.character(sample_info$sample))
+  stats::setNames(as.character(sample_info$condition), munged)
+}
+
+
 #' Build a `<base_dir>/<prefix><name><extension>` file path
 #'
 #' @description Convenience wrapper around `file.path()` + `paste0()` for

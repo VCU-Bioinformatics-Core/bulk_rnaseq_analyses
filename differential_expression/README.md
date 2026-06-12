@@ -153,9 +153,42 @@ Must contain at least these columns: `SampleID`, `GroupID`, then one column per 
 | sample3_r1 | experiment2 |               | 1             |
 | sample4_r1 | control2    |               | 0             |
 
+**Optional columns** (v1.5.0+) — placed anywhere between `GroupID` and the contrast columns; they are recognised by name and never treated as contrasts:
+
+- `DisplayName` — a human-readable label shown on every sample-labelled figure (heatmaps, barplots, dendrogram, PCA) instead of the `SampleID`. The `SampleID` stays the count-matrix join key; only the labels change. Blank cells fall back to the `SampleID`.
+- `Exclude` — set to `1` / `TRUE` / `yes` to drop that sample from the entire analysis. Use this for a permanent "this sample was contaminated" record.
+
+| SampleID   | GroupID  | DisplayName | Exclude | hpvPos_vs_hpvNeg |
+|------------|----------|-------------|---------|------------------|
+| SRR2219887 | hpvPos   | HPV+ #1     |         | 1                |
+| SRR2219889 | hpvPos   | HPV+ #2     |         | 1                |
+| SRR2219873 | hpvNeg   | HPV− #1     |         | 0                |
+| SRR2219895 | hpvNeg   | HPV− #2     | 1       | 0                |   ← dropped |
+
 ### Running the pipeline
 
-Always invoke through `run_analysis.sh` — never call `Rscript de.R` directly. The launcher handles environment detection.
+Two entry points:
+
+- **`run_interactive.sh`** (v1.5.0+, recommended) — a guided, styled launcher that walks you through every option, including interactive sample / group / contrast selection, then hands off to `run_analysis.sh`.
+- **`run_analysis.sh`** — the non-interactive executor (use this in scripts / CI / Nextflow). Never call `Rscript de.R` directly; the launcher handles environment detection.
+
+#### Interactive launcher (recommended)
+
+```bash
+bash run_interactive.sh
+```
+
+![Interactive launcher](assets/cli_launcher.png)
+
+It prompts for the counts file, samplesheet, annotation, run ID, output dir, optional BRS ticket and ID type, then reads the samplesheet to offer **multi-select menus for excluding groups / samples and choosing which contrasts to run** (wiring directly into the v1.5.0 selection features). A summary card is shown for confirmation before launching.
+
+For the polished [charmbracelet](https://github.com/charmbracelet) experience (borders, colors, fuzzy multi-select, markdown summary) install the optional tools:
+
+```bash
+brew install gum glow freeze    # macOS; see charmbracelet repos for Linux
+```
+
+Without them the launcher falls back to plain prompts — it always works. It also runs non-interactively for scripting: set `BISR_*` environment variables (e.g. `BISR_COUNTS`, `BISR_SAMPLESHEET`, `BISR_ANNOTATION`, `BISR_RUNID`, `BISR_EXCLUDE_GROUPS`, …) and pass `--print-cmd` to print the assembled `run_analysis.sh` command without executing it.
 
 #### Mouse analysis
 
@@ -206,6 +239,24 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--annotation`      | `-a`  | no       | `mouse`        | `mouse` or `human`. Selects OrgDb + KEGG / Reactome / MSigDB organism.      |
 | `--brs-ticket`      | `-b`  | no       | (none)         | BRS ticket identifier (e.g. `BRS-1234`). Renders as a subtitle in the report. |
 | `--id-type`         | `-i`  | no       | `ensembl`      | `ensembl`, `entrez`, or `symbol`. Identifier type in the count matrix rownames. Output CSVs always carry all four ID columns regardless. |
+| `--exclude-samples` |       | no       | (none)         | Comma-separated `SampleID`s to drop from the whole analysis (e.g. `SRR1,SRR2`). Unions with the `Exclude` column. |
+| `--exclude-groups`  |       | no       | (none)         | Comma-separated `GroupID`s to drop from the whole analysis. |
+| `--include-contrasts` |     | no       | (none)         | Comma-separated contrast columns to process **exclusively** (allowlist). |
+| `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
+
+**Examples.** Re-run dropping a QC outlier without editing the samplesheet:
+
+```bash
+bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid rerun \
+    --annotation human --exclude-samples SRR2219895
+```
+
+Run only one contrast from a 12-contrast samplesheet:
+
+```bash
+bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid focused \
+    --annotation human --include-contrasts hpvPos_vs_hpvNeg
+```
 
 ## Pipeline output
 
