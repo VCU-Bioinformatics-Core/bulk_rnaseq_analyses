@@ -1,0 +1,42 @@
+# Directory-local .gitignore for differential_expression/.
+# Supplements the repository root .gitignore — adds patterns for files that
+# accumulate inside this subdirectory but should never reach version control.
+
+# R session state (autosaved by RStudio / interactive R)
+.RData
+.Rapp.history
+
+# macOS Finder metadata
+.DS_Store
+
+# Session log files emitted by the pipeline at runtime
+logs/*.log
+
+# Output directory (defensive — root ignores `./output/` but this also catches
+# nested invocations from inside differential_expression/)
+output/
+
+# Stale per-run intermediate state files (already covered at root, repeated
+# here so this directory is portable if extracted)
+analysis_results_*.rds
+
+# Internal dev tracker (relocated to
+# /Users/balami/Documents/mcccbnfo/dev_sanbox/deg_dev_sanbox/tracker/ on
+# 2026-05-03; ignored here so an accidental re-creation doesn't leak into
+# the production repo).
+tasks.md
+architecture_plan.md
+.claude/
+logs/
+
+# Nextflow runtime artefacts
+.nextflow.log*
+.nextflow/
+work/
+_nf_config_*
+
+# nf-test runtime cache
+.nf-test/
+
+# Container artefact (built on HPC; not committed)
+dge_analysis.sif

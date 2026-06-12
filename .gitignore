@@ -7,3 +7,25 @@ differential_expression/*.rds
 differential_expression/*.Rmd
 differential_expression/rsemtest_out1/
 
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
+# Project-local mirror of Claude Code memory files (canonical copies live in ~/.claude/projects/.../memory/)
+differential_expression/.claude/
+
+# dev md files (relocated 2026-05-03 to /Users/balami/Documents/mcccbnfo/dev_sanbox/deg_dev_sanbox/tracker/)
+differential_expression/logs/DEBUG_LOG.md
+differential_expression/architecture_plan.md
+differential_expression/tasks.md
+
+# Nextflow + nf-test runtime artefacts (anywhere in the tree)
+**/.nextflow.log*
+**/.nextflow/
+**/work/
+**/.nf-test/
+**/.nf-test.log
+**/_nf_config_*
+
+# Container artefact (built on HPC; not committed)
+differential_expression/dge_analysis.sif

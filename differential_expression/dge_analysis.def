@@ -9,15 +9,21 @@ From: rocker/r-ver:4.2.1
 
 %help
     This container provides a complete environment for differential expression analysis
-    with all required R packages pre-installed from the dge_renv.lock file.
+    with all required R packages pre-installed from the renv.lock file.
     
     Usage:
         apptainer run dge_analysis.sif --help
         apptainer exec dge_analysis.sif Rscript de.R --counts <file> --samplesheet <file> ...
 
 %files
-    # Copy the lockfile into the container
-    dge_renv.lock /opt/dge_renv.lock
+    # Copy the lockfile into the container. Phase 8.1 collapses the older
+    # dge_renv.lock into the canonical renv.lock (the latter is what we
+    # actively snapshot during dev iteration; dge_renv.lock is deprecated).
+    renv.lock /opt/renv.lock
+
+    # Copy the bisrDE R package source into the container so %post can
+    # install it via remotes::install_local() (Phase 5.9).
+    bisrDE /opt/dge_project/bisrDE
 
 %post
     # Update system and install dependencies
@@ -45,7 +51,20 @@ From: rocker/r-ver:4.2.1
         pandoc \
         wget \
         ca-certificates
-    
+
+    # Phase 8.2: Install Quarto CLI (required at runtime by
+    # bisrDE::generate_report -> quarto::quarto_render). Use a pinned
+    # version for reproducibility. Tarball install is the most portable
+    # approach across Debian / RHEL bases.
+    QUARTO_VERSION=1.5.57
+    cd /tmp
+    wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz
+    mkdir -p /opt/quarto
+    tar -xzf quarto-${QUARTO_VERSION}-linux-amd64.tar.gz -C /opt/quarto --strip-components=1
+    ln -s /opt/quarto/bin/quarto /usr/local/bin/quarto
+    rm -f /tmp/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz
+    quarto --version
+
     # Clean up apt cache to reduce image size
     apt-get clean
     rm -rf /var/lib/apt/lists/*
@@ -64,8 +83,8 @@ From: rocker/r-ver:4.2.1
     # Initialize renv
     R -e "renv::init(bare = TRUE, restart = FALSE)"
     
-    # Copy lockfile
-    cp /opt/dge_renv.lock /opt/dge_project/renv.lock
+    # Copy lockfile (Phase 8.1: now renv.lock, was dge_renv.lock pre-collapse)
+    cp /opt/renv.lock /opt/dge_project/renv.lock
     
     # Try to restore packages from lockfile
     # Use --continue-on-failure style approach
@@ -75,7 +94,15 @@ From: rocker/r-ver:4.2.1
     R -e "if (!requireNamespace('fgsea', quietly = TRUE)) { \
             BiocManager::install('fgsea', force = TRUE, update = FALSE) \
           }"
-    
+
+    # Phase 5.9 — install the bisrDE package from the source staged via
+    # %files. `remotes` is a devtools dep so renv::restore should already
+    # have it; fall back to a fresh install if not.
+    R -e "if (!requireNamespace('remotes', quietly = TRUE)) { \
+            install.packages('remotes', repos = 'https://cran.r-project.org') \
+          }"
+    R -e "remotes::install_local('/opt/dge_project/bisrDE', upgrade = 'never')"
+
     # Create symbolic link for easier access
     ln -s /opt/dge_project/renv/library/R-4.2/x86_64-pc-linux-gnu /usr/local/lib/R/site-library/dge_libs
     
@@ -86,7 +113,11 @@ From: rocker/r-ver:4.2.1
     R -e "if(!require('DESeq2')) stop('DESeq2 not installed')"
     R -e "if(!require('clusterProfiler')) stop('clusterProfiler not installed')"
     R -e "if(!require('tidyverse')) stop('tidyverse not installed')"
-    
+    R -e "if(!require('bisrDE')) stop('bisrDE not installed')"
+    R -e "if(!require('quarto')) stop('quarto R wrapper not installed')"
+    # Verify the Quarto CLI itself is on PATH (R wrapper alone is not enough)
+    quarto --version || (echo "ERROR: quarto CLI not on PATH" && exit 1)
+
     echo "Container build complete!"
 
 %environment

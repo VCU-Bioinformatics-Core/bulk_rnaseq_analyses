@@ -32,9 +32,9 @@ if [ ! -f "dge_analysis.def" ]; then
     exit 1
 fi
 
-# Check if lockfile exists
-if [ ! -f "dge_renv.lock" ]; then
-    echo -e "${RED}ERROR: dge_renv.lock not found!${NC}"
+# Check if lockfile exists (Phase 8.1 collapsed dge_renv.lock into renv.lock)
+if [ ! -f "renv.lock" ]; then
+    echo -e "${RED}ERROR: renv.lock not found!${NC}"
     echo "This file is required for building the container."
     exit 1
 fi

@@ -1,0 +1,36 @@
+# Upstream tool versions used by nf-core/rnaseq, referenced in the
+# manuscript-ready Methods text of the report (Phase 7.2). Single source
+# of truth — bump these here when the upstream pipeline is upgraded;
+# the report's Methods text picks them up automatically on next render.
+#
+# R package versions are NOT kept here — those are read via
+# `packageVersion()` at render time so they always match the lockfile.
+#
+# Schema: each entry has a `version` and a `cite_key`. The `cite_key`
+# matches the corresponding citation in the report's References section
+# (kept alphabetized by first-author surname). When you add a tool, add
+# a citation entry too and re-number Methods text accordingly.
+
+nf_core_rnaseq:
+  version:    "3.18.0"
+  cite_key:   "ewels_nfcore_2020"
+
+fastqc:
+  version:    "0.12.1"
+  cite_key:   "andrews_fastqc_2010"
+
+trim_galore:
+  version:    "0.6.10"
+  cite_key:   "krueger_trimgalore_2023"
+
+star:
+  version:    "2.7.11b"
+  cite_key:   "dobin_star_2013"
+
+salmon:
+  version:    "1.10.3"
+  cite_key:   "patro_salmon_2017"
+
+multiqc:
+  version:    "1.25.1"
+  cite_key:   "ewels_multiqc_2016"

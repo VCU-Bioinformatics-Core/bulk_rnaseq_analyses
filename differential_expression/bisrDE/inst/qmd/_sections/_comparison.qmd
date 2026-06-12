@@ -1,0 +1,351 @@
+### `r comparisons[[i]]$name`
+
+**Experimental design**
+
+- **Experimental group**: `r paste(comparisons[[i]]$exp, collapse = ", ")`
+- **Control group**: `r paste(comparisons[[i]]$ctrl, collapse = ", ")`
+
+**Volcano Plot**
+
+::: {.callout-tip title="How to read this"}
+Each dot is a gene. X-axis = log2 fold change (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks `padj = 0.05`; the **black dashed lines** mark `|log2FC| = 0.58` (≈1.5x). Red and blue dots pass both thresholds; grey dots fail at least one.
+:::
+
+::: {.callout-note title="What to look for"}
+The strongest hits are in the **top-right** (most-up + most-confident) and **top-left** (most-down + most-confident). The labeled top-20 in each direction are nominated by ascending `padj`. A **roughly symmetric** spread of red and blue is typical of paired contrasts; **heavy bias to one side** can be biological (e.g. a global suppressor) or a normalization artefact. Look at how many dots are above the red line — this is your "true" DEG count.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**Very few or zero significant genes** can mean low effect size, low replicate count, high biological variability, or a contrast that doesn't capture the biology. **Crowded labels in the top corners** mean a subset of your top hits — don't conclude that the unlabeled significant genes are less interesting. **Genes with huge log2FC but high padj** are often low-expression genes where one sample has 0 counts — interesting but treat with caution. **Genes hugging the y-axis at log2FC ≈ 0** that still hit significance are usually housekeeping with extremely low variance.
+:::
+
+::: {.callout-tip title="Next steps"}
+The full DEG list is in `data/de_data/DESeq2_<comparison>.csv`. For pathway-level interpretation, see the GO/KEGG/Reactome/Hallmark dotplots below. To do your own custom enrichment with IPA, upload the CSV per the **Utilizing IPA** section. The top-100 heatmap below shows the top hits with gene symbols.
+:::
+
+```{r}
+#| out-width: "750px"
+#| fig-align: "center"
+volcano_path <- file.path(out_dirs$volcano,
+                          paste0(comparisons[[i]]$name, "_volcano.png"))
+if (file.exists(volcano_path)) {
+  knitr::include_graphics(volcano_path)
+} else {
+  cat("Volcano plot not available for this comparison")
+}
+```
+
+**Heatmaps**
+
+::: {.callout-tip title="How to read this"}
+Rows are genes, columns are samples (only samples in this comparison's experimental and control groups — not the full samplesheet). Cell colour is the **z-score** — how many standard deviations a sample's expression sits above (red) or below (blue) the mean for that gene. Top and side dendrograms cluster samples and genes by similarity. Two heatmaps are produced: **all significant DEGs** (broad view, no row labels because too many genes) and **top 100 by `padj`** with gene-symbol labels (focused view).
+:::
+
+::: {.callout-note title="What to look for"}
+The two condition columns should split into **two distinct color blocks** (red on one side, blue on the other) for a clean DE signal. Within each condition column, replicates should look similar (same color intensity for a given row). The **gene clustering** on the side often reveals biologically related modules — neighboring rows tend to share regulatory logic.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**Mosaic patterns** (no clean column split) often indicate sample swaps or batch effects — cross-check with the QC correlation heatmap. **One sample column that's the inverse color of its group-mates** is a strong outlier signal. **A row that's all light grey** (no extreme z-score) usually means a low-variance gene that should not have been called significant — verify by checking the `baseMean` and `pvalue` for that gene in the DE CSV. The all-significant heatmap may be huge and unreadable for big DEG sets — use the top-100 view for visual inspection and the CSV for the full data.
+:::
+
+::: {.callout-tip title="Next steps"}
+For specific genes of interest, look them up in the DT table below the volcano. To explore custom gene sets, filter the `data/de_data/DESeq2_<comparison>.csv` and feed into your own clustering tool. For a sample-level view, the QC plots in the **Sample Exploration** section above are the right place.
+:::
+
+_**Left:** all genes that pass the significance thresholds (broad view, no row labels — too many genes to read). **Right:** top 100 genes ranked by ascending `padj`, with gene-symbol row labels (focused view)._
+
+::: {layout-ncol=2}
+
+**All Significant DEGs**
+
+```{r}
+#| out-width: "100%"
+hm_all <- file.path(out_dirs$heatmap,
+                    paste0(comparisons[[i]]$name, "_heatmap_all_sig.png"))
+if (file.exists(hm_all)) {
+  knitr::include_graphics(hm_all)
+} else {
+  cat("All-significant heatmap not available for this comparison")
+}
+```
+
+**Top 100 by padj**
+
+```{r}
+#| out-width: "100%"
+hm_top <- file.path(out_dirs$heatmap,
+                    paste0(comparisons[[i]]$name, "_heatmap_top100.png"))
+if (file.exists(hm_top)) {
+  knitr::include_graphics(hm_top)
+} else {
+  cat("Top-100 heatmap not available for this comparison")
+}
+```
+
+:::
+
+**Top Differentially Expressed Genes**
+
+Table of the top differential expressed genes with both nominal (**pvalue**) and adjusted pvalues (**padj**).
+
+```{r}
+deg_flags <- c(0, 0)
+top_up <- NULL
+top_down <- NULL
+if (!is.null(results[[i]]) && !is.null(results[[i]]$deseq)) {
+  top_up <- results[[i]]$deseq |>
+    dplyr::filter(!is.na(.data$padj) & .data$padj < 0.05 &
+                    .data$log2FoldChange >= 0.58) |>
+    dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
+                  pvalue = formatC(.data$pvalue, format = "e", digits = 2),
+                  padj   = formatC(.data$padj,   format = "e", digits = 2)) |>
+    dplyr::arrange(.data$padj) |>
+    head(20)
+
+  top_down <- results[[i]]$deseq |>
+    dplyr::filter(!is.na(.data$padj) & .data$padj < 0.05 &
+                    .data$log2FoldChange <= -0.58) |>
+    dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
+                  pvalue = formatC(.data$pvalue, format = "e", digits = 2),
+                  padj   = formatC(.data$padj,   format = "e", digits = 2)) |>
+    dplyr::arrange(.data$padj) |>
+    head(20)
+
+  if (nrow(top_up)   > 0) deg_flags[1] <- 1
+  if (nrow(top_down) > 0) deg_flags[2] <- 1
+}
+```
+
+```{r}
+if (sum(deg_flags) == 0) {
+  cat("No differential expression results available for this comparison")
+}
+```
+
+##### Top Up-Regulated Genes (by ascending padj, max 20)
+
+```{r}
+if (deg_flags[1] > 0) {
+  DT::datatable(
+    top_up |> dplyr::select(.data$ENSEMBL_ID, .data$SYMBOL,
+                            .data$log2FoldChange, .data$pvalue,
+                            .data$padj, .data$GENENAME),
+    rownames = FALSE,
+    options  = list(scrollX = TRUE, pageLength = 10)
+  )
+} else {
+  cat("No upregulated genes found\n\n")
+}
+```
+
+<br>
+
+##### Top Down-Regulated Genes (by ascending padj, max 20)
+
+```{r}
+if (deg_flags[2] > 0) {
+  DT::datatable(
+    top_down |> dplyr::select(.data$ENSEMBL_ID, .data$SYMBOL,
+                              .data$log2FoldChange, .data$pvalue,
+                              .data$padj, .data$GENENAME),
+    rownames = FALSE,
+    options  = list(scrollX = TRUE, pageLength = 10)
+  )
+} else {
+  cat("No downregulated genes found\n\n")
+}
+```
+
+<br>
+
+**Pathway / Gene-Set Enrichment**
+
+Four complementary enrichment analyses are run per comparison. Each is independent and uses the same ranked log2FC vector, so disagreement between them often signals a meaningful biological difference (a process specific to one ontology vs. one shared across many).
+
+::: {.callout-tip title="How to read these dotplots"}
+Each dot is a gene set. X-axis = **gene ratio** (fraction of the set's genes that appear in your ranked list). Dot **size** = absolute set size; **colour** = adjusted p-value (deeper red = more significant). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). Top 15 sets by `p.adjust` are shown.
+:::
+
+::: {.callout-note title="What to look for"}
+**Convergent themes across backends** are the strongest signal — if "ribosome biogenesis" lights up in GO, KEGG, Reactome, AND Hallmark, that's a robust biological signal. **Same direction in both panels** (activated AND suppressed of related sets) usually reflects bidirectional regulation of a shared process. Pay attention to set **size** — small sets (<20 genes) can look highly significant but be driven by a handful of genes, while large sets (200+) capture broad pathways with more biological context.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**No enrichment found** is a real possibility for small / underpowered contrasts — don't force interpretations from the DEG list when GSEA disagrees. **High redundancy** between sets (e.g. multiple "translation"-themed GO terms) is normal because GO is hierarchical; the ID column distinguishes parent vs child terms. **Different backends disagreeing** is expected — they curate gene sets independently. **Hallmark is conservative** (50 well-curated sets); a Hallmark hit is usually robust. **Reactome is comprehensive** (>1500 sets); Reactome hits need more interpretation.
+:::
+
+::: {.callout-tip title="Next steps"}
+The full enrichment tables (one per backend) are below the dotplots; sort the DT table by `p.adjust` to see ranking, by `setSize` to find broad-impact sets, or by `NES` to find direction-aware enrichment. For a deeper IPA-style canonical-pathway view, upload the per-comparison DEG CSV to QIAGEN IPA per the **Utilizing IPA** section. The CSV files for each enrichment backend are in `data/{gsea,kegg,reactome,hallmark}_data/`.
+:::
+
+**GO Term Enrichment (gseGO)** — Gene Ontology Biological Process / Molecular Function / Cellular Component
+
+```{r}
+#| out-width: "750px"
+#| fig-align: "center"
+gsea_path <- file.path(out_dirs$gsea,
+                       paste0(comparisons[[i]]$name, "_GSEA.png"))
+if (file.exists(gsea_path)) {
+  knitr::include_graphics(gsea_path)
+} else {
+  cat("GO enrichment not available for this comparison")
+}
+```
+
+##### Top Enriched GO Terms (by ascending p.adjust, max 20)
+
+```{r}
+if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
+  gsea_results <- as.data.frame(results[[i]]$gsea) |>
+    dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
+                  NES             = formatC(.data$NES,             format = "e", digits = 2),
+                  p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
+                  qvalue          = formatC(.data$qvalue,          format = "e", digits = 2))
+  if (nrow(gsea_results) > 0) {
+    # GO has the unique ONTOLOGY column (BP / MF / CC); include it so
+    # readers can tell at a glance which axis each term sits on.
+    go_cols <- c("ONTOLOGY", "ID", "Description", "setSize",
+                 "enrichmentScore", "NES",
+                 "pvalue", "p.adjust", "qvalue")
+    go_cols <- intersect(go_cols, colnames(gsea_results))
+    DT::datatable(
+      gsea_results[, go_cols, drop = FALSE] |> head(20),
+      rownames = FALSE,
+      options  = list(scrollX = TRUE, pageLength = 10)
+    )
+  } else {
+    cat("No significant enriched GO terms found")
+  }
+} else {
+  cat("No GO enrichment available for this comparison")
+}
+```
+
+<br>
+
+**KEGG Pathway Enrichment (gseKEGG)** — curated metabolic / signalling pathways from the KEGG database
+
+```{r}
+#| out-width: "750px"
+#| fig-align: "center"
+kegg_path <- file.path(out_dirs$kegg,
+                       paste0(comparisons[[i]]$name, "_KEGG.png"))
+if (file.exists(kegg_path)) {
+  knitr::include_graphics(kegg_path)
+} else {
+  cat("KEGG enrichment not available for this comparison")
+}
+```
+
+##### Top Enriched KEGG Pathways (by ascending p.adjust, max 20)
+
+```{r}
+if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
+  kegg_results <- as.data.frame(results[[i]]$kegg) |>
+    dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
+                  NES             = formatC(.data$NES,             format = "e", digits = 2),
+                  p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
+                  qvalue          = formatC(.data$qvalue,          format = "e", digits = 2))
+  if (nrow(kegg_results) > 0) {
+    DT::datatable(
+      kegg_results |> dplyr::select(.data$ID, .data$Description, .data$setSize,
+                                    .data$enrichmentScore, .data$NES,
+                                    .data$pvalue, .data$p.adjust, .data$qvalue) |>
+        head(20),
+      rownames = FALSE,
+      options  = list(scrollX = TRUE, pageLength = 10)
+    )
+  } else {
+    cat("No significant enriched KEGG pathways found")
+  }
+} else {
+  cat("No KEGG enrichment available for this comparison")
+}
+```
+
+<br>
+
+**Reactome Pathway Enrichment (gsePathway)** — biological pathways from the Reactome knowledgebase
+
+```{r}
+#| out-width: "750px"
+#| fig-align: "center"
+reactome_path <- file.path(out_dirs$reactome,
+                           paste0(comparisons[[i]]$name, "_Reactome.png"))
+if (file.exists(reactome_path)) {
+  knitr::include_graphics(reactome_path)
+} else {
+  cat("Reactome enrichment not available for this comparison")
+}
+```
+
+##### Top Enriched Reactome Pathways (by ascending p.adjust, max 20)
+
+```{r}
+if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
+  reactome_results <- as.data.frame(results[[i]]$reactome) |>
+    dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
+                  NES             = formatC(.data$NES,             format = "e", digits = 2),
+                  p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
+                  qvalue          = formatC(.data$qvalue,          format = "e", digits = 2))
+  if (nrow(reactome_results) > 0) {
+    DT::datatable(
+      reactome_results |> dplyr::select(.data$ID, .data$Description, .data$setSize,
+                                        .data$enrichmentScore, .data$NES,
+                                        .data$pvalue, .data$p.adjust, .data$qvalue) |>
+        head(20),
+      rownames = FALSE,
+      options  = list(scrollX = TRUE, pageLength = 10)
+    )
+  } else {
+    cat("No significant enriched Reactome pathways found")
+  }
+} else {
+  cat("No Reactome enrichment available for this comparison")
+}
+```
+
+<br>
+
+**MSigDB Hallmark Gene Sets (GSEA + msigdbr H)** — 50 well-curated gene sets representing distinct biological states / processes
+
+```{r}
+#| out-width: "750px"
+#| fig-align: "center"
+hallmark_path <- file.path(out_dirs$hallmark,
+                           paste0(comparisons[[i]]$name, "_Hallmark.png"))
+if (file.exists(hallmark_path)) {
+  knitr::include_graphics(hallmark_path)
+} else {
+  cat("Hallmark enrichment not available for this comparison")
+}
+```
+
+##### Top Enriched Hallmark Gene Sets (by ascending p.adjust, max 20)
+
+```{r}
+if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
+  hallmark_results <- as.data.frame(results[[i]]$hallmark) |>
+    dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
+                  NES             = formatC(.data$NES,             format = "e", digits = 2),
+                  p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
+                  qvalue          = formatC(.data$qvalue,          format = "e", digits = 2))
+  if (nrow(hallmark_results) > 0) {
+    DT::datatable(
+      hallmark_results |> dplyr::select(.data$ID, .data$Description, .data$setSize,
+                                        .data$enrichmentScore, .data$NES,
+                                        .data$pvalue, .data$p.adjust, .data$qvalue) |>
+        head(20),
+      rownames = FALSE,
+      options  = list(scrollX = TRUE, pageLength = 10)
+    )
+  } else {
+    cat("No significant enriched Hallmark gene sets found")
+  }
+} else {
+  cat("No Hallmark enrichment available for this comparison")
+}
+```
+
+**Next steps:** Upload the per-comparison `DESeq2_<comparison>.csv` to **QIAGEN IPA** (see *Utilizing IPA* below) for full-fidelity pathway exploration. Reuse the **Manuscript-Ready Text** section verbatim in your manuscript Methods.
