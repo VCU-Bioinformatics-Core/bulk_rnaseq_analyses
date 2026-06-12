@@ -393,6 +393,12 @@ run_pipeline <- function(counts_path,
     cli::cli_alert_info(
       "DisplayName column detected: plot labels will use display names"
     )
+    dups <- unique(d[duplicated(d)])
+    if (length(dups) > 0) {
+      cli::cli_alert_warning(
+        "DisplayName has duplicate label{?s} {.val {dups}}; plot labels will be ambiguous for those samples"
+      )
+    }
   }
 
   # Defensive: counts columns and colData rows must line up 1:1. After

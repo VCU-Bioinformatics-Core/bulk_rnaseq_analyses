@@ -101,6 +101,21 @@ test_that("parse_contrasts skips Exclude/DisplayName metadata columns", {
   expect_false(any(c("Exclude", "DisplayName") %in% nm))
 })
 
+test_that("parse_contrasts handles a non-numeric contrast column gracefully", {
+  ss <- data.frame(
+    SampleID = paste0("S", 1:4),
+    GroupID  = c("A", "A", "B", "B"),
+    bad      = c("yes", "yes", "no", "no"),  # mis-encoded (not 0/1)
+    good     = c(1, 1, 0, 0),
+    stringsAsFactors = FALSE
+  )
+  # Should not error; the mis-encoded column is skipped (no exp/ctrl), the
+  # valid one is kept.
+  comparisons <- parse_contrasts(ss)
+  nm <- vapply(comparisons, function(x) x$name, character(1))
+  expect_equal(nm, "good")
+})
+
 test_that("parse_contrasts still respects first_contrast_col override", {
   ss <- data.frame(
     SampleID = paste0("S", 1:4),

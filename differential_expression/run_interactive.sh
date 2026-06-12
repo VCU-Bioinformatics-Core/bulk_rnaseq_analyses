@@ -133,6 +133,34 @@ confirm() {  # prompt -> exit status
   fi
 }
 
+# Front-end chooser: bash session (this script) or the Go TUI (tui/bisrde-tui).
+# Skipped in non-interactive / --print-cmd mode so scripting + parity tests
+# stay on the deterministic bash path.
+TUI_BIN="$SCRIPT_DIR/tui/bisrde-tui"
+choose_frontend() {
+  [ "$PRINT_CMD" = "1" ] && return 0
+  [ "$INTERACTIVE" = "0" ] && return 0
+  local choice
+  choice=$(ask_choose "Choose your interface" "${BISR_FRONTEND:-}" \
+    "Bash interactive session" "Go TUI")
+  if [ "$choice" = "Go TUI" ]; then
+    if [ ! -x "$TUI_BIN" ]; then
+      note "Go TUI not built yet."
+      if have go && confirm "Build it now? (needs the Go toolchain)"; then
+        ( cd "$SCRIPT_DIR/tui" && go build -o bisrde-tui . ) \
+          || { note "Build failed — falling back to the bash session."; return 0; }
+      else
+        note "Build it with:  (cd tui && go build -o bisrde-tui .)"
+        note "Falling back to the bash session."
+        return 0
+      fi
+    fi
+    cd "$SCRIPT_DIR"
+    BISR_PROJECT_DIR="$SCRIPT_DIR" exec "$TUI_BIN"
+  fi
+  # "Bash interactive session" -> fall through to the bash flow below.
+}
+
 # ---------------------------------------------------------------------------
 # Samplesheet introspection — extract groups / samples / contrast columns.
 # Convention: column 1 = SampleID, column 2 = GroupID. Reserved metadata
@@ -152,6 +180,7 @@ ss_contrasts() {
 # ===========================================================================
 # Flow
 # ===========================================================================
+choose_frontend   # may exec into the Go TUI and never return
 banner
 
 counts=$(ask_input      "Counts TSV"        "assets/example_counts.tsv"        "${BISR_COUNTS:-}")
@@ -183,6 +212,10 @@ if [ -f "$samplesheet" ]; then
     "exclude a subset")
       excl_contrasts=$(ask_multi "Exclude these contrasts" "${BISR_EXCLUDE_CONTRASTS:-}" "${_contrasts[@]}") ;;
   esac
+  # Honor explicit contrast env vars even without a mode pick (parity with
+  # the Go TUI's non-interactive behavior + convenient for scripting).
+  [ -z "$incl_contrasts" ] && incl_contrasts="${BISR_INCLUDE_CONTRASTS:-}"
+  [ -z "$excl_contrasts" ] && excl_contrasts="${BISR_EXCLUDE_CONTRASTS:-}"
 fi
 
 # ---------------------------------------------------------------------------

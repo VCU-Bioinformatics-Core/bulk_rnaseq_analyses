@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-06-12
+
+### Added
+
+- **Go TUI launcher** (charmbracelet Phase B) at `differential_expression/tui/`
+  — a [bubbletea](https://github.com/charmbracelet/bubbletea)/[huh](https://github.com/charmbracelet/huh)/[lipgloss](https://github.com/charmbracelet/lipgloss)
+  `bisrde-tui` binary with a styled form and interactive group / sample /
+  contrast selection. Its assembled command is byte-identical to
+  `run_interactive.sh --print-cmd` (parity is a maintained contract).
+  `run_interactive.sh` now opens with a **bash-vs-Go-TUI chooser** that builds
+  the TUI on demand and falls back to bash. Binary git-ignored; source committed.
+
+### Changed
+
+- `parse_contrasts()` warns when a contrast column has non-`0`/`1` values
+  (previously a silent "missing exp or ctrl group").
+- `run_pipeline()` warns on duplicate `DisplayName` labels.
+- `run_interactive.sh` honors `BISR_INCLUDE_CONTRASTS` / `BISR_EXCLUDE_CONTRASTS`
+  directly in non-interactive mode (parity with the Go TUI).
+
+### Fixed
+
+- Generated the roxygen man pages + the `filter_samplesheet` NAMESPACE export
+  that were missing from v1.5.0 (committed without `devtools::document()`).
+
 ## [1.5.0] - 2026-06-12
 
 User-experience release: selective sample/group/contrast inclusion, custom

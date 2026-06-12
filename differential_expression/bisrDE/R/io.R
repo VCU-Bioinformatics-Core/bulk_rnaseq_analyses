@@ -250,6 +250,18 @@ parse_contrasts <- function(samplesheet,
 
     cli::cli_h2("Contrast: {.strong {contrast_name}}")
 
+    # Diagnostic: only 1 (exp), 0 (ctrl) and blank/NA (exclude) are
+    # recognised. Flag anything else (e.g. "yes"/"no") so a mis-encoded
+    # column doesn't silently look like "missing exp or ctrl group".
+    vals <- contrast_data[!is.na(contrast_data) &
+                            nzchar(trimws(as.character(contrast_data)))]
+    unexpected <- setdiff(unique(trimws(as.character(vals))), c("0", "1"))
+    if (length(unexpected) > 0) {
+      cli::cli_alert_warning(
+        "Contrast {.strong {contrast_name}} has non-0/1 value{?s} {.val {unexpected}}; only 1 (exp), 0 (ctrl) and blank (exclude) are recognised"
+      )
+    }
+
     exp_group  <- unique(group_vec[contrast_data == 1 & !is.na(contrast_data)])
     ctrl_group <- unique(group_vec[contrast_data == 0 & !is.na(contrast_data)])
 

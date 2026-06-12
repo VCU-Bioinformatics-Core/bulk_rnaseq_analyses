@@ -11,7 +11,11 @@ run_pipeline(
   runid,
   annotation,
   id_type = "ensembl",
-  brs_ticket = ""
+  brs_ticket = "",
+  exclude_samples = NULL,
+  exclude_groups = NULL,
+  include_contrasts = NULL,
+  exclude_contrasts = NULL
 )
 }
 \arguments{
@@ -35,6 +39,18 @@ the gene-ID type used as count rownames. Default \code{"ensembl"}.}
 \item{brs_ticket}{Optional BRS ticket identifier (e.g. \code{"BRS-1234"}).
 Default \code{""}. Currently passed through into the returned artifact
 list for the report renderer.}
+
+\item{exclude_samples}{Optional character vector of \code{SampleID}s to drop
+from the entire analysis (see \code{\link[=filter_samplesheet]{filter_samplesheet()}}). Default \code{NULL}.}
+
+\item{exclude_groups}{Optional character vector of \code{GroupID}s to drop.
+Default \code{NULL}.}
+
+\item{include_contrasts}{Optional character vector. When non-NULL, only
+these contrast columns are processed (allowlist). Default \code{NULL}.}
+
+\item{exclude_contrasts}{Optional character vector of contrast columns to
+skip (denylist). Default \code{NULL}.}
 }
 \value{
 Invisibly, a named list of pipeline artifacts:
