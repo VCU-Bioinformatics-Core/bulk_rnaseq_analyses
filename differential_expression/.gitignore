@@ -21,7 +21,7 @@ output/
 analysis_results_*.rds
 
 # Internal dev tracker (relocated to
-# /Users/balami/Documents/mcccbnfo/dev_sanbox/deg_dev_sanbox/tracker/ on
+# /Users/balami/Documents/mcccbnfo/dev_sandbox/deg_dev_sandbox/tracker/ on
 # 2026-05-03; ignored here so an accidental re-creation doesn't leak into
 # the production repo).
 tasks.md
