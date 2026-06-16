@@ -251,7 +251,7 @@ not a release artefact.
 
 ### Planned
 
-- Container rebuild with Quarto CLI + retry of Glimma 4.6.
+- Container rebuild + in-container smoke test on HPC (x86_64 / Apptainer).
 - Multi-factor designs and covariate support.
 - Batch correction options (sva / ComBat).
 - Single-cell RNA-seq adapter (separate package, not bisrDE).
@@ -262,6 +262,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.5.1   | 2026-06-12 | Go TUI launcher (charmbracelet Phase B); parse_contrasts / DisplayName warnings; roxygen + NAMESPACE fixes |
 | 1.5.0   | 2026-06-12 | Sample/group/contrast selection, DisplayName plot labels, charmbracelet (gum) interactive CLI |
 | 1.4.0   | 2026-05-01 | Refactor to `bisrDE` R package + Quarto report + Nextflow DSL2 wrapper + 4-backend GSEA + QC |
 | 1.3.0   | 2026-02-02 | Stable release with full DE pipeline                                                         |
