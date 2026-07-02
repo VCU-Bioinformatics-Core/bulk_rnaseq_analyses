@@ -15,7 +15,8 @@ run_pipeline(
   exclude_samples = NULL,
   exclude_groups = NULL,
   include_contrasts = NULL,
-  exclude_contrasts = NULL
+  exclude_contrasts = NULL,
+  session_log = NULL
 )
 }
 \arguments{
@@ -51,6 +52,12 @@ these contrast columns are processed (allowlist). Default \code{NULL}.}
 
 \item{exclude_contrasts}{Optional character vector of contrast columns to
 skip (denylist). Default \code{NULL}.}
+
+\item{session_log}{Optional session-log handle from \code{\link[=start_session_log]{start_session_log()}}.
+When supplied, this call uses it (so a driver can make one log span both
+the analysis and the report render) and does NOT close it — the caller
+owns the lifecycle. When \code{NULL} (default) the pipeline opens and closes
+its own log, as before. Default \code{NULL}.}
 }
 \value{
 Invisibly, a named list of pipeline artifacts:

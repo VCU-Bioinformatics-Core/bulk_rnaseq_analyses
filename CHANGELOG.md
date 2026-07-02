@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-07-01
+
+Report & UX fixes surfaced after v1.5.1.
+
+### Fixed
+
+- **Report figures were missing from the HTML.** `run_pipeline()` now
+  normalizes `outdir` to an absolute path before building the figure
+  directories, so the paths stored in the analysis RDS resolve when the Quarto
+  report renders from a temp working dir. Previously every figure silently fell
+  back to "not available".
+- **Session log came out empty.** `cli` routes its output to `stderr` whenever
+  a sink is active (NEWS #153), so the output-only session sink captured
+  nothing. `start_session_log()` now pins cli to stdout via
+  `start_app(output = "stdout", .auto_close = FALSE)` so narration is both shown
+  live and written to the log; `stop_session_log()` strips ANSI for a clean
+  plain-text file. The log now spans the report render too, not just analysis.
+
+### Added
+
+- **Auto-derived sample labels.** With no `DisplayName` column, plots now label
+  samples `"<GroupID> <n>"` (a warning recommends adding the column) instead of
+  showing raw accession SampleIDs. An explicit `DisplayName` still overrides per
+  sample.
+- **Colorblind-safe palette across all plots** — shared Okabe-Ito (categorical)
+  and diverging / `Mako` (continuous) helpers applied to the QC plots, volcano,
+  PCA (static + interactive), DE heatmap, and enrichment dotplots.
+- **Structured run summary** at `<outdir>/logs/<ts>_report.json` — run metadata,
+  timings, gene/sample counts, per-contrast DE (`n_sig`) + enrichment outcomes,
+  and output paths.
+- **Live Go TUI progress** — the TUI now runs the pipeline under a
+  pseudo-terminal (`creack/pty`) so R's `cli` renders live progress bars instead
+  of one-shot milestone prints (67% → 100%).
+- `run_interactive.sh` screenshots the run-config card via charmbracelet
+  `freeze` when installed (optional, gated, `--print-cmd` parity preserved).
+
+### Changed
+
+- QC plots widened; the vst-distance heatmap title no longer clips on the left
+  edge and the hclust / density panel titles no longer overlap.
+
 ## [1.5.1] - 2026-06-12
 
 ### Added
@@ -262,6 +303,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.5.2   | 2026-07-01 | Report figures embed (abs outdir); auto-derived + colorblind-safe plots; live Go TUI (PTY); non-empty session log + `.report.json` |
 | 1.5.1   | 2026-06-12 | Go TUI launcher (charmbracelet Phase B); parse_contrasts / DisplayName warnings; roxygen + NAMESPACE fixes |
 | 1.5.0   | 2026-06-12 | Sample/group/contrast selection, DisplayName plot labels, charmbracelet (gum) interactive CLI |
 | 1.4.0   | 2026-05-01 | Refactor to `bisrDE` R package + Quarto report + Nextflow DSL2 wrapper + 4-backend GSEA + QC |

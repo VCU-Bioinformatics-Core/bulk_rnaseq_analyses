@@ -264,6 +264,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #'   these contrast columns are processed (allowlist). Default `NULL`.
 #' @param exclude_contrasts Optional character vector of contrast columns to
 #'   skip (denylist). Default `NULL`.
+#' @param session_log Optional session-log handle from [start_session_log()].
+#'   When supplied, this call uses it (so a driver can make one log span both
+#'   the analysis and the report render) and does NOT close it — the caller
+#'   owns the lifecycle. When `NULL` (default) the pipeline opens and closes
+#'   its own log, as before. Default `NULL`.
 #' @return Invisibly, a named list of pipeline artifacts:
 #'   `results`, `comparisons`, `out_dirs`, `pca_plot` (ggplot),
 #'   `pca_plotly` (plotly 2D), `pca_plotly_3d` (plotly 3D),
