@@ -58,3 +58,65 @@ stop_session_log <- function(log) {
   }
   invisible(NULL)
 }
+
+
+#' Write a structured JSON run summary (relink-style `.report.json`)
+#'
+#' @description End-of-run provenance record written alongside the session
+#'   log: run metadata, input paths, gene/sample counts, per-contrast DE +
+#'   enrichment outcomes, timings, and output paths. Modelled on the
+#'   relink-fastq `.report.json`. Failures are non-fatal (a warning only).
+#'
+#' @keywords internal
+.write_report_json <- function(path, runid, brs_ticket, annotation, id_type,
+                               counts_path, samplesheet_path, outdir,
+                               started, finished, n_genes_input,
+                               n_genes_filtered, n_samples, n_samplesheet_rows,
+                               comparisons, results, rds_path, session_log) {
+  iso <- function(t) format(t, "%Y-%m-%dT%H:%M:%S")
+
+  comp_summaries <- lapply(seq_along(results), function(i) {
+    r  <- results[[i]]
+    nm <- comparisons[[i]]$name
+    if (is.null(r) || is.null(r$deseq)) return(list(name = nm, ok = FALSE))
+    d   <- r$deseq
+    sig <- sum(!is.na(d$padj) & d$padj < 0.05 & abs(d$log2FoldChange) >= 0.58)
+    list(
+      name        = nm,
+      ok          = TRUE,
+      n_genes     = nrow(d),
+      n_sig       = sig,
+      enrichments = list(GO = !is.null(r$gsea),     KEGG     = !is.null(r$kegg),
+                         Reactome = !is.null(r$reactome),
+                         Hallmark = !is.null(r$hallmark))
+    )
+  })
+
+  summary <- list(
+    runid        = runid,
+    brs_ticket   = brs_ticket,
+    annotation   = annotation,
+    id_type      = id_type,
+    started      = iso(started),
+    finished     = iso(finished),
+    duration_sec = round(as.numeric(difftime(finished, started, units = "secs")), 1),
+    inputs       = list(counts = counts_path, samplesheet = samplesheet_path,
+                        outdir = outdir),
+    n_genes_input      = n_genes_input,
+    n_genes_filtered   = n_genes_filtered,
+    n_samples          = n_samples,
+    n_samplesheet_rows = n_samplesheet_rows,
+    contrasts    = vapply(comparisons, function(x) x$name, character(1)),
+    comparisons  = comp_summaries,
+    outputs      = list(rds = rds_path, session_log = session_log)
+  )
+
+  tryCatch({
+    jsonlite::write_json(summary, path, auto_unbox = TRUE, pretty = TRUE,
+                         null = "null")
+    cli::cli_alert_success("Run summary: {.path {path}}")
+  }, error = function(e)
+    cli::cli_alert_warning("Could not write run summary JSON: {conditionMessage(e)}"))
+
+  invisible(path)
+}

@@ -146,24 +146,37 @@ include_contrasts <- split_csv(opt[["include-contrasts"]])
 exclude_contrasts <- split_csv(opt[["exclude-contrasts"]])
 
 # ---------------------------------------------------------------------------
-# Run the pipeline + render the report.
+# Run the pipeline + render the report under ONE session log spanning BOTH
+# phases. run_pipeline() would otherwise open and close its own log before the
+# report render, leaving the report phase uncaptured; passing it a session_log
+# handle hands the lifecycle to this driver (closed in `finally`, even on error).
 # ---------------------------------------------------------------------------
-res <- bisrDE::run_pipeline(
-  counts_path       = opt$counts,
-  samplesheet_path  = opt$samplesheet,
-  outdir            = opt$outdir,
-  runid             = opt$runid,
-  annotation        = opt$annotation,
-  id_type           = id_type,
-  brs_ticket        = brs_ticket,
-  exclude_samples   = exclude_samples,
-  exclude_groups    = exclude_groups,
-  include_contrasts = include_contrasts,
-  exclude_contrasts = exclude_contrasts
-)
+if (!dir.exists(opt$outdir)) {
+  dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
+}
+outdir_abs <- normalizePath(opt$outdir, mustWork = FALSE)
+slog <- bisrDE::start_session_log(file.path(outdir_abs, "logs"))
+tryCatch({
+  res <- bisrDE::run_pipeline(
+    counts_path       = opt$counts,
+    samplesheet_path  = opt$samplesheet,
+    outdir            = opt$outdir,
+    runid             = opt$runid,
+    annotation        = opt$annotation,
+    id_type           = id_type,
+    brs_ticket        = brs_ticket,
+    exclude_samples   = exclude_samples,
+    exclude_groups    = exclude_groups,
+    include_contrasts = include_contrasts,
+    exclude_contrasts = exclude_contrasts,
+    session_log       = slog
+  )
 
-bisrDE::generate_report(
-  rds_path   = res$rds_path,
-  output_dir = opt$outdir,
-  brs_ticket = brs_ticket
-)
+  bisrDE::generate_report(
+    rds_path   = res$rds_path,
+    output_dir = opt$outdir,
+    brs_ticket = brs_ticket
+  )
+}, finally = {
+  bisrDE::stop_session_log(slog)
+})

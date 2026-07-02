@@ -291,9 +291,11 @@ run_pipeline <- function(counts_path,
                          exclude_samples   = NULL,
                          exclude_groups    = NULL,
                          include_contrasts = NULL,
-                         exclude_contrasts = NULL) {
+                         exclude_contrasts = NULL,
+                         session_log       = NULL) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
+  run_started <- Sys.time()
 
   # ---- 1. Output dirs + session log ----
   # outdir MUST be absolute: the figure paths derived from it are stored in
@@ -304,8 +306,13 @@ run_pipeline <- function(counts_path,
   if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
   outdir   <- normalizePath(outdir, mustWork = FALSE)
   out_dirs <- setup_directories(outdir)
-  session_log <- start_session_log(out_dirs$logs)
-  on.exit(stop_session_log(session_log), add = TRUE)
+  # The driver (de.R) may pass an already-open session log so it spans both
+  # this call AND the report render; only manage our own when it doesn't.
+  own_log <- is.null(session_log)
+  if (own_log) {
+    session_log <- start_session_log(out_dirs$logs)
+    on.exit(stop_session_log(session_log), add = TRUE)
+  }
 
   cli::cli_h1("Bulk RNA-Seq Differential Expression Pipeline")
   cli::cli_inform(c(
@@ -565,6 +572,21 @@ run_pipeline <- function(counts_path,
   rds_path <- file.path(outdir, rds_name)
   saveRDS(rds, rds_path)
   cli::cli_alert_success("RDS saved: {.path {rds_path}}")
+
+  # ---- 12. Structured run summary (.report.json) ----
+  .write_report_json(
+    path             = file.path(out_dirs$logs, paste0(ts, "_report.json")),
+    runid            = runid,          brs_ticket       = brs_ticket,
+    annotation       = annotation,     id_type          = id_type,
+    counts_path      = counts_path,    samplesheet_path = samplesheet_path,
+    outdir           = outdir,
+    started          = run_started,    finished         = Sys.time(),
+    n_genes_input    = nrow(counts),   n_genes_filtered = nrow(dds),
+    n_samples        = ncol(countsdf), n_samplesheet_rows = nrow(samplesheet),
+    comparisons      = comparisons,    results          = results,
+    rds_path         = rds_path,
+    session_log      = if (!is.null(session_log)) session_log$path else NA_character_
+  )
 
   cli::cli_h1("Pipeline complete")
 

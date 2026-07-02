@@ -279,4 +279,19 @@ fi
 # ---------------------------------------------------------------------------
 note "Launching… (full cli output follows)"
 cd "$SCRIPT_DIR"
+
+# Optional: screenshot the run-config card into the run's logs/ dir
+# (charmbracelet freeze). Best-effort and gated — a no-op if freeze isn't
+# installed. Runs after the cd so a relative --outdir resolves the same way
+# run_analysis.sh resolves it. The final-summary panel is NOT screenshotted
+# here because we exec the pipeline below (this process is replaced); it is
+# preserved in <outdir>/logs/<ts>_session.log instead.
+if have freeze && mkdir -p "${outdir%/}/logs" 2>/dev/null; then
+  cfg_md="$(mktemp -t bisr_cfg.XXXXXX 2>/dev/null || echo /tmp/bisr_cfg.md)"
+  printf '%s\n' "$summary_md" > "$cfg_md"
+  freeze "$cfg_md" --language markdown -o "${outdir%/}/logs/config_card.png" \
+    >/dev/null 2>&1 && note "Config card screenshot: ${outdir%/}/logs/config_card.png"
+  rm -f "$cfg_md"
+fi
+
 exec bash run_analysis.sh "${args[@]}"
