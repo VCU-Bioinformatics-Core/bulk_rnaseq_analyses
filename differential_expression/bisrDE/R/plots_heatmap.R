@@ -47,7 +47,7 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
 
   gplots::heatmap.2(
     hm$zscores,
-    col          = grDevices::colorRampPalette(c("blue", "white", "firebrick"))(20),
+    col          = grDevices::colorRampPalette(.diverging_stops())(20),
     density.info = "none",
     dendrogram   = "both",
     Colv         = TRUE,

@@ -75,8 +75,8 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
       size = 4, segment.color = "grey50"
     ) +
     scale_color_manual(values = c(
-      "Over expressed"  = "firebrick",
-      "Under expressed" = "steelblue",
+      "Over expressed"  = "#D55E00",
+      "Under expressed" = "#0072B2",
       "Not significant" = "grey70"
     )) +
     geom_hline(yintercept = -log10(p), col = "red", linetype = 2) +

@@ -296,6 +296,13 @@ run_pipeline <- function(counts_path,
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
 
   # ---- 1. Output dirs + session log ----
+  # outdir MUST be absolute: the figure paths derived from it are stored in
+  # the analysis RDS and resolved later by generate_report(), which renders
+  # from a fresh temp working dir. A relative outdir would make every figure
+  # path fail file.exists() at render time, so the report would silently show
+  # "not available" for plots that are in fact on disk.
+  if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+  outdir   <- normalizePath(outdir, mustWork = FALSE)
   out_dirs <- setup_directories(outdir)
   session_log <- start_session_log(out_dirs$logs)
   on.exit(stop_session_log(session_log), add = TRUE)
@@ -382,23 +389,31 @@ run_pipeline <- function(counts_path,
     condition = samplesheet$GroupID,
     stringsAsFactors = FALSE
   )
-  # Optional per-sample display labels for plots (matrix join key stays
-  # SampleID; only labels change). Blank/NA DisplayName cells fall back to
-  # the SampleID.
+  # Per-sample display labels for plots (matrix join key stays SampleID; only
+  # the visible labels change). Default to friendly auto-derived
+  # "<GroupID> <n>" labels so plots never show raw accession SampleIDs; an
+  # explicit DisplayName column overrides per sample (blank/NA cells keep the
+  # auto-derived label).
+  disp <- .auto_display(sample_info$condition)
   if ("DisplayName" %in% colnames(samplesheet)) {
-    d <- as.character(samplesheet$DisplayName)
-    blank <- is.na(d) | !nzchar(trimws(d))
-    d[blank] <- as.character(samplesheet$SampleID)[blank]
-    sample_info$display <- d
+    d   <- trimws(as.character(samplesheet$DisplayName))
+    has <- !is.na(d) & nzchar(d)
+    disp[has] <- d[has]
     cli::cli_alert_info(
-      "DisplayName column detected: plot labels will use display names"
+      "DisplayName column detected: using it for plot labels (blank cells auto-derived)."
     )
-    dups <- unique(d[duplicated(d)])
-    if (length(dups) > 0) {
-      cli::cli_alert_warning(
-        "DisplayName has duplicate label{?s} {.val {dups}}; plot labels will be ambiguous for those samples"
-      )
-    }
+  } else {
+    cli::cli_alert_warning(c(
+      "No DisplayName column: plot labels auto-derived from GroupID + replicate (e.g. {.val {disp[1]}}).",
+      "i" = "Add a DisplayName column to the samplesheet for custom labels."
+    ))
+  }
+  sample_info$display <- disp
+  dups <- unique(disp[duplicated(disp)])
+  if (length(dups) > 0) {
+    cli::cli_alert_warning(
+      "Duplicate display label{?s} {.val {dups}}; plot labels will be ambiguous for those samples."
+    )
   }
 
   # Defensive: counts columns and colData rows must line up 1:1. After

@@ -72,6 +72,7 @@ pca_static <- function(tmm, sample_info) {
   ggplot(pca_df, aes(x = .data$X, y = .data$Y,
                      label = .data$Display, color = .data$Group)) +
     geom_text() +
+    ggplot2::scale_color_manual(values = .okabe_ito(length(unique(pca_df$Group)))) +
     xlab(paste0("PC1 - ", pca$var_pct[1], "%")) +
     ylab(paste0("PC2 - ", pca$var_pct[2], "%")) +
     theme_bw()
@@ -113,7 +114,7 @@ pca_plotly <- function(tmm, sample_info) {
     x         = ~X,
     y         = ~Y,
     color     = ~Group,
-    colors    = c("steelblue", "firebrick", "olivedrab", "plum"),
+    colors    = .okabe_ito(length(unique(group))),
     text      = ~Display,
     hoverinfo = "text",
     type      = "scatter",
@@ -184,7 +185,7 @@ pca_plotly_3d <- function(tmm, sample_info) {
     y         = ~PC2,
     z         = ~PC3,
     color     = ~Group,
-    colors    = c("steelblue", "firebrick", "olivedrab", "plum"),
+    colors    = .okabe_ito(length(unique(components$Group))),
     text      = ~Display,
     hoverinfo = "text"
   )

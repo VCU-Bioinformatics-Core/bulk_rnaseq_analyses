@@ -68,7 +68,7 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
 
   uniq_groups <- unique(groups)
   group_palette <- stats::setNames(
-    grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
+    .okabe_ito(length(uniq_groups)),
     uniq_groups
   )
 
@@ -85,14 +85,14 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
     top_annotation = ha,
     col            = circlize::colorRamp2(
       breaks = c(min(cor_mat, 0), stats::median(cor_mat), 1),
-      colors = c("blue", "white", "firebrick")
+      colors = .diverging_stops()
     ),
     row_labels           = row_labs,
     column_labels        = col_labs,
     show_row_names       = TRUE,
     show_column_names    = TRUE,
-    row_names_gp         = grid::gpar(fontsize = 8),
-    column_names_gp      = grid::gpar(fontsize = 8),
+    row_names_gp         = grid::gpar(fontsize = 10),
+    column_names_gp      = grid::gpar(fontsize = 10),
     column_title         = sprintf(
       "Sample x Sample %s correlation (%d DE genes)",
       method, length(sig_genes)
@@ -101,9 +101,9 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
     heatmap_legend_param = list(direction = "vertical")
   )
 
-  # v1.4.0: -30% from prior 1200x1100 per user feedback (correlation HM
-  # was crowding the embed-resources HTML).
-  grDevices::png(fig_path, width = 840, height = 770, res = 150)
+  # Phase 11: widened from the v1.4.0 840x770 — at that size the 10pt labels
+  # + the qmd down-scale made the matrix unreadable.
+  grDevices::png(fig_path, width = 1100, height = 950, res = 150)
   ComplexHeatmap::draw(hm, merge_legend = TRUE)
   grDevices::dev.off()
 
@@ -161,7 +161,7 @@ qc_vst_dist_heatmap <- function(dds, sample_info, fig_path) {
 
   uniq_groups <- unique(groups)
   group_palette <- stats::setNames(
-    grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
+    .okabe_ito(length(uniq_groups)),
     uniq_groups
   )
 
@@ -178,25 +178,27 @@ qc_vst_dist_heatmap <- function(dds, sample_info, fig_path) {
     top_annotation = ha,
     col            = circlize::colorRamp2(
       breaks = c(0, stats::median(dist_mat), max(dist_mat)),
-      colors = c("midnightblue", "lightblue", "white")
+      colors = grDevices::hcl.colors(3, "Mako")
     ),
     row_labels           = row_labs,
     column_labels        = col_labs,
     show_row_names       = TRUE,
     show_column_names    = TRUE,
-    row_names_gp         = grid::gpar(fontsize = 8),
-    column_names_gp      = grid::gpar(fontsize = 8),
+    row_names_gp         = grid::gpar(fontsize = 10),
+    column_names_gp      = grid::gpar(fontsize = 10),
     column_title         = sprintf(
-      "Sample x Sample Euclidean distance (vst-transformed, %d genes)",
+      "Sample x Sample Euclidean distance\n(vst-transformed, %d genes)",
       nrow(vst_mat)
     ),
-    column_title_gp      = grid::gpar(fontsize = 11, fontface = "bold"),
+    column_title_gp      = grid::gpar(fontsize = 10, fontface = "bold"),
     heatmap_legend_param = list(direction = "vertical")
   )
 
-  # v1.4.0: -30% from prior 1200x1100 per user feedback.
-  grDevices::png(fig_path, width = 840, height = 770, res = 150)
-  ComplexHeatmap::draw(hm, merge_legend = TRUE)
+  # Phase 11: widened from the v1.4.0 840x770 + left padding so the (now
+  # 2-line) centered title isn't clipped at the left device edge.
+  grDevices::png(fig_path, width = 1150, height = 950, res = 150)
+  ComplexHeatmap::draw(hm, merge_legend = TRUE,
+                       padding = grid::unit(c(2, 2, 2, 8), "mm"))
   grDevices::dev.off()
 
   invisible(fig_path)
@@ -247,7 +249,7 @@ qc_libsize_detected_barplot <- function(counts, sample_info, fig_path) {
   per_sample$sample <- factor(per_sample$sample, levels = per_sample$sample)
 
   group_palette <- stats::setNames(
-    grDevices::hcl.colors(length(unique(per_sample$group)), palette = "Dark 3"),
+    .okabe_ito(length(unique(per_sample$group))),
     unique(per_sample$group)
   )
 
@@ -339,7 +341,7 @@ qc_hclust_density <- function(tmm, sample_info, fig_path,
 
   uniq_groups <- unique(leaf_labs$group)
   group_palette <- stats::setNames(
-    grDevices::hcl.colors(length(uniq_groups), palette = "Dark 3"),
+    .okabe_ito(length(uniq_groups)),
     uniq_groups
   )
 
@@ -363,18 +365,20 @@ qc_hclust_density <- function(tmm, sample_info, fig_path,
     scale_color_manual(values = group_palette) +
     coord_cartesian(clip = "off") +
     labs(
-      title = sprintf("Hierarchical clustering (%s, %s)", clust_method, dist_method),
+      title = sprintf("Hierarchical clustering\n(%s, %s)", clust_method, dist_method),
       x     = NULL,
       y     = "Distance",
       color = "Group"
     ) +
     theme_minimal(base_size = 13) +
     theme(
-      axis.text.x        = element_blank(),
-      axis.ticks.x       = element_blank(),
-      panel.grid.major.x = element_blank(),
-      panel.grid.minor.x = element_blank(),
-      plot.margin        = grid::unit(c(5, 5, 30, 5), "pt")
+      plot.title          = element_text(size = 11),
+      plot.title.position = "plot",
+      axis.text.x         = element_blank(),
+      axis.ticks.x        = element_blank(),
+      panel.grid.major.x  = element_blank(),
+      panel.grid.minor.x  = element_blank(),
+      plot.margin         = grid::unit(c(5, 5, 30, 5), "pt")
     )
 
   # ---- 2) Per-sample density of log2(CPM + 1) ----
@@ -392,17 +396,20 @@ qc_hclust_density <- function(tmm, sample_info, fig_path,
     geom_density(alpha = 0.6) +
     scale_color_manual(values = group_palette) +
     labs(
-      title = "log2(CPM + 1) density per sample",
+      title = "log2(CPM + 1) density\nper sample",
       x     = "log2(CPM + 1)",
       y     = "Density",
       color = "Group"
     ) +
-    theme_minimal(base_size = 13)
+    theme_minimal(base_size = 13) +
+    theme(plot.title          = element_text(size = 11),
+          plot.title.position = "plot")
 
-  combined <- patchwork::wrap_plots(p_dend, p_den, ncol = 2, widths = c(1.2, 1)) +
+  combined <- patchwork::wrap_plots(p_dend, p_den, ncol = 2, widths = c(1.35, 1)) +
     patchwork::plot_layout(guides = "collect")
 
-  # v1.4.0: -30% from prior 14 x 7 in per user feedback.
-  ggsave(fig_path, combined, width = 9.8, height = 4.9, dpi = 150, bg = "white")
+  # Phase 11: widened from the v1.4.0 9.8x4.9 so the two per-panel titles
+  # (now 2-line) sit above their panels instead of overrunning each other.
+  ggsave(fig_path, combined, width = 12.5, height = 5.2, dpi = 150, bg = "white")
   invisible(fig_path)
 }

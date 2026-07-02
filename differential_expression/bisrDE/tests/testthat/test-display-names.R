@@ -105,3 +105,13 @@ test_that("pca_static uses display labels when present", {
   p <- pca_static(tmm, sample_info)
   expect_setequal(p$data$Display, c("Ctrl-1", "Ctrl-2", "Trt-1", "Trt-2"))
 })
+
+test_that(".auto_display numbers replicates within each group, in order", {
+  lab <- bisrDE:::.auto_display(c("pos", "pos", "neg", "pos", "neg"))
+  expect_equal(lab, c("pos 1", "pos 2", "neg 1", "pos 3", "neg 2"))
+})
+
+test_that(".auto_display handles a single group and preserves length", {
+  expect_equal(bisrDE:::.auto_display(rep("A", 3)), c("A 1", "A 2", "A 3"))
+  expect_length(bisrDE:::.auto_display(character(0)), 0)
+})

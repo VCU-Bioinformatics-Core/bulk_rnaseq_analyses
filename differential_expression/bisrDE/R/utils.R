@@ -31,6 +31,30 @@
 }
 
 
+#' Auto-derive friendly per-sample display labels from group + replicate
+#'
+#' @description When the samplesheet carries no `DisplayName` column the
+#'   pipeline still wants human-friendly plot labels instead of raw SampleIDs
+#'   (e.g. SRA accessions). This builds `"<GroupID> <n>"` labels, numbering
+#'   replicates `1..n` within each group in samplesheet order (e.g.
+#'   `"hpvPositive 1"`, `"hpvPositive 2"`, ...). Used as the default for
+#'   `sample_info$display`; an explicit `DisplayName` value overrides it per
+#'   sample.
+#'
+#' @param conditions Character vector of group labels, in samplesheet order.
+#' @return Character vector of display labels aligned to `conditions`.
+#' @keywords internal
+.auto_display <- function(conditions) {
+  conditions <- as.character(conditions)
+  out <- character(length(conditions))
+  for (g in unique(conditions)) {
+    idx <- which(conditions == g)
+    out[idx] <- paste(g, seq_along(idx))
+  }
+  out
+}
+
+
 #' Build a munged-SampleID -> condition (group) lookup
 #'
 #' @description Named vector mapping each sample's `make.names()`-munged ID
@@ -46,6 +70,36 @@
   munged <- make.names(as.character(sample_info$sample))
   stats::setNames(as.character(sample_info$condition), munged)
 }
+
+
+#' Okabe-Ito colorblind-safe categorical palette
+#'
+#' @description Return `n` colors from the Okabe-Ito qualitative palette —
+#'   the de-facto colorblind-safe categorical set (deuteranopia/protanopia/
+#'   tritanopia distinguishable). Used for group/condition colors across all
+#'   plots so the scheme is consistent and accessible. Recycles via a ramp
+#'   only if `n` exceeds the 8 named colors.
+#'
+#' @param n Number of colors needed.
+#' @return Character vector of `n` hex colors.
+#' @keywords internal
+.okabe_ito <- function(n) {
+  pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+           "#0072B2", "#D55E00", "#CC79A7", "#000000")
+  if (n <= length(pal)) pal[seq_len(n)] else grDevices::colorRampPalette(pal)(n)
+}
+
+
+#' Diverging colorblind-safe color stops (low, mid, high)
+#'
+#' @description Blue -> near-white -> vermillion stops for a diverging
+#'   continuous scale (correlation, z-score). Pair with
+#'   `circlize::colorRamp2()` or `grDevices::colorRampPalette()`. Avoids the
+#'   red/green problem of the previous ad-hoc ramps.
+#'
+#' @return Character vector of 3 hex colors.
+#' @keywords internal
+.diverging_stops <- function() c("#0072B2", "#F7F7F7", "#D55E00")
 
 
 #' Build a `<base_dir>/<prefix><name><extension>` file path

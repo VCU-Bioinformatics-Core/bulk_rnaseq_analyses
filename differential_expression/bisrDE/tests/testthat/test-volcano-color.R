@@ -1,7 +1,7 @@
 # Phase 1.1 fix verification: the volcano plot's color tags, threshold
 # line, and y-axis must all use the same significance field (`sig`),
-# and the 3 color levels must map to the documented palette (Over =
-# firebrick, Under = steelblue, Not significant = grey70).
+# and the 3 color levels must map to the documented colorblind-safe palette
+# (Over = #D55E00 vermillion, Under = #0072B2 blue, Not significant = grey70).
 
 build_volcano_data <- function() {
   data.frame(
@@ -60,8 +60,8 @@ test_that("generate_volcano uses the documented palette", {
 
   # The palette stores the named-vector `values =` argument we passed
   expect_equal(color_scale$palette(3),
-               c("Over expressed"  = "firebrick",
-                 "Under expressed" = "steelblue",
+               c("Over expressed"  = "#D55E00",
+                 "Under expressed" = "#0072B2",
                  "Not significant" = "grey70"))
 })
 
