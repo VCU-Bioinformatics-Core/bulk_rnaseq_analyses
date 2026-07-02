@@ -120,5 +120,45 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 			return c, err
 		}
 	}
+
+	// Stage 4 — sample display names (#2b). When the sheet has no usable
+	// DisplayName column, offer per-group labels (per-sample doesn't scale);
+	// otherwise the R side auto-derives "<Group> <n>" with a warning. Skipped
+	// entirely in non-interactive mode (early return above), so --print-cmd
+	// parity with run_interactive.sh is preserved.
+	if len(groups) > 0 && !ss.HasDisplayNames() {
+		dnMode := "auto"
+		dn := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Sample display names").
+				Description("No DisplayName column found. Tip: add one to the samplesheet for full control.").
+				Options(
+					huh.NewOption("Auto-derive from group + replicate (recommended)", "auto"),
+					huh.NewOption("Enter a label per group", "group"),
+				).Value(&dnMode),
+		)).WithTheme(huh.ThemeCharm())
+		if err := dn.Run(); err != nil {
+			return c, err
+		}
+		if dnMode == "group" {
+			labelVals := make([]string, len(groups)) // stable backing array for the pointers
+			fields := make([]huh.Field, len(groups))
+			for i, g := range groups {
+				labelVals[i] = g // default label = the group name
+				fields[i] = huh.NewInput().Title("Label for group '" + g + "'").Value(&labelVals[i])
+			}
+			lf := huh.NewForm(huh.NewGroup(fields...)).WithTheme(huh.ThemeCharm())
+			if err := lf.Run(); err != nil {
+				return c, err
+			}
+			labels := make(map[string]string, len(groups))
+			for i, g := range groups {
+				labels[g] = labelVals[i]
+			}
+			if path, err := ss.WriteDisplaySamplesheet(labels); err == nil {
+				c.Samplesheet = path
+			}
+		}
+	}
 	return c, nil
 }

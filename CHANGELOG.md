@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Per-group display-name prompt** in both launchers (`#2b`). When the
+  samplesheet has no usable `DisplayName` column, `run_interactive.sh` and the
+  Go TUI offer **auto-derive** (default, `<GroupID> <n>`) or **enter a label per
+  group** (per-sample doesn't scale) — the latter writes a working-copy
+  samplesheet with `DisplayName = "<label> <n>"` and recommends adding the
+  column for full control. Interactive-only, so `--print-cmd` parity is
+  preserved and byte-identical across both front-ends.
+
+### Fixed
+
+- Go TUI startup banner showed a stale `v1.5.0` (missed by the v1.5.2 version
+  bump); now reads the current version.
+
 ## [1.5.2] - 2026-07-01
 
 Report & UX fixes surfaced after v1.5.1.

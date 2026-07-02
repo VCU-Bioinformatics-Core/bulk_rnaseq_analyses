@@ -177,6 +177,36 @@ ss_contrasts() {
   }' "$1"
 }
 
+# A samplesheet "has display names" when it carries a DisplayName column with
+# at least one non-blank value. Exit 0 = yes, 1 = no (drives the #2b prompt).
+ss_has_display() {
+  awk -F, '
+    NR==1{ for(i=1;i<=NF;i++){h=$i;gsub(/\r/,"",h);if(h=="DisplayName")c=i} if(!c)exit 1 }
+    NR>1 && c { v=$c; gsub(/\r/,"",v); gsub(/^[ \t]+|[ \t]+$/,"",v); if(v!="")f=1 }
+    END{ exit (f?0:1) }
+  ' "$1"
+}
+
+# Write a working copy of the samplesheet with a DisplayName column filled from
+# a group->label map, numbering replicates within each group ("<label> <n>").
+# Args: <src> <group=label>...  Echoes the (absolute) working-copy path.
+write_display_samplesheet() {
+  local src="$1"; shift
+  local mapf out pair
+  mapf="$(mktemp)"; out="$(mktemp)"
+  for pair in "$@"; do printf '%s\t%s\n' "${pair%%=*}" "${pair#*=}" >> "$mapf"; done
+  awk -F, -v OFS=, -v mapf="$mapf" '
+    BEGIN{ while((getline l < mapf)>0){ i=index(l,"\t"); lbl[substr(l,1,i-1)]=substr(l,i+1) } }
+    { sub(/\r$/,"") }
+    NR==1{ dc=0; for(i=1;i<=NF;i++) if($i=="DisplayName") dc=i
+           print (dc? $0 : $0 ",DisplayName"); next }
+    { g=$2; n[g]++; dn=((g in lbl)?lbl[g]:g) " " n[g]
+      if(dc){ $dc=dn; print } else { print $0 "," dn } }
+  ' "$src" > "$out"
+  rm -f "$mapf"
+  printf '%s\n' "$out"
+}
+
 # ===========================================================================
 # Flow
 # ===========================================================================
@@ -216,6 +246,26 @@ if [ -f "$samplesheet" ]; then
   # the Go TUI's non-interactive behavior + convenient for scripting).
   [ -z "$incl_contrasts" ] && incl_contrasts="${BISR_INCLUDE_CONTRASTS:-}"
   [ -z "$excl_contrasts" ] && excl_contrasts="${BISR_EXCLUDE_CONTRASTS:-}"
+
+  # v1.5.2 (#2b) — sample display names. If the samplesheet has no usable
+  # DisplayName column, offer per-group labels (per-sample doesn't scale);
+  # otherwise the R side auto-derives "<Group> <n>" with a warning. Prompt is
+  # interactive-only: non-interactive/--print-cmd falls to the first option
+  # (auto-derive), so the --samplesheet arg is unchanged (parity preserved).
+  if ! ss_has_display "$samplesheet"; then
+    dn_mode=$(ask_choose "Sample display names" "${BISR_DISPLAYNAME_MODE:-}" \
+      "auto-derive from group + replicate (recommended)" \
+      "enter a label per group")
+    if [ "$dn_mode" = "enter a label per group" ]; then
+      note "Tip: add a DisplayName column to your samplesheet for full control."
+      _dn=()
+      for _g in "${_groups[@]}"; do
+        _dn+=("$_g=$(ask_input "Display label for group '$_g'" "$_g" "")")
+      done
+      samplesheet=$(write_display_samplesheet "$samplesheet" "${_dn[@]}")
+      note "Using working samplesheet with display labels: $samplesheet"
+    fi
+  fi
 fi
 
 # ---------------------------------------------------------------------------
