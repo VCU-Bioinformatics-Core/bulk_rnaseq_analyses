@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `read_counts()` no longer collapses gene symbols that contain dots (mouse
+  `H2-M10.1`, `Tex19.1`, `Rn4.5s`, … are *distinct* genes) into duplicate row
+  names — the Ensembl version-suffix strip now applies only to `ENS…`
+  accessions. Fixes a hard `duplicate 'row.names' are not allowed` error on
+  `salmon.merged.gene_counts.tsv` files whose `gene_id` column holds symbols.
 - Go TUI startup banner showed a stale `v1.5.0` (missed by the v1.5.2 version
   bump); now reads the current version.
 

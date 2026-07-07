@@ -32,7 +32,14 @@ read_counts <- function(path) {
   ) |>
     dplyr::select(tidyselect::where(is.numeric))
 
-  rownames(counts) <- stringr::str_remove(rownames(counts), "\\..*")
+  # Strip Ensembl version suffixes (e.g. "ENSMUSG00000000001.3" -> "...001"),
+  # but ONLY from Ensembl-style accessions. Gene symbols can carry dots that are
+  # part of the name (e.g. "H2-M10.1", "Rn4.5s", "Tex19.1" are *distinct*
+  # genes), so a blanket "\\..*" strip would collapse them into duplicate row
+  # names and error at the rownames<- assignment.
+  is_ens <- grepl("^ENS", rownames(counts))
+  rownames(counts)[is_ens] <-
+    stringr::str_remove(rownames(counts)[is_ens], "\\..*")
   counts
 }
 
