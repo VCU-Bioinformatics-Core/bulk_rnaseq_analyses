@@ -14,6 +14,7 @@ type Config struct {
 	Annotation       string
 	BRS              string
 	IDType           string
+	VolcanoLabels    string
 	ExcludeSamples   []string
 	ExcludeGroups    []string
 	IncludeContrasts []string
@@ -31,6 +32,7 @@ func (c Config) ToArgs() []string {
 		"--runid", c.Runid,
 		"--annotation", c.Annotation,
 		"--id-type", c.IDType,
+		"--volcano-labels", c.VolcanoLabels,
 	}
 	if strings.TrimSpace(c.BRS) != "" {
 		args = append(args, "--brs-ticket", c.BRS)
@@ -79,6 +81,7 @@ func (c Config) Summary() string {
 		{"Output dir", c.Outdir},
 		{"BRS ticket", dash(c.BRS)},
 		{"ID type", c.IDType},
+		{"Volcano labels", c.VolcanoLabels},
 		{"Exclude groups", dashList(c.ExcludeGroups)},
 		{"Exclude samples", dashList(c.ExcludeSamples)},
 		{"Include contrasts", dashList(c.IncludeContrasts)},

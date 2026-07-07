@@ -4,7 +4,15 @@
 \alias{generate_volcano}
 \title{Volcano plot of differential expression results}
 \usage{
-generate_volcano(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, sig = "padj")
+generate_volcano(
+  data,
+  exp_name,
+  ctrl_name,
+  p = 0.05,
+  lfc = 0.58,
+  sig = "padj",
+  n_labels = 10
+)
 }
 \arguments{
 \item{data}{Annotated DESeq2 results data frame (output of
@@ -22,6 +30,11 @@ generate_volcano(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58, sig = "padj")
 \item{sig}{Column name for significance values. Default \code{"padj"}. The
 same column is used for the colored category, the y-axis transform,
 the threshold line, and the top-genes-label selection.}
+
+\item{n_labels}{Maximum number of genes to label with \code{ggrepel}: the top
+\code{n_labels} most-significant genes (by ascending \code{sig}) that pass both
+thresholds. Default \code{10} — keeps the plot readable when many genes are
+significant. Configurable via the \code{--volcano-labels} CLI flag.}
 }
 \value{
 A \code{ggplot} object.
@@ -33,7 +46,7 @@ the same significance field (\code{sig}, default \code{"padj"}) so the dotted
 threshold line aligns with the grey/colored boundary.
 }
 \details{
-Top 20 up- and down-regulated genes (by ascending \code{sig}) are
-labeled with their \code{SYMBOL}. Color tags: "Over expressed" (firebrick),
-"Under expressed" (steelblue), "Not significant" (grey70).
+The top \code{n_labels} most-significant genes (by ascending \code{sig}) are
+labeled with their \code{SYMBOL}. Color tags (colorblind-safe): "Over expressed"
+(vermillion), "Under expressed" (blue), "Not significant" (grey70).
 }

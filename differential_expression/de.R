@@ -116,6 +116,10 @@ option_list <- list(
   make_option("--exclude-contrasts",
     type = "character", default = NULL,
     help = "Optional comma-separated contrast columns to skip (denylist)."
+  ),
+  make_option("--volcano-labels",
+    type = "integer", default = 10,
+    help = "Max genes to label per volcano plot (top N by significance) [default %default]. Raise to name more genes, lower to declutter."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -169,6 +173,7 @@ tryCatch({
     exclude_groups    = exclude_groups,
     include_contrasts = include_contrasts,
     exclude_contrasts = exclude_contrasts,
+    volcano_labels    = opt[["volcano-labels"]],
     session_log       = slog
   )
 

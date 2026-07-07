@@ -79,7 +79,7 @@ setup_directories <- function(base_dir) {
 #' @export
 run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          out_dirs, annotation, annotation_db,
-                         id_type = "ensembl") {
+                         id_type = "ensembl", volcano_labels = 10) {
   tryCatch(
     {
       cli::cli_h2("Comparison: {.strong {comparison$name}}")
@@ -109,7 +109,8 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       volcano_plot <- generate_volcano(
         annotated_results,
         comparison$exp,
-        comparison$ctrl
+        comparison$ctrl,
+        n_labels = volcano_labels
       )
       save_plot(
         volcano_plot,
@@ -264,6 +265,8 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #'   these contrast columns are processed (allowlist). Default `NULL`.
 #' @param exclude_contrasts Optional character vector of contrast columns to
 #'   skip (denylist). Default `NULL`.
+#' @param volcano_labels Max genes to label on each volcano plot (the top N by
+#'   significance). Default `10`. Passed through to [generate_volcano()].
 #' @param session_log Optional session-log handle from [start_session_log()].
 #'   When supplied, this call uses it (so a driver can make one log span both
 #'   the analysis and the report render) and does NOT close it — the caller
@@ -297,6 +300,7 @@ run_pipeline <- function(counts_path,
                          exclude_groups    = NULL,
                          include_contrasts = NULL,
                          exclude_contrasts = NULL,
+                         volcano_labels    = 10,
                          session_log       = NULL) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
@@ -478,7 +482,8 @@ run_pipeline <- function(counts_path,
       out_dirs          = out_dirs,
       annotation        = annotation,
       annotation_db     = annotation_db,
-      id_type           = id_type
+      id_type           = id_type,
+      volcano_labels    = volcano_labels
     )
     if (!is.null(res)) {
       results[[i]] <- res

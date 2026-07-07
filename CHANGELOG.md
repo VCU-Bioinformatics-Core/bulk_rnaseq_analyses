@@ -16,8 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   samplesheet with `DisplayName = "<label> <n>"` and recommends adding the
   column for full control. Interactive-only, so `--print-cmd` parity is
   preserved and byte-identical across both front-ends.
+- **Configurable volcano labels** — `--volcano-labels N` (default 10) caps how
+  many genes are named on each volcano plot (top N by significance), with a
+  prompt in `run_interactive.sh` and the Go TUI (env `BISR_VOLCANO_LABELS`).
 
 ### Fixed
+
+- Volcano plots labelled *every* significant gene (and, for non-ensembl inputs,
+  every unmapped gene via `NA %in% c(.., NA)`), burying the plot under hundreds
+  of labels. They now label only the top `--volcano-labels` most-significant
+  genes (default 10).
 
 - `annotate_results()` now always emits a canonical `SYMBOL` (and `ENTREZID`)
   column regardless of `--id-type`. With `--id-type symbol` it previously

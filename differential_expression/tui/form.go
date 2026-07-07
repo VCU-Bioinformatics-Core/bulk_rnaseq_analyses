@@ -39,6 +39,7 @@ func defaultConfig() Config {
 		Annotation:       envOr("BISR_ANNOTATION", "mouse"),
 		BRS:              envOr("BISR_BRS", ""),
 		IDType:           envOr("BISR_IDTYPE", "ensembl"),
+		VolcanoLabels:    envOr("BISR_VOLCANO_LABELS", "10"),
 		ExcludeSamples:   envList("BISR_EXCLUDE_SAMPLES"),
 		ExcludeGroups:    envList("BISR_EXCLUDE_GROUPS"),
 		IncludeContrasts: envList("BISR_INCLUDE_CONTRASTS"),
@@ -68,6 +69,7 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 			huh.NewSelect[string]().Title("Gene ID type").
 				Options(huh.NewOptions("ensembl", "entrez", "symbol")...).
 				Value(&c.IDType),
+			huh.NewInput().Title("Volcano labels (top N genes)").Value(&c.VolcanoLabels),
 		),
 	).WithTheme(huh.ThemeCharm())
 	if err := core.Run(); err != nil {

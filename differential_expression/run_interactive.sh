@@ -220,6 +220,7 @@ runid=$(ask_input       "Run ID"            "run_$(date +%Y%m%d_%H%M%S)"        
 outdir=$(ask_input      "Output directory"  "./results"                        "${BISR_OUTDIR:-}")
 brs=$(ask_input         "BRS ticket (blank = none)" ""                         "${BISR_BRS:-}")
 idtype=$(ask_choose     "Gene ID type"      "${BISR_IDTYPE:-}" ensembl entrez symbol)
+vlabels=$(ask_input     "Volcano labels — max genes to name (top N)" "10"           "${BISR_VOLCANO_LABELS:-}")
 
 # v1.5.0 — interactive sample / group / contrast selection (only when the
 # samplesheet is readable; otherwise these stay empty = no filtering).
@@ -272,7 +273,8 @@ fi
 # Assemble the run_analysis.sh argument vector.
 # ---------------------------------------------------------------------------
 args=(--counts "$counts" --samplesheet "$samplesheet" --outdir "$outdir"
-      --runid "$runid" --annotation "$annotation" --id-type "$idtype")
+      --runid "$runid" --annotation "$annotation" --id-type "$idtype"
+      --volcano-labels "$vlabels")
 [ -n "$brs" ]            && args+=(--brs-ticket "$brs")
 [ -n "$excl_samples" ]   && args+=(--exclude-samples "$excl_samples")
 [ -n "$excl_groups" ]    && args+=(--exclude-groups "$excl_groups")
@@ -294,6 +296,7 @@ summary_md=$(cat <<EOF
 | Output dir     | \`$outdir\` |
 | BRS ticket     | ${brs:-—} |
 | ID type        | $idtype |
+| Volcano labels | $vlabels |
 | Exclude groups | ${excl_groups:-—} |
 | Exclude samples| ${excl_samples:-—} |
 | Include contrasts | ${incl_contrasts:-—} |

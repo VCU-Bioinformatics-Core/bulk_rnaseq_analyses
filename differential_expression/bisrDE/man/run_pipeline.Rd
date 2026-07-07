@@ -16,6 +16,7 @@ run_pipeline(
   exclude_groups = NULL,
   include_contrasts = NULL,
   exclude_contrasts = NULL,
+  volcano_labels = 10,
   session_log = NULL
 )
 }
@@ -52,6 +53,9 @@ these contrast columns are processed (allowlist). Default \code{NULL}.}
 
 \item{exclude_contrasts}{Optional character vector of contrast columns to
 skip (denylist). Default \code{NULL}.}
+
+\item{volcano_labels}{Max genes to label on each volcano plot (the top N by
+significance). Default \code{10}. Passed through to \code{\link[=generate_volcano]{generate_volcano()}}.}
 
 \item{session_log}{Optional session-log handle from \code{\link[=start_session_log]{start_session_log()}}.
 When supplied, this call uses it (so a driver can make one log span both
