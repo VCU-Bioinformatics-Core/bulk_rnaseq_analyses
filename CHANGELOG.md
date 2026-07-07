@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `annotate_results()` now always emits a canonical `SYMBOL` (and `ENTREZID`)
+  column regardless of `--id-type`. With `--id-type symbol` it previously
+  produced only `SYMBOL_ID`, so the volcano / heatmap code (which uses
+  `.data$SYMBOL`) errored and *every* comparison was caught and dropped as "no
+  results" — leaving the report with no DE tables, GSEA, volcano plots, or
+  dotplots. Symbol-input runs now complete end-to-end.
 - `read_counts()` no longer collapses gene symbols that contain dots (mouse
   `H2-M10.1`, `Tex19.1`, `Rn4.5s`, … are *distinct* genes) into duplicate row
   names — the Ensembl version-suffix strip now applies only to `ENS…`
