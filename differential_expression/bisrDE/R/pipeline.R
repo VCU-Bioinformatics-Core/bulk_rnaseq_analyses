@@ -501,13 +501,17 @@ run_pipeline <- function(counts_path,
   # ---- 9. Sample Exploration QC plots ----
   cli::cli_h1("Sample Exploration QC plots")
 
+  # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
+  # on whichever DE ID column overlaps the count matrix (ensembl / symbol /
+  # entrez per --id-type). A hardcoded ENSEMBL_ID never matches a symbol/entrez
+  # count matrix, which silently skipped the correlation heatmap.
   sig_genes_union <- unique(unlist(lapply(results, function(r) {
     if (is.null(r) || is.null(r$deseq)) return(character(0))
     d <- r$deseq
     ok <- !is.na(d$padj) & d$padj < 0.05 & abs(d$log2FoldChange) >= 0.58
     if (!any(ok)) return(character(0))
-    if ("ENSEMBL_ID" %in% colnames(d)) as.character(d$ENSEMBL_ID[ok])
-    else rownames(d)[ok]
+    key_col <- .match_id_column(d, rownames(tmm))
+    if (!is.null(key_col)) as.character(d[[key_col]][ok]) else rownames(d)[ok]
   })))
   if (length(sig_genes_union) < 2) {
     cli::cli_alert_info(

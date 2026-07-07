@@ -102,6 +102,35 @@
 .diverging_stops <- function() c("#0072B2", "#F7F7F7", "#D55E00")
 
 
+#' Pick the DE-table ID column that matches a count matrix's row names
+#'
+#' @description A count matrix is keyed by the INPUT gene IDs (ensembl /
+#'   symbol / entrez, per `--id-type`), which the annotated DE table stores
+#'   under `"<KEYTYPE>_ID"`. Downstream subsetting that hardcodes `ENSEMBL_ID`
+#'   silently drops every gene for symbol/entrez inputs. This returns the
+#'   candidate ID column of `df` with the most overlap with `target`, so the
+#'   right key is used regardless of id_type.
+#'
+#' @param df Annotated DE data frame.
+#' @param target Character vector to match against (e.g. `rownames(counts)`).
+#' @return Name of the best-matching column, or `NULL` if none overlaps.
+#' @keywords internal
+.match_id_column <- function(df, target) {
+  candidates <- c("ENSEMBL_ID", "SYMBOL_ID", "ENTREZID_ID", "SYMBOL", "ENTREZID")
+  candidates <- candidates[candidates %in% colnames(df)]
+  best <- NULL
+  best_hits <- 0L
+  for (cc in candidates) {
+    hits <- length(intersect(as.character(df[[cc]]), target))
+    if (hits > best_hits) {
+      best_hits <- hits
+      best <- cc
+    }
+  }
+  best
+}
+
+
 #' Build a `<base_dir>/<prefix><name><extension>` file path
 #'
 #' @description Convenience wrapper around `file.path()` + `paste0()` for

@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.data$SYMBOL`) errored and *every* comparison was caught and dropped as "no
   results" — leaving the report with no DE tables, GSEA, volcano plots, or
   dotplots. Symbol-input runs now complete end-to-end.
+- The sample correlation heatmap and per-comparison DE heatmaps no longer
+  silently skip for `--id-type symbol` / `entrez`: the significant-gene and
+  heatmap subsets now match the count matrix by whichever DE ID column overlaps
+  it (new `.match_id_column()` helper) instead of a hardcoded `ENSEMBL_ID`.
 - `read_counts()` no longer collapses gene symbols that contain dots (mouse
   `H2-M10.1`, `Tex19.1`, `Rn4.5s`, … are *distinct* genes) into duplicate row
   names — the Ensembl version-suffix strip now applies only to `ENS…`
