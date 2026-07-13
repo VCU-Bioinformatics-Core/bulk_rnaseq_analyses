@@ -13,7 +13,8 @@ run_analysis(
   annotation,
   annotation_db,
   id_type = "ensembl",
-  volcano_labels = 10
+  volcano_labels = 10,
+  deseq_norm_counts = NULL
 )
 }
 \arguments{

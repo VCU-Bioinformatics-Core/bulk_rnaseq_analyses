@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Configurable volcano labels** — `--volcano-labels N` (default 10) caps how
   many genes are named on each volcano plot (top N by significance), with a
   prompt in `run_interactive.sh` and the Go TUI (env `BISR_VOLCANO_LABELS`).
+- **Normalized counts in the DE spreadsheet** — each
+  `DESeq2_<comparison>.csv` now carries per-sample normalized counts for all
+  samples next to the log2FC / padj: `TMM_<SampleID>` (edgeR TMM) and
+  `DESeq2norm_<SampleID>` (DESeq2 median-of-ratios).
 
 ### Fixed
 

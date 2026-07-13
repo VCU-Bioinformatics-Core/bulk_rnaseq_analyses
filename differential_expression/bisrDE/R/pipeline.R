@@ -79,7 +79,8 @@ setup_directories <- function(base_dir) {
 #' @export
 run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          out_dirs, annotation, annotation_db,
-                         id_type = "ensembl", volcano_labels = 10) {
+                         id_type = "ensembl", volcano_labels = 10,
+                         deseq_norm_counts = NULL) {
   tryCatch(
     {
       cli::cli_h2("Comparison: {.strong {comparison$name}}")
@@ -101,9 +102,24 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         annotation_db = annotation_db
       )
 
+      # DE spreadsheet = annotated results + per-sample normalized counts (TMM +
+      # DESeq2 median-of-ratios, all samples), so expression sits alongside the
+      # log2FC. Built on a copy so the plots below use the un-widened table.
+      de_out  <- annotated_results
+      key_col <- .match_id_column(de_out, rownames(normalized_counts))
+      if (!is.null(key_col)) {
+        ids      <- as.character(de_out[[key_col]])
+        orig_ids <- stats::setNames(as.character(sample_info$sample),
+                                    make.names(as.character(sample_info$sample)))
+        de_out <- .append_counts(de_out, ids, normalized_counts, orig_ids, "TMM")
+        if (!is.null(deseq_norm_counts)) {
+          de_out <- .append_counts(de_out, ids, deseq_norm_counts, orig_ids, "DESeq2norm")
+        }
+      }
+
       output_file <- create_file_path(out_dirs$de_data, "DESeq2_", comparison$name)
       cli::cli_alert_info("Saving DE results: {.path {output_file}}")
-      utils::write.csv(annotated_results, output_file)
+      utils::write.csv(de_out, output_file)
 
       cli::cli_alert_info("Generating volcano plot...")
       volcano_plot <- generate_volcano(
@@ -456,6 +472,11 @@ run_pipeline <- function(counts_path,
     "Condition levels: {.val {levels(dds$condition)}}"
   ))
 
+  # DESeq2 median-of-ratios normalized counts for the DE spreadsheets. Size
+  # factors are global, so compute once here and reuse across comparisons.
+  deseq_norm_counts <- DESeq2::counts(DESeq2::estimateSizeFactors(dds),
+                                      normalized = TRUE)
+
   # ---- 8. Per-comparison loop ----
   cli::cli_h1("Per-comparison differential expression")
   results <- vector("list", length(comparisons))
@@ -483,7 +504,8 @@ run_pipeline <- function(counts_path,
       annotation        = annotation,
       annotation_db     = annotation_db,
       id_type           = id_type,
-      volcano_labels    = volcano_labels
+      volcano_labels    = volcano_labels,
+      deseq_norm_counts = deseq_norm_counts
     )
     if (!is.null(res)) {
       results[[i]] <- res

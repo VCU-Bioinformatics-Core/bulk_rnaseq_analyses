@@ -131,6 +131,32 @@
 }
 
 
+#' Append per-sample normalized counts to a DE results table
+#'
+#' @description Join a normalized-count matrix onto an annotated DE data frame
+#'   by gene, adding one `<prefix>_<SampleID>` column per sample so the DE
+#'   spreadsheet carries expression values next to the log2FC. Matrix columns
+#'   (which are `make.names()`-munged SampleIDs) are renamed back to the
+#'   original SampleIDs via `orig_ids`.
+#'
+#' @param df Annotated DE data frame.
+#' @param ids Character vector (length `nrow(df)`) of each row's gene ID in the
+#'   matrix's row-name namespace (see [.match_id_column()]).
+#' @param mat Normalized-count matrix (genes x samples).
+#' @param orig_ids Named vector mapping munged SampleID -> original SampleID.
+#' @param prefix Column-name prefix, e.g. `"TMM"` or `"DESeq2norm"`.
+#' @return `df` with the per-sample count columns appended (`NA` for any gene
+#'   absent from `mat`).
+#' @keywords internal
+.append_counts <- function(df, ids, mat, orig_ids, prefix) {
+  sub <- mat[match(ids, rownames(mat)), , drop = FALSE]
+  cn  <- unname(orig_ids[colnames(mat)])
+  cn[is.na(cn)] <- colnames(mat)[is.na(cn)]
+  colnames(sub) <- paste0(prefix, "_", cn)
+  cbind(df, as.data.frame(sub, check.names = FALSE, stringsAsFactors = FALSE))
+}
+
+
 #' Build a `<base_dir>/<prefix><name><extension>` file path
 #'
 #' @description Convenience wrapper around `file.path()` + `paste0()` for
