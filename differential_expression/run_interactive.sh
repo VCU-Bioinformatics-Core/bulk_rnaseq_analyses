@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_interactive.sh — beautiful interactive front-door for the bisrDE
-# bulk RNA-seq DE pipeline (v1.5.2).
+# bulk RNA-seq DE pipeline (v1.5.3).
 #
 # Uses charmbracelet tools when available and degrades gracefully to plain
 # shell prompts otherwise:
@@ -76,10 +76,10 @@ banner() {
   if have gum; then
     gum style --border double --margin "1 0" --padding "1 4" \
       --border-foreground "$BISR_PRIMARY" --foreground "$BISR_PRIMARY" \
-      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.5.2 · VCU Massey BISR"
+      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.5.3 · VCU Massey BISR"
   else
     echo "======================================================="
-    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.5.2 (VCU Massey)"
+    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.5.3 (VCU Massey)"
     echo "======================================================="
   fi
 }
@@ -248,7 +248,7 @@ if [ -f "$samplesheet" ]; then
   [ -z "$incl_contrasts" ] && incl_contrasts="${BISR_INCLUDE_CONTRASTS:-}"
   [ -z "$excl_contrasts" ] && excl_contrasts="${BISR_EXCLUDE_CONTRASTS:-}"
 
-  # v1.5.2 (#2b) — sample display names. If the samplesheet has no usable
+  # v1.5.3 (#2b) — sample display names. If the samplesheet has no usable
   # DisplayName column, offer per-group labels (per-sample doesn't scale);
   # otherwise the R side auto-derives "<Group> <n>" with a warning. Prompt is
   # interactive-only: non-interactive/--print-cmd falls to the first option
