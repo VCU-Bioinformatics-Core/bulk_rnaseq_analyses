@@ -109,6 +109,13 @@ annotate_results <- function(results,
     merged <- merged |> dplyr::rename(!!input_col := "Row.names")
     merged$ENSEMBL_ID <- merged$ENSEMBL
     merged$ENSEMBL <- NULL
+    # The input keytype was the merge key, so its canonical column (e.g. SYMBOL
+    # for id_type="symbol", ENTREZID for "entrez") is NOT among the queried
+    # columns — only the "<keytype>_ID" input copy is. The input IDs *are* that
+    # column's values, so mirror them in: the documented contract (and the
+    # volcano / heatmap / enrichment code) require ENSEMBL_ID, SYMBOL, ENTREZID,
+    # and GENENAME to always be present regardless of id_type.
+    if (is.null(merged[[keytype]])) merged[[keytype]] <- merged[[input_col]]
   }
 
   merged

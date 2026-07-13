@@ -49,6 +49,26 @@ test_that("annotate_results adds ENTREZID, SYMBOL, GENENAME, and ENSEMBL_ID colu
   expect_true(is.na(bogus_row$ENTREZID))
 })
 
+test_that("annotate_results emits a canonical SYMBOL column for id_type = 'symbol'", {
+  skip_if_not_installed("org.Hs.eg.db")
+  org_hs <- get("org.Hs.eg.db", envir = asNamespace("org.Hs.eg.db"))
+
+  # Input IDs are gene SYMBOLS. Regression: the annotated table must carry a
+  # canonical `SYMBOL` column (not only `SYMBOL_ID`), else the volcano / heatmap
+  # code that hardcodes `.data$SYMBOL` errors and aborts the whole comparison.
+  results <- data.frame(
+    log2FoldChange = c(1.5, -2.0),
+    padj           = c(0.01, 0.02),
+    row.names      = c("TP53", "BRCA1")
+  )
+  annotated <- annotate_results(results, id_type = "symbol",
+                                annotation_db = org_hs)
+
+  expect_true(all(c("ENSEMBL_ID", "ENTREZID", "SYMBOL", "GENENAME") %in%
+                    colnames(annotated)))
+  expect_setequal(annotated$SYMBOL, c("TP53", "BRCA1"))
+})
+
 test_that("annotate_results errors when annotation_db is unset", {
   results <- data.frame(
     log2FoldChange = 1,

@@ -79,7 +79,8 @@ setup_directories <- function(base_dir) {
 #' @export
 run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          out_dirs, annotation, annotation_db,
-                         id_type = "ensembl") {
+                         id_type = "ensembl", volcano_labels = 10,
+                         deseq_norm_counts = NULL) {
   tryCatch(
     {
       cli::cli_h2("Comparison: {.strong {comparison$name}}")
@@ -101,15 +102,31 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         annotation_db = annotation_db
       )
 
+      # DE spreadsheet = annotated results + per-sample normalized counts (TMM +
+      # DESeq2 median-of-ratios, all samples), so expression sits alongside the
+      # log2FC. Built on a copy so the plots below use the un-widened table.
+      de_out  <- annotated_results
+      key_col <- .match_id_column(de_out, rownames(normalized_counts))
+      if (!is.null(key_col)) {
+        ids      <- as.character(de_out[[key_col]])
+        orig_ids <- stats::setNames(as.character(sample_info$sample),
+                                    make.names(as.character(sample_info$sample)))
+        de_out <- .append_counts(de_out, ids, normalized_counts, orig_ids, "TMM")
+        if (!is.null(deseq_norm_counts)) {
+          de_out <- .append_counts(de_out, ids, deseq_norm_counts, orig_ids, "DESeq2norm")
+        }
+      }
+
       output_file <- create_file_path(out_dirs$de_data, "DESeq2_", comparison$name)
       cli::cli_alert_info("Saving DE results: {.path {output_file}}")
-      utils::write.csv(annotated_results, output_file)
+      utils::write.csv(de_out, output_file)
 
       cli::cli_alert_info("Generating volcano plot...")
       volcano_plot <- generate_volcano(
         annotated_results,
         comparison$exp,
-        comparison$ctrl
+        comparison$ctrl,
+        n_labels = volcano_labels
       )
       save_plot(
         volcano_plot,
@@ -256,6 +273,21 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #' @param brs_ticket Optional BRS ticket identifier (e.g. `"BRS-1234"`).
 #'   Default `""`. Currently passed through into the returned artifact
 #'   list for the report renderer.
+#' @param exclude_samples Optional character vector of `SampleID`s to drop
+#'   from the entire analysis (see [filter_samplesheet()]). Default `NULL`.
+#' @param exclude_groups Optional character vector of `GroupID`s to drop.
+#'   Default `NULL`.
+#' @param include_contrasts Optional character vector. When non-NULL, only
+#'   these contrast columns are processed (allowlist). Default `NULL`.
+#' @param exclude_contrasts Optional character vector of contrast columns to
+#'   skip (denylist). Default `NULL`.
+#' @param volcano_labels Max genes to label on each volcano plot (the top N by
+#'   significance). Default `10`. Passed through to [generate_volcano()].
+#' @param session_log Optional session-log handle from [start_session_log()].
+#'   When supplied, this call uses it (so a driver can make one log span both
+#'   the analysis and the report render) and does NOT close it — the caller
+#'   owns the lifecycle. When `NULL` (default) the pipeline opens and closes
+#'   its own log, as before. Default `NULL`.
 #' @return Invisibly, a named list of pipeline artifacts:
 #'   `results`, `comparisons`, `out_dirs`, `pca_plot` (ggplot),
 #'   `pca_plotly` (plotly 2D), `pca_plotly_3d` (plotly 3D),
@@ -278,15 +310,34 @@ run_pipeline <- function(counts_path,
                          outdir,
                          runid,
                          annotation,
-                         id_type    = "ensembl",
-                         brs_ticket = "") {
+                         id_type           = "ensembl",
+                         brs_ticket        = "",
+                         exclude_samples   = NULL,
+                         exclude_groups    = NULL,
+                         include_contrasts = NULL,
+                         exclude_contrasts = NULL,
+                         volcano_labels    = 10,
+                         session_log       = NULL) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
+  run_started <- Sys.time()
 
   # ---- 1. Output dirs + session log ----
+  # outdir MUST be absolute: the figure paths derived from it are stored in
+  # the analysis RDS and resolved later by generate_report(), which renders
+  # from a fresh temp working dir. A relative outdir would make every figure
+  # path fail file.exists() at render time, so the report would silently show
+  # "not available" for plots that are in fact on disk.
+  if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+  outdir   <- normalizePath(outdir, mustWork = FALSE)
   out_dirs <- setup_directories(outdir)
-  session_log <- start_session_log(out_dirs$logs)
-  on.exit(stop_session_log(session_log), add = TRUE)
+  # The driver (de.R) may pass an already-open session log so it spans both
+  # this call AND the report render; only manage our own when it doesn't.
+  own_log <- is.null(session_log)
+  if (own_log) {
+    session_log <- start_session_log(out_dirs$logs)
+    on.exit(stop_session_log(session_log), add = TRUE)
+  }
 
   cli::cli_h1("Bulk RNA-Seq Differential Expression Pipeline")
   cli::cli_inform(c(
@@ -323,9 +374,29 @@ run_pipeline <- function(counts_path,
     "Loaded {nrow(counts)} genes x {ncol(counts)} samples; {nrow(samplesheet)} samplesheet rows"
   )
 
-  # ---- 4. Parse contrasts ----
+  # ---- 3b. Apply sample / group exclusions (Exclude column + flags) ----
+  if (length(exclude_samples) > 0 || length(exclude_groups) > 0 ||
+      "Exclude" %in% colnames(samplesheet)) {
+    cli::cli_h1("Applying sample exclusions")
+    samplesheet <- filter_samplesheet(
+      samplesheet,
+      exclude_samples = exclude_samples,
+      exclude_groups  = exclude_groups
+    )
+  }
+
+  # ---- 4. Parse contrasts (with optional include/exclude filtering) ----
   cli::cli_h1("Parsing contrasts")
-  comparisons <- parse_contrasts(samplesheet)
+  comparisons <- parse_contrasts(
+    samplesheet,
+    include_contrasts = include_contrasts,
+    exclude_contrasts = exclude_contrasts
+  )
+  if (length(comparisons) == 0) {
+    cli::cli_abort(
+      "No contrasts to analyse after include/exclude filtering and group checks."
+    )
+  }
 
   # ---- 5. Coerce + align ----
   countsdf <- counts |>
@@ -350,6 +421,42 @@ run_pipeline <- function(counts_path,
     condition = samplesheet$GroupID,
     stringsAsFactors = FALSE
   )
+  # Per-sample display labels for plots (matrix join key stays SampleID; only
+  # the visible labels change). Default to friendly auto-derived
+  # "<GroupID> <n>" labels so plots never show raw accession SampleIDs; an
+  # explicit DisplayName column overrides per sample (blank/NA cells keep the
+  # auto-derived label).
+  disp <- .auto_display(sample_info$condition)
+  if ("DisplayName" %in% colnames(samplesheet)) {
+    d   <- trimws(as.character(samplesheet$DisplayName))
+    has <- !is.na(d) & nzchar(d)
+    disp[has] <- d[has]
+    cli::cli_alert_info(
+      "DisplayName column detected: using it for plot labels (blank cells auto-derived)."
+    )
+  } else {
+    cli::cli_alert_warning(c(
+      "No DisplayName column: plot labels auto-derived from GroupID + replicate (e.g. {.val {disp[1]}}).",
+      "i" = "Add a DisplayName column to the samplesheet for custom labels."
+    ))
+  }
+  sample_info$display <- disp
+  dups <- unique(disp[duplicated(disp)])
+  if (length(dups) > 0) {
+    cli::cli_alert_warning(
+      "Duplicate display label{?s} {.val {dups}}; plot labels will be ambiguous for those samples."
+    )
+  }
+
+  # Defensive: counts columns and colData rows must line up 1:1. After
+  # exclusions this is the place a desync would surface, so fail with a
+  # clear message rather than DESeq2's opaque "ncol == nrow is not TRUE".
+  if (ncol(countsdf) != nrow(sample_info)) {
+    cli::cli_abort(c(
+      "Count columns ({ncol(countsdf)}) do not match samplesheet rows ({nrow(sample_info)}).",
+      "i" = "This usually means sample alignment / exclusion left the two out of sync."
+    ))
+  }
 
   dds <- DESeq2::DESeqDataSetFromMatrix(
     countData = countsdf,
@@ -364,6 +471,11 @@ run_pipeline <- function(counts_path,
     "Pre-filter: kept {sum(keep)} / {length(keep)} genes (>= 10 reads in >= {smallest_group_size} samples)",
     "Condition levels: {.val {levels(dds$condition)}}"
   ))
+
+  # DESeq2 median-of-ratios normalized counts for the DE spreadsheets. Size
+  # factors are global, so compute once here and reuse across comparisons.
+  deseq_norm_counts <- DESeq2::counts(DESeq2::estimateSizeFactors(dds),
+                                      normalized = TRUE)
 
   # ---- 8. Per-comparison loop ----
   cli::cli_h1("Per-comparison differential expression")
@@ -391,7 +503,9 @@ run_pipeline <- function(counts_path,
       out_dirs          = out_dirs,
       annotation        = annotation,
       annotation_db     = annotation_db,
-      id_type           = id_type
+      id_type           = id_type,
+      volcano_labels    = volcano_labels,
+      deseq_norm_counts = deseq_norm_counts
     )
     if (!is.null(res)) {
       results[[i]] <- res
@@ -414,13 +528,17 @@ run_pipeline <- function(counts_path,
   # ---- 9. Sample Exploration QC plots ----
   cli::cli_h1("Sample Exploration QC plots")
 
+  # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
+  # on whichever DE ID column overlaps the count matrix (ensembl / symbol /
+  # entrez per --id-type). A hardcoded ENSEMBL_ID never matches a symbol/entrez
+  # count matrix, which silently skipped the correlation heatmap.
   sig_genes_union <- unique(unlist(lapply(results, function(r) {
     if (is.null(r) || is.null(r$deseq)) return(character(0))
     d <- r$deseq
     ok <- !is.na(d$padj) & d$padj < 0.05 & abs(d$log2FoldChange) >= 0.58
     if (!any(ok)) return(character(0))
-    if ("ENSEMBL_ID" %in% colnames(d)) as.character(d$ENSEMBL_ID[ok])
-    else rownames(d)[ok]
+    key_col <- .match_id_column(d, rownames(tmm))
+    if (!is.null(key_col)) as.character(d[[key_col]][ok]) else rownames(d)[ok]
   })))
   if (length(sig_genes_union) < 2) {
     cli::cli_alert_info(
@@ -490,6 +608,21 @@ run_pipeline <- function(counts_path,
   rds_path <- file.path(outdir, rds_name)
   saveRDS(rds, rds_path)
   cli::cli_alert_success("RDS saved: {.path {rds_path}}")
+
+  # ---- 12. Structured run summary (.report.json) ----
+  .write_report_json(
+    path             = file.path(out_dirs$logs, paste0(ts, "_report.json")),
+    runid            = runid,          brs_ticket       = brs_ticket,
+    annotation       = annotation,     id_type          = id_type,
+    counts_path      = counts_path,    samplesheet_path = samplesheet_path,
+    outdir           = outdir,
+    started          = run_started,    finished         = Sys.time(),
+    n_genes_input    = nrow(counts),   n_genes_filtered = nrow(dds),
+    n_samples        = ncol(countsdf), n_samplesheet_rows = nrow(samplesheet),
+    comparisons      = comparisons,    results          = results,
+    rds_path         = rds_path,
+    session_log      = if (!is.null(session_log)) session_log$path else NA_character_
+  )
 
   cli::cli_h1("Pipeline complete")
 

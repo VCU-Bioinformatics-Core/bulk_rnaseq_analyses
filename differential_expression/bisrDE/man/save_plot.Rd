@@ -4,16 +4,19 @@
 \alias{save_plot}
 \title{Save a ggplot to disk via ggsave with the BISR defaults}
 \usage{
-save_plot(plot, filename, width = 15, height = 17)
+save_plot(plot, filename, width = 12, height = 13.5)
 }
 \arguments{
 \item{plot}{A \code{ggplot} object.}
 
 \item{filename}{Output file path.}
 
-\item{width}{Plot width in inches (default \code{15}).}
+\item{width}{Plot width in inches. Default \code{12} (was \code{15} pre-v1.4.0;
+reduced ~21\% based on report-feedback that 15-inch volcano + dotplots
+crowded the embed-resources HTML).}
 
-\item{height}{Plot height in inches (default \code{17}).}
+\item{height}{Plot height in inches. Default \code{13.5} (was \code{17} pre-v1.4.0;
+same -21\% rationale as \code{width}).}
 }
 \value{
 Invisibly the path; called for its side effect.
@@ -21,5 +24,5 @@ Invisibly the path; called for its side effect.
 \description{
 Thin wrapper around \code{ggplot2::ggsave} that locks in the
 \code{bg = "white"} background and the BISR default plot dimensions.
-Centralized so that figure sizing is consistent across the pipeline.
+Centralized so figure sizing is consistent across the pipeline.
 }

@@ -5,6 +5,171 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] - 2026-07-07
+
+### Added
+
+- **Per-group display-name prompt** in both launchers (`#2b`). When the
+  samplesheet has no usable `DisplayName` column, `run_interactive.sh` and the
+  Go TUI offer **auto-derive** (default, `<GroupID> <n>`) or **enter a label per
+  group** (per-sample doesn't scale) — the latter writes a working-copy
+  samplesheet with `DisplayName = "<label> <n>"` and recommends adding the
+  column for full control. Interactive-only, so `--print-cmd` parity is
+  preserved and byte-identical across both front-ends.
+- **Configurable volcano labels** — `--volcano-labels N` (default 10) caps how
+  many genes are named on each volcano plot (top N by significance), with a
+  prompt in `run_interactive.sh` and the Go TUI (env `BISR_VOLCANO_LABELS`).
+- **Normalized counts in the DE spreadsheet** — each
+  `DESeq2_<comparison>.csv` now carries per-sample normalized counts for all
+  samples next to the log2FC / padj: `TMM_<SampleID>` (edgeR TMM) and
+  `DESeq2norm_<SampleID>` (DESeq2 median-of-ratios).
+
+### Fixed
+
+- Volcano plots labelled *every* significant gene (and, for non-ensembl inputs,
+  every unmapped gene via `NA %in% c(.., NA)`), burying the plot under hundreds
+  of labels. They now label only the top `--volcano-labels` most-significant
+  genes (default 10).
+
+- `annotate_results()` now always emits a canonical `SYMBOL` (and `ENTREZID`)
+  column regardless of `--id-type`. With `--id-type symbol` it previously
+  produced only `SYMBOL_ID`, so the volcano / heatmap code (which uses
+  `.data$SYMBOL`) errored and *every* comparison was caught and dropped as "no
+  results" — leaving the report with no DE tables, GSEA, volcano plots, or
+  dotplots. Symbol-input runs now complete end-to-end.
+- The sample correlation heatmap and per-comparison DE heatmaps no longer
+  silently skip for `--id-type symbol` / `entrez`: the significant-gene and
+  heatmap subsets now match the count matrix by whichever DE ID column overlaps
+  it (new `.match_id_column()` helper) instead of a hardcoded `ENSEMBL_ID`.
+- `read_counts()` no longer collapses gene symbols that contain dots (mouse
+  `H2-M10.1`, `Tex19.1`, `Rn4.5s`, … are *distinct* genes) into duplicate row
+  names — the Ensembl version-suffix strip now applies only to `ENS…`
+  accessions. Fixes a hard `duplicate 'row.names' are not allowed` error on
+  `salmon.merged.gene_counts.tsv` files whose `gene_id` column holds symbols.
+- Go TUI startup banner showed a stale `v1.5.0` (missed by the v1.5.2 version
+  bump); now reads the current version.
+
+## [1.5.2] - 2026-07-01
+
+Report & UX fixes surfaced after v1.5.1.
+
+### Fixed
+
+- **Report figures were missing from the HTML.** `run_pipeline()` now
+  normalizes `outdir` to an absolute path before building the figure
+  directories, so the paths stored in the analysis RDS resolve when the Quarto
+  report renders from a temp working dir. Previously every figure silently fell
+  back to "not available".
+- **Session log came out empty.** `cli` routes its output to `stderr` whenever
+  a sink is active (NEWS #153), so the output-only session sink captured
+  nothing. `start_session_log()` now pins cli to stdout via
+  `start_app(output = "stdout", .auto_close = FALSE)` so narration is both shown
+  live and written to the log; `stop_session_log()` strips ANSI for a clean
+  plain-text file. The log now spans the report render too, not just analysis.
+
+### Added
+
+- **Auto-derived sample labels.** With no `DisplayName` column, plots now label
+  samples `"<GroupID> <n>"` (a warning recommends adding the column) instead of
+  showing raw accession SampleIDs. An explicit `DisplayName` still overrides per
+  sample.
+- **Colorblind-safe palette across all plots** — shared Okabe-Ito (categorical)
+  and diverging / `Mako` (continuous) helpers applied to the QC plots, volcano,
+  PCA (static + interactive), DE heatmap, and enrichment dotplots.
+- **Structured run summary** at `<outdir>/logs/<ts>_report.json` — run metadata,
+  timings, gene/sample counts, per-contrast DE (`n_sig`) + enrichment outcomes,
+  and output paths.
+- **Live Go TUI progress** — the TUI now runs the pipeline under a
+  pseudo-terminal (`creack/pty`) so R's `cli` renders live progress bars instead
+  of one-shot milestone prints (67% → 100%).
+- `run_interactive.sh` screenshots the run-config card via charmbracelet
+  `freeze` when installed (optional, gated, `--print-cmd` parity preserved).
+
+### Changed
+
+- QC plots widened; the vst-distance heatmap title no longer clips on the left
+  edge and the hclust / density panel titles no longer overlap.
+
+## [1.5.1] - 2026-06-12
+
+### Added
+
+- **Go TUI launcher** (charmbracelet Phase B) at `differential_expression/tui/`
+  — a [bubbletea](https://github.com/charmbracelet/bubbletea)/[huh](https://github.com/charmbracelet/huh)/[lipgloss](https://github.com/charmbracelet/lipgloss)
+  `bisrde-tui` binary with a styled form and interactive group / sample /
+  contrast selection. Its assembled command is byte-identical to
+  `run_interactive.sh --print-cmd` (parity is a maintained contract).
+  `run_interactive.sh` now opens with a **bash-vs-Go-TUI chooser** that builds
+  the TUI on demand and falls back to bash. Binary git-ignored; source committed.
+
+### Changed
+
+- `parse_contrasts()` warns when a contrast column has non-`0`/`1` values
+  (previously a silent "missing exp or ctrl group").
+- `run_pipeline()` warns on duplicate `DisplayName` labels.
+- `run_interactive.sh` honors `BISR_INCLUDE_CONTRASTS` / `BISR_EXCLUDE_CONTRASTS`
+  directly in non-interactive mode (parity with the Go TUI).
+
+### Fixed
+
+- Generated the roxygen man pages + the `filter_samplesheet` NAMESPACE export
+  that were missing from v1.5.0 (committed without `devtools::document()`).
+
+## [1.5.0] - 2026-06-12
+
+User-experience release: selective sample/group/contrast inclusion, custom
+plot labels, and (in progress) a charmbracelet-powered interactive CLI.
+
+### Added
+
+- **Sample / group exclusion** — drop samples from the *entire* analysis
+  (contrasts, normalization, DESeq2, plots) via four complementary
+  mechanisms, all unioned:
+  - `--exclude-samples SRR1,SRR2` — drop by `SampleID` (ad-hoc, no
+    samplesheet edit).
+  - `--exclude-groups GroupA,GroupB` — drop every sample in those groups.
+  - Optional `Exclude` samplesheet column — declarative per-sample drop
+    (`1` / `TRUE` / `yes`), a permanent record kept with the data.
+  - `filter_samplesheet()` (new exported fn) implements the union and
+    errors if fewer than two samples survive.
+- **Contrast selection** — process a subset of contrasts without editing
+  the samplesheet:
+  - `--include-contrasts a_vs_b` — allowlist.
+  - `--exclude-contrasts c_vs_d` — denylist.
+  - `parse_contrasts()` gained `include_contrasts` / `exclude_contrasts`
+    args and is now metadata-aware (skips `SampleID` / `GroupID` /
+    `Exclude` / `DisplayName` columns by name, so a metadata column between
+    `GroupID` and the contrasts is never mistaken for a contrast).
+- **Custom plot labels** — optional `DisplayName` samplesheet column. When
+  present, all sample-labelled figures (correlation + vst-distance
+  heatmaps, library-size barplot, hclust dendrogram, static + interactive
+  PCA, per-comparison DE heatmaps) show the display label instead of the
+  SRA accession / SampleID. The matrix join key (`make.names(SampleID)`)
+  is untouched — only labels change. Blank `DisplayName` cells fall back to
+  the SampleID. New internal `.display_lookup()` centralises the mapping.
+- **Nextflow params** `--exclude_samples`, `--exclude_groups`,
+  `--include_contrasts`, `--exclude_contrasts` forwarded through the
+  `nf-module` wrapper.
+- **Interactive launcher** `run_interactive.sh` (charmbracelet, Phase A) —
+  a guided, styled front-door that collects every parameter and offers
+  interactive group / sample / contrast multi-select (wiring into the new
+  selection features), then hands off to `run_analysis.sh`. Uses
+  [`gum`](https://github.com/charmbracelet/gum) (lipgloss borders + huh
+  forms + bubbles spinner/multi-select), [`glow`](https://github.com/charmbracelet/glow)
+  (terminal-markdown run summary) and [`freeze`](https://github.com/charmbracelet/freeze)
+  (CLI screenshots for docs) when installed; degrades gracefully to plain
+  prompts otherwise. Scriptable via `BISR_*` env vars + `--print-cmd`.
+  A dedicated Go TUI (bubbletea) is scoped as an optional Phase B.
+- New testthat files `test-exclude.R` (11 tests) and `test-display-names.R`
+  (7 tests) covering exclusion union, contrast filtering, metadata-column
+  skipping, and the display-label join-key invariant.
+
+### Changed
+
+- `run_pipeline()` gained `exclude_samples` / `exclude_groups` /
+  `include_contrasts` / `exclude_contrasts` parameters (all `NULL` by
+  default — behaviour unchanged when unset).
+
 ## [1.4.0] - 2026-05-01
 
 The biggest release since the pipeline was first published. The monolithic
@@ -171,7 +336,7 @@ not a release artefact.
 
 ### Planned
 
-- Container rebuild with Quarto CLI + retry of Glimma 4.6.
+- Container rebuild + in-container smoke test on HPC (x86_64 / Apptainer).
 - Multi-factor designs and covariate support.
 - Batch correction options (sva / ComBat).
 - Single-cell RNA-seq adapter (separate package, not bisrDE).
@@ -182,5 +347,9 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.5.3   | 2026-07-07 | `--id-type symbol`/`entrez` fixes (SYMBOL col, heatmaps, dotted-symbol counts); volcano top-N labels (`--volcano-labels`); per-group DisplayName prompt; normalized counts (TMM + DESeq2) in DE sheets |
+| 1.5.2   | 2026-07-01 | Report figures embed (abs outdir); auto-derived + colorblind-safe plots; live Go TUI (PTY); non-empty session log + `.report.json` |
+| 1.5.1   | 2026-06-12 | Go TUI launcher (charmbracelet Phase B); parse_contrasts / DisplayName warnings; roxygen + NAMESPACE fixes |
+| 1.5.0   | 2026-06-12 | Sample/group/contrast selection, DisplayName plot labels, charmbracelet (gum) interactive CLI |
 | 1.4.0   | 2026-05-01 | Refactor to `bisrDE` R package + Quarto report + Nextflow DSL2 wrapper + 4-backend GSEA + QC |
 | 1.3.0   | 2026-02-02 | Stable release with full DE pipeline                                                         |

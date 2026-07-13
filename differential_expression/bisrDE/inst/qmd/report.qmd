@@ -297,7 +297,7 @@ If you spot a clear outlier, the canonical workflow is: (1) drop it from the sam
 **Sample × Sample correlation heatmap (Spearman, DE genes)**
 
 ```{r}
-#| out-width: "650px"
+#| out-width: "900px"
 #| fig-align: "center"
 qc_corr_path <- file.path(out_dirs$qc, "qc_correlation_heatmap.png")
 if (file.exists(qc_corr_path)) {
@@ -310,7 +310,7 @@ if (file.exists(qc_corr_path)) {
 **Sample × Sample Euclidean distance (vst-transformed counts)**
 
 ```{r}
-#| out-width: "650px"
+#| out-width: "900px"
 #| fig-align: "center"
 qc_vst_path <- file.path(out_dirs$qc, "qc_vst_dist_heatmap.png")
 if (file.exists(qc_vst_path)) {
@@ -336,7 +336,7 @@ if (file.exists(qc_lib_path)) {
 **Hierarchical clustering (Ward.D2) + per-sample log-CPM density**
 
 ```{r}
-#| out-width: "950px"
+#| out-width: "1100px"
 #| fig-align: "center"
 qc_hcd_path <- file.path(out_dirs$qc, "qc_hclust_density.png")
 if (file.exists(qc_hcd_path)) {

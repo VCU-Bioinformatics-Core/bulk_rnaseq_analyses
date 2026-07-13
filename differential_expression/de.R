@@ -100,6 +100,26 @@ option_list <- list(
   make_option(c("-i", "--id-type"),
     type = "character", default = "ensembl",
     help = "Gene identifier type used in the counts matrix rownames: 'ensembl' (default), 'entrez', or 'symbol'."
+  ),
+  make_option("--exclude-samples",
+    type = "character", default = NULL,
+    help = "Optional comma-separated SampleIDs to drop from the entire analysis (e.g. 'SRR1,SRR2')."
+  ),
+  make_option("--exclude-groups",
+    type = "character", default = NULL,
+    help = "Optional comma-separated GroupIDs to drop from the entire analysis."
+  ),
+  make_option("--include-contrasts",
+    type = "character", default = NULL,
+    help = "Optional comma-separated contrast columns to process exclusively (allowlist)."
+  ),
+  make_option("--exclude-contrasts",
+    type = "character", default = NULL,
+    help = "Optional comma-separated contrast columns to skip (denylist)."
+  ),
+  make_option("--volcano-labels",
+    type = "integer", default = 10,
+    help = "Max genes to label per volcano plot (top N by significance) [default %default]. Raise to name more genes, lower to declutter."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -117,21 +137,51 @@ if (is.null(opt$runid) | is.null(opt$counts) |
 brs_ticket <- if (is.null(opt[["brs-ticket"]])) "" else opt[["brs-ticket"]]
 id_type    <- if (is.null(opt[["id-type"]]))    "ensembl" else opt[["id-type"]]
 
-# ---------------------------------------------------------------------------
-# Run the pipeline + render the report.
-# ---------------------------------------------------------------------------
-res <- bisrDE::run_pipeline(
-  counts_path      = opt$counts,
-  samplesheet_path = opt$samplesheet,
-  outdir           = opt$outdir,
-  runid            = opt$runid,
-  annotation       = opt$annotation,
-  id_type          = id_type,
-  brs_ticket       = brs_ticket
-)
+# Comma-separated list flags -> character vectors (NULL when unset/empty).
+split_csv <- function(x) {
+  if (is.null(x) || !nzchar(trimws(x))) return(NULL)
+  vals <- trimws(strsplit(x, ",")[[1]])
+  vals <- vals[nzchar(vals)]
+  if (length(vals) == 0) NULL else vals
+}
+exclude_samples   <- split_csv(opt[["exclude-samples"]])
+exclude_groups    <- split_csv(opt[["exclude-groups"]])
+include_contrasts <- split_csv(opt[["include-contrasts"]])
+exclude_contrasts <- split_csv(opt[["exclude-contrasts"]])
 
-bisrDE::generate_report(
-  rds_path   = res$rds_path,
-  output_dir = opt$outdir,
-  brs_ticket = brs_ticket
-)
+# ---------------------------------------------------------------------------
+# Run the pipeline + render the report under ONE session log spanning BOTH
+# phases. run_pipeline() would otherwise open and close its own log before the
+# report render, leaving the report phase uncaptured; passing it a session_log
+# handle hands the lifecycle to this driver (closed in `finally`, even on error).
+# ---------------------------------------------------------------------------
+if (!dir.exists(opt$outdir)) {
+  dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
+}
+outdir_abs <- normalizePath(opt$outdir, mustWork = FALSE)
+slog <- bisrDE::start_session_log(file.path(outdir_abs, "logs"))
+tryCatch({
+  res <- bisrDE::run_pipeline(
+    counts_path       = opt$counts,
+    samplesheet_path  = opt$samplesheet,
+    outdir            = opt$outdir,
+    runid             = opt$runid,
+    annotation        = opt$annotation,
+    id_type           = id_type,
+    brs_ticket        = brs_ticket,
+    exclude_samples   = exclude_samples,
+    exclude_groups    = exclude_groups,
+    include_contrasts = include_contrasts,
+    exclude_contrasts = exclude_contrasts,
+    volcano_labels    = opt[["volcano-labels"]],
+    session_log       = slog
+  )
+
+  bisrDE::generate_report(
+    rds_path   = res$rds_path,
+    output_dir = opt$outdir,
+    brs_ticket = brs_ticket
+  )
+}, finally = {
+  bisrDE::stop_session_log(slog)
+})

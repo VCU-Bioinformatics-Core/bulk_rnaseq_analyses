@@ -53,17 +53,26 @@
 pca_static <- function(tmm, sample_info) {
   pca <- .compute_pca(tmm)
 
+  disp <- .display_lookup(sample_info)
+  grp  <- .group_lookup(sample_info)
+  samp <- rownames(pca$prcomp$x)
+  display <- unname(disp[samp])
+  display[is.na(display)] <- samp[is.na(display)]
+  group <- unname(grp[samp])
+
   pca_df <- data.frame(
-    Sample = rownames(pca$prcomp$x),
-    X      = pca$prcomp$x[, 1],
-    Y      = pca$prcomp$x[, 2],
-    Group  = sample_info$condition,
+    Sample  = samp,
+    Display = display,
+    X       = pca$prcomp$x[, 1],
+    Y       = pca$prcomp$x[, 2],
+    Group   = group,
     stringsAsFactors = FALSE
   )
 
   ggplot(pca_df, aes(x = .data$X, y = .data$Y,
-                     label = .data$Sample, color = .data$Group)) +
+                     label = .data$Display, color = .data$Group)) +
     geom_text() +
+    ggplot2::scale_color_manual(values = .okabe_ito(length(unique(pca_df$Group)))) +
     xlab(paste0("PC1 - ", pca$var_pct[1], "%")) +
     ylab(paste0("PC2 - ", pca$var_pct[2], "%")) +
     theme_bw()
@@ -84,25 +93,35 @@ pca_static <- function(tmm, sample_info) {
 pca_plotly <- function(tmm, sample_info) {
   pca <- .compute_pca(tmm)
 
+  disp <- .display_lookup(sample_info)
+  grp  <- .group_lookup(sample_info)
+  samp <- rownames(pca$prcomp$x)
+  display <- unname(disp[samp])
+  display[is.na(display)] <- samp[is.na(display)]
+  group <- unname(grp[samp])
+
   pca_df <- data.frame(
-    Sample = rownames(pca$prcomp$x),
-    X      = pca$prcomp$x[, 1],
-    Y      = pca$prcomp$x[, 2],
-    Group  = sample_info$condition,
+    Sample  = samp,
+    Display = display,
+    X       = pca$prcomp$x[, 1],
+    Y       = pca$prcomp$x[, 2],
+    Group   = group,
     stringsAsFactors = FALSE
   )
 
   fig <- plotly::plot_ly(
     pca_df,
-    x      = ~X,
-    y      = ~Y,
-    color  = ~Group,
-    colors = c("steelblue", "firebrick", "olivedrab", "plum"),
-    type   = "scatter",
-    mode   = "markers",
-    size   = 5.7,
-    span   = 4.9,
-    alpha  = 2.5,
+    x         = ~X,
+    y         = ~Y,
+    color     = ~Group,
+    colors    = .okabe_ito(length(unique(group))),
+    text      = ~Display,
+    hoverinfo = "text",
+    type      = "scatter",
+    mode      = "markers",
+    size      = 5.7,
+    span      = 4.9,
+    alpha     = 2.5,
     alpha_stroke = 0.5
   )
 
@@ -144,10 +163,17 @@ pca_plotly_3d <- function(tmm, sample_info) {
   pca <- .compute_pca(tmm, rank = 3)
   prin_comp <- pca$prcomp
 
+  disp <- .display_lookup(sample_info)
+  grp  <- .group_lookup(sample_info)
+  samp <- rownames(prin_comp$x)
+  display <- unname(disp[samp])
+  display[is.na(display)] <- samp[is.na(display)]
+
   components <- as.data.frame(prin_comp$x)
   components$PC2 <- -components$PC2
   components$PC3 <- -components$PC3
-  components$Group <- sample_info$condition
+  components$Group <- unname(grp[samp])
+  components$Display <- display
 
   tot_explained <- summary(prin_comp)[["importance"]]["Proportion of Variance", ]
   tot_explained <- 100 * sum(tot_explained)
@@ -155,11 +181,13 @@ pca_plotly_3d <- function(tmm, sample_info) {
 
   fig <- plotly::plot_ly(
     components,
-    x      = ~PC1,
-    y      = ~PC2,
-    z      = ~PC3,
-    color  = ~Group,
-    colors = c("steelblue", "firebrick", "olivedrab", "plum")
+    x         = ~PC1,
+    y         = ~PC2,
+    z         = ~PC3,
+    color     = ~Group,
+    colors    = .okabe_ito(length(unique(components$Group))),
+    text      = ~Display,
+    hoverinfo = "text"
   )
   fig <- plotly::add_markers(fig, size = 12)
 

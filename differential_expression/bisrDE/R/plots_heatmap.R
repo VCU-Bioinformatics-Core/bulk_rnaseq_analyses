@@ -47,7 +47,7 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
 
   gplots::heatmap.2(
     hm$zscores,
-    col          = grDevices::colorRampPalette(c("blue", "white", "firebrick"))(20),
+    col          = grDevices::colorRampPalette(.diverging_stops())(20),
     density.info = "none",
     dendrogram   = "both",
     Colv         = TRUE,
@@ -85,8 +85,13 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
     filtered_data <- filtered_data |> dplyr::slice_head(n = top_n)
   }
 
-  gene_ids <- if ("ENSEMBL_ID" %in% colnames(filtered_data)) {
-    as.character(filtered_data$ENSEMBL_ID)
+  # Match DE genes to the count matrix by the ID column that actually overlaps
+  # its row names — the INPUT gene IDs (ensembl / symbol / entrez per
+  # --id-type). A hardcoded ENSEMBL_ID silently drops every gene for
+  # symbol/entrez inputs and skips the heatmap.
+  key_col <- .match_id_column(filtered_data, rownames(normalized_counts))
+  gene_ids <- if (!is.null(key_col)) {
+    as.character(filtered_data[[key_col]])
   } else {
     rownames(filtered_data)
   }
@@ -112,12 +117,21 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
     as.matrix() |>
     jitter(factor = 1, amount = 0.00001)
 
+  # Relabel sample columns with display names (DisplayName column when
+  # present; munged ID otherwise, so default output is unchanged). The
+  # column SUBSET above used the munged join key; only the visible labels
+  # change here.
+  disp <- .display_lookup(sample_info)
+  new_cols <- unname(disp[colnames(values)])
+  new_cols[is.na(new_cols)] <- colnames(values)[is.na(new_cols)]
+  colnames(values) <- new_cols
+
   zscores <- t(scale(t(values)))
 
   row_labels <- NA
   if (!is.null(top_n) && "SYMBOL" %in% colnames(filtered_data)) {
-    sym_keys <- if ("ENSEMBL_ID" %in% colnames(filtered_data)) {
-      as.character(filtered_data$ENSEMBL_ID)
+    sym_keys <- if (!is.null(key_col)) {
+      as.character(filtered_data[[key_col]])
     } else {
       rownames(filtered_data)
     }

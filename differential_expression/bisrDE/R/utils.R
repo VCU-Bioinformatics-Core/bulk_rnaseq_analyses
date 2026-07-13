@@ -2,6 +2,161 @@
 # Source-of-truth during Phase 5.2-5.7 is still the parent's de.R; this
 # package copy is a snapshot per the Phase 5.5 spec.
 
+#' Build a munged-SampleID -> display-label lookup
+#'
+#' @description Construct a named character vector mapping each sample's
+#'   `make.names()`-munged ID (the form used as count-matrix column names
+#'   and plot label keys) to the label that should be shown on plots.
+#'
+#'   When `sample_info` carries a `display` column (populated from the
+#'   samplesheet's optional `DisplayName` column), those values are used.
+#'   Otherwise the lookup is the identity on the munged ID, so plots render
+#'   exactly as they did before display names existed.
+#'
+#' @param sample_info Data frame with at least a `sample` column; optionally
+#'   a `display` column.
+#' @return Named character vector: names are `make.names(sample_info$sample)`,
+#'   values are the display labels (falling back to the munged ID per cell
+#'   when a `display` entry is blank/`NA`).
+#' @keywords internal
+.display_lookup <- function(sample_info) {
+  munged <- make.names(as.character(sample_info$sample))
+  disp <- munged
+  if (!is.null(sample_info$display)) {
+    d <- as.character(sample_info$display)
+    has <- !is.na(d) & nzchar(trimws(d))
+    disp[has] <- d[has]
+  }
+  stats::setNames(disp, munged)
+}
+
+
+#' Auto-derive friendly per-sample display labels from group + replicate
+#'
+#' @description When the samplesheet carries no `DisplayName` column the
+#'   pipeline still wants human-friendly plot labels instead of raw SampleIDs
+#'   (e.g. SRA accessions). This builds `"<GroupID> <n>"` labels, numbering
+#'   replicates `1..n` within each group in samplesheet order (e.g.
+#'   `"hpvPositive 1"`, `"hpvPositive 2"`, ...). Used as the default for
+#'   `sample_info$display`; an explicit `DisplayName` value overrides it per
+#'   sample.
+#'
+#' @param conditions Character vector of group labels, in samplesheet order.
+#' @return Character vector of display labels aligned to `conditions`.
+#' @keywords internal
+.auto_display <- function(conditions) {
+  conditions <- as.character(conditions)
+  out <- character(length(conditions))
+  for (g in unique(conditions)) {
+    idx <- which(conditions == g)
+    out[idx] <- paste(g, seq_along(idx))
+  }
+  out
+}
+
+
+#' Build a munged-SampleID -> condition (group) lookup
+#'
+#' @description Named vector mapping each sample's `make.names()`-munged ID
+#'   to its `condition`/group label. Use this to align group labels to a
+#'   matrix's column order (or a `prcomp` rowname order) rather than
+#'   relying on `sample_info` row order matching the data column order.
+#'
+#' @param sample_info Data frame with `sample` and `condition` columns.
+#' @return Named character vector: names are `make.names(sample_info$sample)`,
+#'   values are the group labels.
+#' @keywords internal
+.group_lookup <- function(sample_info) {
+  munged <- make.names(as.character(sample_info$sample))
+  stats::setNames(as.character(sample_info$condition), munged)
+}
+
+
+#' Okabe-Ito colorblind-safe categorical palette
+#'
+#' @description Return `n` colors from the Okabe-Ito qualitative palette —
+#'   the de-facto colorblind-safe categorical set (deuteranopia/protanopia/
+#'   tritanopia distinguishable). Used for group/condition colors across all
+#'   plots so the scheme is consistent and accessible. Recycles via a ramp
+#'   only if `n` exceeds the 8 named colors.
+#'
+#' @param n Number of colors needed.
+#' @return Character vector of `n` hex colors.
+#' @keywords internal
+.okabe_ito <- function(n) {
+  pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+           "#0072B2", "#D55E00", "#CC79A7", "#000000")
+  if (n <= length(pal)) pal[seq_len(n)] else grDevices::colorRampPalette(pal)(n)
+}
+
+
+#' Diverging colorblind-safe color stops (low, mid, high)
+#'
+#' @description Blue -> near-white -> vermillion stops for a diverging
+#'   continuous scale (correlation, z-score). Pair with
+#'   `circlize::colorRamp2()` or `grDevices::colorRampPalette()`. Avoids the
+#'   red/green problem of the previous ad-hoc ramps.
+#'
+#' @return Character vector of 3 hex colors.
+#' @keywords internal
+.diverging_stops <- function() c("#0072B2", "#F7F7F7", "#D55E00")
+
+
+#' Pick the DE-table ID column that matches a count matrix's row names
+#'
+#' @description A count matrix is keyed by the INPUT gene IDs (ensembl /
+#'   symbol / entrez, per `--id-type`), which the annotated DE table stores
+#'   under `"<KEYTYPE>_ID"`. Downstream subsetting that hardcodes `ENSEMBL_ID`
+#'   silently drops every gene for symbol/entrez inputs. This returns the
+#'   candidate ID column of `df` with the most overlap with `target`, so the
+#'   right key is used regardless of id_type.
+#'
+#' @param df Annotated DE data frame.
+#' @param target Character vector to match against (e.g. `rownames(counts)`).
+#' @return Name of the best-matching column, or `NULL` if none overlaps.
+#' @keywords internal
+.match_id_column <- function(df, target) {
+  candidates <- c("ENSEMBL_ID", "SYMBOL_ID", "ENTREZID_ID", "SYMBOL", "ENTREZID")
+  candidates <- candidates[candidates %in% colnames(df)]
+  best <- NULL
+  best_hits <- 0L
+  for (cc in candidates) {
+    hits <- length(intersect(as.character(df[[cc]]), target))
+    if (hits > best_hits) {
+      best_hits <- hits
+      best <- cc
+    }
+  }
+  best
+}
+
+
+#' Append per-sample normalized counts to a DE results table
+#'
+#' @description Join a normalized-count matrix onto an annotated DE data frame
+#'   by gene, adding one `<prefix>_<SampleID>` column per sample so the DE
+#'   spreadsheet carries expression values next to the log2FC. Matrix columns
+#'   (which are `make.names()`-munged SampleIDs) are renamed back to the
+#'   original SampleIDs via `orig_ids`.
+#'
+#' @param df Annotated DE data frame.
+#' @param ids Character vector (length `nrow(df)`) of each row's gene ID in the
+#'   matrix's row-name namespace (see [.match_id_column()]).
+#' @param mat Normalized-count matrix (genes x samples).
+#' @param orig_ids Named vector mapping munged SampleID -> original SampleID.
+#' @param prefix Column-name prefix, e.g. `"TMM"` or `"DESeq2norm"`.
+#' @return `df` with the per-sample count columns appended (`NA` for any gene
+#'   absent from `mat`).
+#' @keywords internal
+.append_counts <- function(df, ids, mat, orig_ids, prefix) {
+  sub <- mat[match(ids, rownames(mat)), , drop = FALSE]
+  cn  <- unname(orig_ids[colnames(mat)])
+  cn[is.na(cn)] <- colnames(mat)[is.na(cn)]
+  colnames(sub) <- paste0(prefix, "_", cn)
+  cbind(df, as.data.frame(sub, check.names = FALSE, stringsAsFactors = FALSE))
+}
+
+
 #' Build a `<base_dir>/<prefix><name><extension>` file path
 #'
 #' @description Convenience wrapper around `file.path()` + `paste0()` for

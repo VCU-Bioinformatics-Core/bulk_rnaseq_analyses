@@ -14,7 +14,7 @@ differential_expression/rsemtest_out1/
 # Project-local mirror of Claude Code memory files (canonical copies live in ~/.claude/projects/.../memory/)
 differential_expression/.claude/
 
-# dev md files (relocated 2026-05-03 to /Users/balami/Documents/mcccbnfo/dev_sanbox/deg_dev_sanbox/tracker/)
+# dev md files (relocated 2026-05-03 to /Users/balami/Documents/mcccbnfo/dev_sandbox/deg_dev_sandbox/tracker/)
 differential_expression/logs/DEBUG_LOG.md
 differential_expression/architecture_plan.md
 differential_expression/tasks.md

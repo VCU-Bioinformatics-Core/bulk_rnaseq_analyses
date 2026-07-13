@@ -12,7 +12,9 @@ run_analysis(
   out_dirs,
   annotation,
   annotation_db,
-  id_type = "ensembl"
+  id_type = "ensembl",
+  volcano_labels = 10,
+  deseq_norm_counts = NULL
 )
 }
 \arguments{

@@ -99,3 +99,35 @@ test_that(".heatmap_matrix uses ENSEMBL_ID column when available", {
 
   expect_true(all(rownames(hm$zscores) %in% paste0("ENSG_", 1:10)))
 })
+
+test_that(".heatmap_matrix matches a symbol-keyed count matrix (id_type=symbol)", {
+  fx <- build_fixture()
+  # Simulate an --id-type symbol run: the count matrix is keyed by gene
+  # SYMBOLS, the annotated DE table stores the input under SYMBOL_ID, and
+  # ENSEMBL_ID holds *mapped* accessions that do NOT match the count matrix.
+  # Before the fix this returned NULL (hardcoded ENSEMBL_ID never matched).
+  syms <- paste0("Sym", 1:10)
+  rownames(fx$norm_counts) <- syms
+  fx$results_df$SYMBOL_ID  <- syms
+  fx$results_df$SYMBOL     <- syms
+  fx$results_df$ENSEMBL_ID <- paste0("ENSMUSG", 1:10) # mapped, non-matching
+
+  hm <- bisrDE:::.heatmap_matrix(
+    fx$results_df, fx$norm_counts, fx$sample_info,
+    p = 0.05, lfc = 0.58, exp_name = "A", ctrl_name = "B"
+  )
+
+  expect_false(is.null(hm))
+  expect_setequal(rownames(hm$zscores), syms)
+})
+
+test_that(".match_id_column picks the column overlapping the count matrix", {
+  df <- data.frame(
+    ENSEMBL_ID = paste0("ENSMUSG", 1:3),
+    SYMBOL_ID  = c("Actb", "Gapdh", "H2-M10.1"),
+    stringsAsFactors = FALSE
+  )
+  expect_equal(bisrDE:::.match_id_column(df, c("Actb", "Gapdh", "H2-M10.1")), "SYMBOL_ID")
+  expect_equal(bisrDE:::.match_id_column(df, paste0("ENSMUSG", 1:3)), "ENSEMBL_ID")
+  expect_null(bisrDE:::.match_id_column(df, c("nope", "nada")))
+})

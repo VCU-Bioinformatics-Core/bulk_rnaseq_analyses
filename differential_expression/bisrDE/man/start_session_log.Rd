@@ -21,8 +21,10 @@ Open a \code{sink(split = TRUE)} on the output stream so every
 to BOTH the terminal AND a timestamped session log file.
 }
 \details{
-R's \code{message()} / \code{warning()} / \code{stop()} channel is NOT split
-(R's \code{sink} does not support \code{split = TRUE} for message-type sinks);
-those still print to terminal but are not captured by this log. For
-the analytical pipeline this is fine: \verb{cli::*} writes to stdout.
+\code{cli} routes its output to \code{stderr()} whenever an output or
+message sink is active (cli NEWS #153) — which is why this log used to
+come out empty (the whole pipeline narrates through \verb{cli::*}). We call
+\code{cli::start_app(output = "stdout")} to pin cli to stdout so the
+\code{split = TRUE} output sink both shows it live on the terminal AND writes
+it to the log. \code{message()} / \code{warning()} / \code{stop()} are still not split.
 }

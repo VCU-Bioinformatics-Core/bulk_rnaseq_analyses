@@ -400,5 +400,6 @@ create_dotplot <- function(gse, title) {
     label_format = 31,
     font.size    = 9
   ) +
-    ggplot2::facet_grid(. ~ .sign)
+    ggplot2::facet_grid(. ~ .sign) +
+    ggplot2::scale_color_viridis_c(option = "C", direction = -1)
 }

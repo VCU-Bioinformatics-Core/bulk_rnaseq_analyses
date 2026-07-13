@@ -4,7 +4,13 @@
 \alias{parse_contrasts}
 \title{Parse contrast columns into a comparisons list}
 \usage{
-parse_contrasts(samplesheet, group_col = "GroupID", first_contrast_col = 3)
+parse_contrasts(
+  samplesheet,
+  group_col = "GroupID",
+  first_contrast_col = 3,
+  include_contrasts = NULL,
+  exclude_contrasts = NULL
+)
 }
 \arguments{
 \item{samplesheet}{Data frame returned by \code{\link[=read_samplesheet]{read_samplesheet()}}.}
@@ -12,8 +18,18 @@ parse_contrasts(samplesheet, group_col = "GroupID", first_contrast_col = 3)
 \item{group_col}{Column name holding the GroupID labels used to populate
 \code{exp}/\code{ctrl} in the output (default \code{"GroupID"}).}
 
-\item{first_contrast_col}{Index of the first contrast column. Defaults to
-\code{3} to skip the conventional \code{SampleID}/\code{GroupID} columns.}
+\item{first_contrast_col}{Index of the first candidate contrast column.
+Defaults to \code{3} to skip the conventional \code{SampleID}/\code{GroupID} columns.
+Reserved metadata columns (\link{.samplesheet_meta_cols}: \code{SampleID},
+\code{GroupID}, \code{Exclude}, \code{DisplayName}) at or after this index are still
+skipped by name, so an \code{Exclude}/\code{DisplayName} column inserted between
+\code{GroupID} and the first contrast does not get mistaken for a contrast.}
+
+\item{include_contrasts}{Optional character vector. When non-NULL, only
+these contrast columns are processed (allowlist).}
+
+\item{exclude_contrasts}{Optional character vector of contrast columns to
+skip (denylist). Applied after \code{include_contrasts}.}
 }
 \value{
 A list. Each element is \verb{list(name = <contrast column name>, exp = <unique experimental GroupID(s)>, ctrl = <unique control GroupID(s)>)}. Contrasts with an empty exp or ctrl group are skipped

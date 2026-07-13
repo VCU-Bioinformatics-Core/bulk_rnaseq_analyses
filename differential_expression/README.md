@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.4.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.5.3** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -10,10 +10,11 @@ This is a reproducible bioinformatics pipeline that performs differential gene e
 - **Sample exploration**: 2D + 3D PCA (interactive plotly + static), Spearman correlation heatmap, vst-transformed Euclidean distance heatmap, library-size + detected-gene barplots, hierarchical clustering dendrogram + log-CPM density.
 - **Manuscript-ready Methods text**, dynamically populated with tool versions and species-correct genome assembly.
 
-Two equivalent entry points exist:
+Three entry points exist:
 
-1. **Standalone** — `bash run_analysis.sh ...` (this README).
-2. **Nextflow DSL2** — `nextflow run nf-module/main.nf ...` (see [`nf-module/README.md`](nf-module/README.md)) for downstream chaining after `nf-core/rnaseq`.
+1. **Interactive launcher** (recommended) — `bash run_interactive.sh`, a guided, styled launcher that lets you pick a **bash session or a Go TUI**, walks you through every option (including sample / group / contrast selection), then hands off to `run_analysis.sh`.
+2. **Standalone** — `bash run_analysis.sh ...` for scripts / CI (this README).
+3. **Nextflow DSL2** — `nextflow run nf-module/main.nf ...` (see [`nf-module/README.md`](nf-module/README.md)) for **downstream chaining after `nf-core/rnaseq`**.
 
 ## Table of Contents
 
@@ -38,20 +39,23 @@ differential_expression/
 ├── README.md                 # this file
 ├── CHANGELOG.md              # at repo root: differential_expression/../CHANGELOG.md
 ├── de.R                      # thin optparse wrapper -> bisrDE::run_pipeline + generate_report
-├── run_analysis.sh           # smart launcher (auto-detects mac/linux + container)
+├── run_interactive.sh        # guided launcher (recommended): bash session OR Go TUI chooser
+├── run_analysis.sh           # non-interactive executor (auto-detects mac/linux + container)
 ├── build_container.sh        # builds dge_analysis.sif from dge_analysis.def
-├── dge_analysis.def          # Apptainer/Singularity recipe
+├── dge_analysis.def          # Apptainer recipe: R 4.2 + renv lib + bisrDE + Quarto CLI
 ├── setup_renv.R              # one-time renv bootstrap helper
 ├── renv.lock                 # pinned R deps
 ├── assets/
 │   ├── example_counts.tsv    # 10-gene mouse fixture (smoke test)
 │   └── example_samplesheet.csv
-├── bisrDE/                   # bisrDE R package (Phase 5)
+├── bisrDE/                   # bisrDE R package (DESeq2 DE, QC, 4-backend GSEA, Quarto report)
 │   ├── DESCRIPTION
 │   ├── R/                    # io, normalize, de, annotate, enrich, plots_*, pipeline, cli, utils, report
 │   ├── inst/qmd/             # Quarto report template + per-comparison child
 │   └── tests/testthat/       # unit + behavior tests
-└── nf-module/                # Nextflow DSL2 wrapper (Phase 6)
+├── tui/                      # Go TUI launcher (bubbletea/huh/lipgloss) -> bisrde-tui
+│   └── README.md             # build + usage; binary is git-ignored
+└── nf-module/                # Nextflow DSL2 wrapper (downstream of nf-core/rnaseq)
     ├── main.nf
     ├── modules/local/bisr_de.nf
     ├── nextflow.config
@@ -122,7 +126,7 @@ bash build_container.sh
 bash run_analysis.sh ...
 ```
 
-The container (`dge_analysis.sif`) bundles R 4.2 + the pinned renv lib + the `bisrDE` R package (installed via `remotes::install_local` in the def file, Phase 5.9). Quarto CLI install lands in Phase 8.
+The container (`dge_analysis.sif`) bundles R 4.2 + the pinned renv lib, the `bisrDE` R package (via `remotes::install_local`), and the **Quarto CLI** (pinned 1.5.57) — so report rendering works out of the box. The `.sif` is built on an x86_64 Linux host (`bash build_container.sh`); the def file is build-ready.
 
 ## Usage
 
@@ -153,9 +157,47 @@ Must contain at least these columns: `SampleID`, `GroupID`, then one column per 
 | sample3_r1 | experiment2 |               | 1             |
 | sample4_r1 | control2    |               | 0             |
 
+**Optional columns** (v1.5.0+) — placed anywhere between `GroupID` and the contrast columns; they are recognised by name and never treated as contrasts:
+
+- `DisplayName` — a human-readable label shown on every sample-labelled figure (heatmaps, barplots, dendrogram, PCA) instead of the `SampleID`. The `SampleID` stays the count-matrix join key; only the labels change. Blank cells fall back to the `SampleID`.
+- `Exclude` — set to `1` / `TRUE` / `yes` to drop that sample from the entire analysis. Use this for a permanent "this sample was contaminated" record.
+
+| SampleID   | GroupID  | DisplayName | Exclude | hpvPos_vs_hpvNeg |
+|------------|----------|-------------|---------|------------------|
+| SRR2219887 | hpvPos   | HPV+ #1     |         | 1                |
+| SRR2219889 | hpvPos   | HPV+ #2     |         | 1                |
+| SRR2219873 | hpvNeg   | HPV− #1     |         | 0                |
+| SRR2219895 | hpvNeg   | HPV− #2     | 1       | 0                |   ← dropped |
+
 ### Running the pipeline
 
-Always invoke through `run_analysis.sh` — never call `Rscript de.R` directly. The launcher handles environment detection.
+Two entry points:
+
+- **`run_interactive.sh`** (v1.5.0+, recommended) — a guided, styled launcher that walks you through every option, including interactive sample / group / contrast selection, then hands off to `run_analysis.sh`.
+- **`run_analysis.sh`** — the non-interactive executor (use this in scripts / CI / Nextflow). Never call `Rscript de.R` directly; the launcher handles environment detection.
+
+#### Interactive launcher (recommended)
+
+```bash
+bash run_interactive.sh
+```
+
+![Interactive launcher](assets/cli_launcher.png)
+
+The launcher first asks you to **choose a front-end**:
+
+- **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
+- **Go TUI** (`tui/bisrde-tui`, v1.5.3) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+
+Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
+
+For the polished bash experience (borders, colors, fuzzy multi-select, markdown summary) install the optional [charmbracelet](https://github.com/charmbracelet) tools:
+
+```bash
+brew install gum glow freeze    # macOS; see charmbracelet repos for Linux
+```
+
+Without them the bash launcher falls back to plain prompts — it always works. The launcher is also scriptable / non-interactive: set `BISR_*` environment variables (e.g. `BISR_COUNTS`, `BISR_SAMPLESHEET`, `BISR_ANNOTATION`, `BISR_RUNID`, `BISR_EXCLUDE_GROUPS`, `BISR_FRONTEND`, …) and pass `--print-cmd` to print the assembled `run_analysis.sh` command without executing it.
 
 #### Mouse analysis
 
@@ -206,6 +248,24 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--annotation`      | `-a`  | no       | `mouse`        | `mouse` or `human`. Selects OrgDb + KEGG / Reactome / MSigDB organism.      |
 | `--brs-ticket`      | `-b`  | no       | (none)         | BRS ticket identifier (e.g. `BRS-1234`). Renders as a subtitle in the report. |
 | `--id-type`         | `-i`  | no       | `ensembl`      | `ensembl`, `entrez`, or `symbol`. Identifier type in the count matrix rownames. Output CSVs always carry all four ID columns regardless. |
+| `--exclude-samples` |       | no       | (none)         | Comma-separated `SampleID`s to drop from the whole analysis (e.g. `SRR1,SRR2`). Unions with the `Exclude` column. |
+| `--exclude-groups`  |       | no       | (none)         | Comma-separated `GroupID`s to drop from the whole analysis. |
+| `--include-contrasts` |     | no       | (none)         | Comma-separated contrast columns to process **exclusively** (allowlist). |
+| `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
+
+**Examples.** Re-run dropping a QC outlier without editing the samplesheet:
+
+```bash
+bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid rerun \
+    --annotation human --exclude-samples SRR2219895
+```
+
+Run only one contrast from a 12-contrast samplesheet:
+
+```bash
+bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid focused \
+    --annotation human --include-contrasts hpvPos_vs_hpvNeg
+```
 
 ## Pipeline output
 
@@ -275,7 +335,7 @@ nextflow run nf-module/main.nf \
 
 ## Limitations
 
-- **Pairwise comparisons only**. Multi-factor designs and covariates are out of scope for v1.4.0; track Aim in `tasks.md`.
+- **Pairwise comparisons only**. Multi-factor designs and covariates are out of scope for now (tracked for a future release).
 - **Two species supported**: human (GRCh38) and mouse (GRCm39). Other species require an OrgDb + KEGG-organism-code config that we have not generalized yet.
 - **No batch correction** (sva / ComBat) — explicit out-of-scope decision.
 - **Container image is x86_64 only** — Apple silicon Macs run the local-R path (which is fully supported).

@@ -1,7 +1,7 @@
 # Phase 1.1 fix verification: the volcano plot's color tags, threshold
 # line, and y-axis must all use the same significance field (`sig`),
-# and the 3 color levels must map to the documented palette (Over =
-# firebrick, Under = steelblue, Not significant = grey70).
+# and the 3 color levels must map to the documented colorblind-safe palette
+# (Over = #D55E00 vermillion, Under = #0072B2 blue, Not significant = grey70).
 
 build_volcano_data <- function() {
   data.frame(
@@ -60,8 +60,8 @@ test_that("generate_volcano uses the documented palette", {
 
   # The palette stores the named-vector `values =` argument we passed
   expect_equal(color_scale$palette(3),
-               c("Over expressed"  = "firebrick",
-                 "Under expressed" = "steelblue",
+               c("Over expressed"  = "#D55E00",
+                 "Under expressed" = "#0072B2",
                  "Not significant" = "grey70"))
 })
 
@@ -117,4 +117,32 @@ test_that("generate_volcano title shows 'exp vs. ctrl'", {
   p <- generate_volcano(build_volcano_data(),
                         exp_name = "Treated", ctrl_name = "Control")
   expect_match(p$labels$title, "Treated vs\\. Control")
+})
+
+test_that("generate_volcano labels at most n_labels genes", {
+  d <- data.frame(
+    ENSEMBL_ID     = paste0("ENSG", 1:100),
+    SYMBOL         = paste0("Gene", 1:100),
+    log2FoldChange = c(rep(2, 50), rep(-2, 50)),
+    padj           = 10^(-(1:100) / 5), # all significant, varying magnitude
+    stringsAsFactors = FALSE
+  )
+  p3  <- generate_volcano(d, "A", "B", n_labels = 3)
+  p25 <- generate_volcano(d, "A", "B", n_labels = 25)
+  expect_equal(sum(!is.na(p3$data$highlight)), 3)
+  expect_equal(sum(!is.na(p25$data$highlight)), 25)
+})
+
+test_that("generate_volcano does not over-label when ENSEMBL_ID is NA", {
+  # Regression: NA %in% c(.., NA) is TRUE, which previously labelled every
+  # unmapped gene. Rank-based selection must label only the significant genes.
+  d <- data.frame(
+    ENSEMBL_ID     = c(NA, NA, NA, "ENSG4", "ENSG5"),
+    SYMBOL         = paste0("Gene", 1:5),
+    log2FoldChange = c(2, -2, 2, -2, 2),
+    padj           = c(0.001, 0.002, 0.003, 0.004, 0.005),
+    stringsAsFactors = FALSE
+  )
+  p <- generate_volcano(d, "A", "B", n_labels = 10)
+  expect_equal(sum(!is.na(p$data$highlight)), 5) # all 5 sig, none extra
 })
