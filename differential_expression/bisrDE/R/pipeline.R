@@ -80,7 +80,8 @@ setup_directories <- function(base_dir) {
 run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          out_dirs, annotation, annotation_db,
                          id_type = "ensembl", volcano_labels = 10,
-                         deseq_norm_counts = NULL) {
+                         deseq_norm_counts = NULL,
+                         padj = 0.05, lfc = 0.58) {
   tryCatch(
     {
       cli::cli_h2("Comparison: {.strong {comparison$name}}")
@@ -126,6 +127,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         annotated_results,
         comparison$exp,
         comparison$ctrl,
+        p = padj, lfc = lfc,
         n_labels = volcano_labels
       )
       save_plot(
@@ -139,6 +141,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         width = 800, height = 1200, res = 150
       )
       generate_heatmap(annotated_results, normalized_counts, sample_info,
+                       p = padj, lfc = lfc,
                        exp_name = comparison$exp, ctrl_name = comparison$ctrl)
       grDevices::dev.off()
 
@@ -148,6 +151,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         width = 800, height = 1400, res = 150
       )
       generate_heatmap(annotated_results, normalized_counts, sample_info,
+                       p = padj, lfc = lfc,
                        exp_name = comparison$exp, ctrl_name = comparison$ctrl,
                        top_n = 100)
       grDevices::dev.off()
@@ -283,6 +287,10 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #'   skip (denylist). Default `NULL`.
 #' @param volcano_labels Max genes to label on each volcano plot (the top N by
 #'   significance). Default `10`. Passed through to [generate_volcano()].
+#' @param padj Adjusted p-value (FDR) cutoff for calling DEGs. Default `0.05`.
+#' @param fold_change Linear fold-change cutoff for calling DEGs (e.g. `2` for
+#'   2-fold). Default `1.5`; converted to a log2 cutoff internally and applied
+#'   to the volcano / heatmaps / DEG counts / report text.
 #' @param session_log Optional session-log handle from [start_session_log()].
 #'   When supplied, this call uses it (so a driver can make one log span both
 #'   the analysis and the report render) and does NOT close it — the caller
@@ -317,10 +325,15 @@ run_pipeline <- function(counts_path,
                          include_contrasts = NULL,
                          exclude_contrasts = NULL,
                          volcano_labels    = 10,
+                         padj              = 0.05,
+                         fold_change       = 1.5,
                          session_log       = NULL) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
   run_started <- Sys.time()
+  # Significance thresholds: `fold_change` is the linear cutoff (user-facing,
+  # e.g. 2 for 2-fold); `lfc` is its log2 form used by the plots/filters.
+  lfc <- log2(fold_change)
 
   # ---- 1. Output dirs + session log ----
   # outdir MUST be absolute: the figure paths derived from it are stored in
@@ -505,7 +518,9 @@ run_pipeline <- function(counts_path,
       annotation_db     = annotation_db,
       id_type           = id_type,
       volcano_labels    = volcano_labels,
-      deseq_norm_counts = deseq_norm_counts
+      deseq_norm_counts = deseq_norm_counts,
+      padj              = padj,
+      lfc               = lfc
     )
     if (!is.null(res)) {
       results[[i]] <- res
@@ -535,7 +550,7 @@ run_pipeline <- function(counts_path,
   sig_genes_union <- unique(unlist(lapply(results, function(r) {
     if (is.null(r) || is.null(r$deseq)) return(character(0))
     d <- r$deseq
-    ok <- !is.na(d$padj) & d$padj < 0.05 & abs(d$log2FoldChange) >= 0.58
+    ok <- !is.na(d$padj) & d$padj < padj & abs(d$log2FoldChange) >= lfc
     if (!any(ok)) return(character(0))
     key_col <- .match_id_column(d, rownames(tmm))
     if (!is.null(key_col)) as.character(d[[key_col]][ok]) else rownames(d)[ok]
@@ -602,7 +617,8 @@ run_pipeline <- function(counts_path,
   # ---- 11. Save RDS ----
   cli::cli_h1("Saving session")
   rds <- list(results, comparisons, out_dirs, pca_plot,
-              pca_plotly_2d_obj, pca_plotly_3d_obj, annotation)
+              pca_plotly_2d_obj, pca_plotly_3d_obj, annotation,
+              padj, fold_change)
   ts <- format(Sys.time(), "%Y%m%d_%H%M%S")
   rds_name <- paste0("analysis_results_", ts, ".rds")
   rds_path <- file.path(outdir, rds_name)
@@ -616,6 +632,7 @@ run_pipeline <- function(counts_path,
     annotation       = annotation,     id_type          = id_type,
     counts_path      = counts_path,    samplesheet_path = samplesheet_path,
     outdir           = outdir,
+    padj             = padj,           lfc              = lfc,
     started          = run_started,    finished         = Sys.time(),
     n_genes_input    = nrow(counts),   n_genes_filtered = nrow(dds),
     n_samples        = ncol(countsdf), n_samplesheet_rows = nrow(samplesheet),

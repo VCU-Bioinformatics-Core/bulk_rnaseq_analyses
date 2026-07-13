@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Addresses the first-run feedback in issue #12.
+
+### Added
+
+- **Configurable significance thresholds** — `--fold-change N` (linear, e.g. `2`
+  for 2-fold; default `1.5`) and `--padj P` (default `0.05`) set the DEG cutoffs
+  and are applied consistently to the volcano plots, heatmaps, DEG counts,
+  `.report.json`, and the report's Methods text + callouts. Prompts added to
+  both launchers (env `BISR_FOLD_CHANGE` / `BISR_PADJ`). (#12)
+
+### Fixed
+
+- `read_counts()` drops Ensembl `_PAR_Y` pseudo-autosomal genes, which otherwise
+  collapse onto their chrX copy once the version suffix is stripped and errored
+  with `duplicate 'row.names' are not allowed`. (#12)
+
+### Changed
+
+- **Flexible counts-file handling** — `read_counts()` now drops known metadata
+  columns *by name* (`gene_name`, `transcript_id(s)`, `Chr`/`Start`/`End`/
+  `Strand`/`Length`, …) so salmon / RSEM / featureCounts-style `nf-core/rnaseq`
+  outputs all load without reformatting; the numeric `Start`/`End`/`Length`
+  annotation columns are no longer mistaken for sample counts. The README
+  documents the accepted layouts. (#12)
+
 ## [1.5.3] - 2026-07-07
 
 ### Added

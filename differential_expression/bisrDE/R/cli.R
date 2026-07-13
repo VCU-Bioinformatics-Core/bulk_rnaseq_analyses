@@ -72,7 +72,8 @@ stop_session_log <- function(log) {
                                counts_path, samplesheet_path, outdir,
                                started, finished, n_genes_input,
                                n_genes_filtered, n_samples, n_samplesheet_rows,
-                               comparisons, results, rds_path, session_log) {
+                               comparisons, results, rds_path, session_log,
+                               padj = 0.05, lfc = 0.58) {
   iso <- function(t) format(t, "%Y-%m-%dT%H:%M:%S")
 
   comp_summaries <- lapply(seq_along(results), function(i) {
@@ -80,7 +81,7 @@ stop_session_log <- function(log) {
     nm <- comparisons[[i]]$name
     if (is.null(r) || is.null(r$deseq)) return(list(name = nm, ok = FALSE))
     d   <- r$deseq
-    sig <- sum(!is.na(d$padj) & d$padj < 0.05 & abs(d$log2FoldChange) >= 0.58)
+    sig <- sum(!is.na(d$padj) & d$padj < padj & abs(d$log2FoldChange) >= lfc)
     list(
       name        = nm,
       ok          = TRUE,
@@ -106,6 +107,8 @@ stop_session_log <- function(log) {
     n_genes_filtered   = n_genes_filtered,
     n_samples          = n_samples,
     n_samplesheet_rows = n_samplesheet_rows,
+    thresholds   = list(padj = padj, log2fc = lfc,
+                        fold_change = round(2^lfc, 3)),
     contrasts    = vapply(comparisons, function(x) x$name, character(1)),
     comparisons  = comp_summaries,
     outputs      = list(rds = rds_path, session_log = session_log)

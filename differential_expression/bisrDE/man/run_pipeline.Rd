@@ -17,6 +17,8 @@ run_pipeline(
   include_contrasts = NULL,
   exclude_contrasts = NULL,
   volcano_labels = 10,
+  padj = 0.05,
+  fold_change = 1.5,
   session_log = NULL
 )
 }
@@ -56,6 +58,12 @@ skip (denylist). Default \code{NULL}.}
 
 \item{volcano_labels}{Max genes to label on each volcano plot (the top N by
 significance). Default \code{10}. Passed through to \code{\link[=generate_volcano]{generate_volcano()}}.}
+
+\item{padj}{Adjusted p-value (FDR) cutoff for calling DEGs. Default \code{0.05}.}
+
+\item{fold_change}{Linear fold-change cutoff for calling DEGs (e.g. \code{2} for
+2-fold). Default \code{1.5}; converted to a log2 cutoff internally and applied
+to the volcano / heatmaps / DEG counts / report text.}
 
 \item{session_log}{Optional session-log handle from \code{\link[=start_session_log]{start_session_log()}}.
 When supplied, this call uses it (so a driver can make one log span both

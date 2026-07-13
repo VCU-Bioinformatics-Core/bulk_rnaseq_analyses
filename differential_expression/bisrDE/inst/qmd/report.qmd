@@ -46,6 +46,12 @@ pca_plot   <- rds_data[[4]]
 pca_plotly <- rds_data[[5]]
 pca_3d     <- rds_data[[6]]
 annotation <- rds_data[[7]]
+# Significance thresholds are stored in the analysis RDS (elements 8-9); fall
+# back to the historical defaults for older bundles. Used throughout this report
+# AND in the child _comparison.qmd (it shares this environment via knit_child).
+padj_cut <- if (length(rds_data) >= 8 && !is.null(rds_data[[8]])) rds_data[[8]] else 0.05
+fc_cut   <- if (length(rds_data) >= 9 && !is.null(rds_data[[9]])) rds_data[[9]] else 1.5
+lfc_cut  <- log2(fc_cut)
 
 # Phase 7.2: Tool versions from a single source of truth. Upstream tool
 # versions live in `inst/extdata/upstream_versions.yml` (bump them there
@@ -99,9 +105,9 @@ data files.
 .fmt_pval <- function(x) if (is.na(x)) "n/a" else formatC(x, format = "e", digits = 2)
 .top_n_genes <- function(df, n, direction) {
   if (is.null(df)) return(character(0))
-  ok <- !is.na(df$padj) & df$padj < 0.05 &
-    if (direction == "up") df$log2FoldChange >= 0.58
-    else df$log2FoldChange <= -0.58
+  ok <- !is.na(df$padj) & df$padj < padj_cut &
+    if (direction == "up") df$log2FoldChange >= lfc_cut
+    else df$log2FoldChange <= -lfc_cut
   if (!any(ok)) return(character(0))
   sub <- df[ok, , drop = FALSE]
   sub <- sub[order(sub$padj), , drop = FALSE]
@@ -145,15 +151,16 @@ for (i in seq_along(comparisons)) {
   }
 
   df <- results[[i]]$deseq
-  ok_up   <- !is.na(df$padj) & df$padj < 0.05 & df$log2FoldChange >=  0.58
-  ok_down <- !is.na(df$padj) & df$padj < 0.05 & df$log2FoldChange <= -0.58
+  ok_up   <- !is.na(df$padj) & df$padj < padj_cut & df$log2FoldChange >=  lfc_cut
+  ok_down <- !is.na(df$padj) & df$padj < padj_cut & df$log2FoldChange <= -lfc_cut
   n_up    <- sum(ok_up)
   n_down  <- sum(ok_down)
   total   <- n_up + n_down
 
   if (total == 0) {
     cat(paste0(
-      "- **0 genes** passed FDR < 0.05 and |log2FC| ≥ 0.58. ",
+      sprintf("- **0 genes** passed FDR < %s and |log2FC| ≥ %.2f (%.1f-fold). ",
+              padj_cut, lfc_cut, fc_cut),
       "Possible causes: small effect size, low replicate count, ",
       "or a contrast that doesn't capture the biology — ",
       "see Volcano + QC sections below.\n\n"
@@ -197,7 +204,7 @@ For this analysis we used the following steps:
 2. **Normalization**: TMM normalization was applied using edgeR TMM function.
 3. **Differential expression**: DESeq2 was used to identify differentially expressed genes.
 4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler.
-5. **Thresholds**: Genes with adjusted p-value < 0.05 and |FC| >= 1.5 (equivalent to log2(FC) = 0.58) were considered differentially expressed.
+5. **Thresholds**: Genes with adjusted p-value < `r padj_cut` and |FC| ≥ `r fc_cut` (equivalent to log2(FC) = `r round(lfc_cut, 2)`) were considered differentially expressed.
 6. **Genome annotation**: `r annotation`
 
 As part of this pipeline we produce the following files for your downstream use:
@@ -365,9 +372,9 @@ for (i in seq_along(comparisons)) {
   if (!is.null(results[[i]])) {
     res_df <- results[[i]]$deseq
     if (!is.null(res_df)) {
-      total_degs <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & abs(res_df$log2FoldChange) >= 0.58)
-      up_degs    <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange >= 0.58)
-      down_degs  <- sum(!is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange <= -0.58)
+      total_degs <- sum(!is.na(res_df$padj) & res_df$padj < padj_cut & abs(res_df$log2FoldChange) >= lfc_cut)
+      up_degs    <- sum(!is.na(res_df$padj) & res_df$padj < padj_cut & res_df$log2FoldChange >= lfc_cut)
+      down_degs  <- sum(!is.na(res_df$padj) & res_df$padj < padj_cut & res_df$log2FoldChange <= -lfc_cut)
 
       yn <- function(x) ifelse(!is.null(x), "Yes", "No")
 
@@ -405,7 +412,7 @@ Briefly, we report the following:
 
 The table below summarizes differential expression results from all comparisons.
 Specifically, the **Total_DEGs** column reports the number of genes with an adjusted
-p-value < 0.05 and |FC| ≥ 1.5. The **Upregulated** and **Downregulated** columns break
+p-value < `r padj_cut` and |FC| ≥ `r fc_cut`. The **Upregulated** and **Downregulated** columns break
 down this count accordingly. The **GO**, **KEGG**, **Reactome**, and **Hallmark** columns
 indicate whether each enrichment backend produced any results for that comparison
 (`Yes`) or returned no enriched gene sets (`No`).
@@ -444,7 +451,7 @@ Videos" the **Qiagen Digital Insights Youtube** page.
 
 Raw RNA-Seq fastq files were processed by the VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR) using the NextFlow nf-core/rnaseq v`r upstream$nf_core_rnaseq$version` pipeline [4]. Briefly, this pipeline assesses sequencing quality using FastQC v`r upstream$fastqc$version` [1] before and after trimming, performs adaptor trimming with Trim Galore! v`r upstream$trim_galore$version` [5], and aligns sequencing reads to the `r params$genome_assembly` reference genome using STAR v`r upstream$star$version` [2] with transcriptome quantification by Salmon v`r upstream$salmon$version` [8]. Pipeline output includes gene expression raw count data and a comprehensive QC report compiled by MultiQC v`r upstream$multiqc$version` [3].
 
-Differential expression analysis was performed using DESeq2 v`r r_versions$deseq2` [7]. Lowly expressed genes (fewer than three samples with ≥10 reads) were filtered out per DESeq2 methods [7] prior to normalization and differential expression testing. Significance was calculated using the Wald test and adjusted using the Benjamini-Hochberg False Discovery Rate (FDR). Significant differentially expressed genes (DEGs) are defined as those with an FDR < 0.05 and absolute fold-change ≥ 1.5 (log2 fold-change ≥ 0.58). Heatmaps were generated from edgeR v`r r_versions$edger` TMM-normalized counts [9].
+Differential expression analysis was performed using DESeq2 v`r r_versions$deseq2` [7]. Lowly expressed genes (fewer than three samples with ≥10 reads) were filtered out per DESeq2 methods [7] prior to normalization and differential expression testing. Significance was calculated using the Wald test and adjusted using the Benjamini-Hochberg False Discovery Rate (FDR). Significant differentially expressed genes (DEGs) are defined as those with an FDR < `r padj_cut` and absolute fold-change ≥ `r fc_cut` (log2 fold-change ≥ `r round(lfc_cut, 2)`). Heatmaps were generated from edgeR v`r r_versions$edger` TMM-normalized counts [9].
 
 Pre-ranked Gene Set Enrichment Analysis (GSEA) [10] was performed across all genes (regardless of significance), using log2 fold-change as the ranking metric, against four complementary gene set collections: (i) Gene Ontology terms (BP / MF / CC) via `clusterProfiler` v`r r_versions$clusterprofiler` [11]; (ii) KEGG pathways via the same package; (iii) Reactome pathways via `ReactomePA` v`r r_versions$reactomepa` [12]; and (iv) MSigDB Hallmark gene sets [6] retrieved via `msigdbr` v`r r_versions$msigdbr`. The orchestrating R package is `bisrDE` v`r r_versions$bisrde` (this report's source). All computational analyses were performed on VCU's High Performance Research Computing cluster.
 
@@ -494,13 +501,13 @@ Plain-English definitions for the terms used throughout this report. Terms are a
 
 **contrast.** A single experimental comparison, e.g. `treated_vs_control`. Each contrast column in the samplesheet defines one contrast.
 
-**DEG.** Differentially Expressed Gene — a gene that passes the project's significance thresholds (`padj < 0.05` AND `|log2FC| ≥ 0.58`).
+**DEG.** Differentially Expressed Gene — a gene that passes the project's significance thresholds (`padj` < `r padj_cut` AND |log2FC| ≥ `r round(lfc_cut, 2)`).
 
 **DESeq2.** The R package that fits a negative-binomial model per gene, estimates dispersion, and runs the Wald test that produces our DE results.
 
 **edgeR.** A separate Bioconductor package; we use only its TMM normalization function (not its DE testing) to produce the count matrix that underlies heatmaps and PCA.
 
-**FDR (False Discovery Rate).** The expected fraction of false positives among the genes you call "significant." Setting `padj < 0.05` means you accept ≤ 5% of your DEGs being noise on average. The whole point of multiple-testing correction.
+**FDR (False Discovery Rate).** The expected fraction of false positives among the genes you call "significant." Setting `padj` < `r padj_cut` means you accept ≤ `r round(padj_cut * 100)`% of your DEGs being noise on average. The whole point of multiple-testing correction.
 
 **Gene Ratio.** On enrichment dotplots: `count of leading-edge genes in this set / total ranked genes`. Higher = more of the set's genes drove the enrichment signal.
 
@@ -514,11 +521,11 @@ Plain-English definitions for the terms used throughout this report. Terms are a
 
 **leading_edge.** On enrichment results: the subset of genes that drove the enrichment signal (i.e. before the running-sum statistic peaked). The "interesting" genes within an enriched set.
 
-**log2FoldChange (log2FC).** Log2 of the ratio of mean expression between experimental and control groups. `+1` = 2x higher in experimental; `-1` = 2x lower; `0.58` ≈ 1.5-fold change (our project threshold).
+**log2FoldChange (log2FC).** Log2 of the ratio of mean expression between experimental and control groups. `+1` = 2x higher in experimental; `-1` = 2x lower. This report's DEG cutoff is |log2FC| ≥ `r round(lfc_cut, 2)` (≈ `r fc_cut`-fold).
 
 **NES (Normalized Enrichment Score).** GSEA's enrichment score normalized for gene-set size, signed by direction (positive = enriched in up-regulated genes; negative = enriched in down-regulated). Comparable across gene sets, unlike the raw enrichment score.
 
-**padj.** The Benjamini-Hochberg-adjusted p-value. **This** is the column to filter on for significance — not `pvalue`. `padj < 0.05` means you accept ≤ 5% FDR.
+**padj.** The Benjamini-Hochberg-adjusted p-value. **This** is the column to filter on for significance — not `pvalue`. `padj` < `r padj_cut` means you accept ≤ `r round(padj_cut * 100)`% FDR.
 
 **PCA (Principal Component Analysis).** A dimensionality-reduction technique that projects the high-dimensional count data onto axes that capture the most variation. PC1 captures the most variance; PC2 the next-most orthogonal variance; etc.
 

@@ -120,6 +120,14 @@ option_list <- list(
   make_option("--volcano-labels",
     type = "integer", default = 10,
     help = "Max genes to label per volcano plot (top N by significance) [default %default]. Raise to name more genes, lower to declutter."
+  ),
+  make_option("--fold-change",
+    type = "double", default = 1.5,
+    help = "Fold-change cutoff for calling DEGs (linear, e.g. 2 for 2-fold) [default %default]. Converted to log2 internally and applied to volcano / heatmaps / DEG counts / report text."
+  ),
+  make_option("--padj",
+    type = "double", default = 0.05,
+    help = "Adjusted p-value (FDR) cutoff for calling DEGs [default %default]."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -174,6 +182,8 @@ tryCatch({
     include_contrasts = include_contrasts,
     exclude_contrasts = exclude_contrasts,
     volcano_labels    = opt[["volcano-labels"]],
+    padj              = opt[["padj"]],
+    fold_change       = opt[["fold-change"]],
     session_log       = slog
   )
 

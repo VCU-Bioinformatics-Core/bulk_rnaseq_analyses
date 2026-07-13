@@ -40,6 +40,8 @@ func defaultConfig() Config {
 		BRS:              envOr("BISR_BRS", ""),
 		IDType:           envOr("BISR_IDTYPE", "ensembl"),
 		VolcanoLabels:    envOr("BISR_VOLCANO_LABELS", "10"),
+		FoldChange:       envOr("BISR_FOLD_CHANGE", "1.5"),
+		Padj:             envOr("BISR_PADJ", "0.05"),
 		ExcludeSamples:   envList("BISR_EXCLUDE_SAMPLES"),
 		ExcludeGroups:    envList("BISR_EXCLUDE_GROUPS"),
 		IncludeContrasts: envList("BISR_INCLUDE_CONTRASTS"),
@@ -70,6 +72,8 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 				Options(huh.NewOptions("ensembl", "entrez", "symbol")...).
 				Value(&c.IDType),
 			huh.NewInput().Title("Volcano labels (top N genes)").Value(&c.VolcanoLabels),
+			huh.NewInput().Title("Fold-change cutoff (e.g. 2 = 2-fold)").Value(&c.FoldChange),
+			huh.NewInput().Title("Adjusted p-value (FDR) cutoff").Value(&c.Padj),
 		),
 	).WithTheme(huh.ThemeCharm())
 	if err := core.Run(); err != nil {

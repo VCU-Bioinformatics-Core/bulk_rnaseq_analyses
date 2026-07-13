@@ -6,19 +6,27 @@
 #' Read a merged gene-counts TSV
 #'
 #' @description Read an nf-core/rnaseq-style merged gene-counts file into a
-#'   numeric count matrix. Strips Ensembl version suffixes from rownames so
-#'   downstream annotation joins are stable across `org.*.eg.db` versions.
+#'   numeric count matrix (gene IDs as rownames, one column per sample). The
+#'   first column is the gene ID; known metadata columns (`gene_name`,
+#'   `transcript_id(s)`, `Chr`/`Start`/`End`/`Strand`/`Length`, ...) are dropped
+#'   by name, so salmon / RSEM / featureCounts-style layouts all work as-is.
+#'   Strips Ensembl version suffixes so annotation joins are stable across
+#'   `org.*.eg.db` versions.
 #'
 #' @param path Path to the counts file (TSV with a header and gene-ID first
 #'   column; typically `rsem.merged.gene_counts.tsv`).
 #' @return A `data.frame` of integer-coercible counts with gene IDs as
 #'   rownames and one column per sample. Non-numeric columns from the input
 #'   (e.g. `gene_name`) are dropped.
-#' @details Equivalent to the inline block at the parent `de.R` data-load
-#'   step. The Ensembl-suffix strip (`"\\..*"` on rownames) is intentional —
-#'   AnnotationDbi keys do not carry version suffixes, so `ENSG00000123.4`
-#'   would silently fail to map. Sample-level QC (alignment to samplesheet
-#'   IDs) is the caller's responsibility — see [align_counts_to_samplesheet()].
+#' @details The Ensembl version-suffix strip (`"\\..*"`) is applied ONLY to
+#'   `^ENS` accessions — AnnotationDbi keys carry no version, so `ENSG00000123.4`
+#'   would otherwise fail to map, while gene symbols that legitimately contain
+#'   dots (e.g. `H2-M10.1`) are left intact. Ensembl `_PAR_Y` pseudo-autosomal
+#'   genes (e.g. `ENSG00000002586.20_PAR_Y`) are dropped first: they are copies
+#'   of the chrX gene and would collide with it once the version is stripped
+#'   (Ensembl documents that they can be ignored). Sample-level QC (alignment to
+#'   samplesheet IDs) is the caller's responsibility — see
+#'   [align_counts_to_samplesheet()].
 #'
 #' @importFrom readr read_tsv
 #' @importFrom dplyr select
@@ -26,11 +34,56 @@
 #' @importFrom tidyselect where
 #' @export
 read_counts <- function(path) {
-  counts <- data.frame(
-    readr::read_tsv(path, col_names = TRUE, show_col_types = FALSE),
-    row.names = 1
-  ) |>
-    dplyr::select(tidyselect::where(is.numeric))
+  raw <- readr::read_tsv(path, col_names = TRUE, show_col_types = FALSE)
+  if (ncol(raw) < 2) {
+    cli::cli_abort(c(
+      "read_counts: {.path {path}} has fewer than 2 columns.",
+      "i" = "Expected a gene-ID column followed by >= 1 sample-count column."
+    ))
+  }
+
+  # Flexible counts-file handling. The first column is the gene ID (nf-core
+  # merged files use `gene_id`; featureCounts uses `Geneid`). Known non-count
+  # metadata columns are dropped by NAME (case-insensitive) so the different
+  # nf-core organizations all reduce to the same "gene x sample" matrix: salmon
+  # (`gene_name`), RSEM (`transcript_id(s)`), and featureCounts-style layouts
+  # (`Chr`/`Start`/`End`/`Strand`/`Length`) — the last of which would otherwise
+  # leak NUMERIC annotation columns in as if they were samples. Whatever numeric
+  # columns remain are the per-sample counts.
+  meta_cols <- c(
+    "gene_id", "geneid", "gene_name", "gene_symbol", "symbol", "name",
+    "transcript_id", "transcript_id(s)", "transcript_ids", "tx_id",
+    "chr", "chromosome", "start", "end", "strand", "length",
+    "gene_biotype", "biotype", "description"
+  )
+  sample_cols <- names(raw)[-1][!tolower(names(raw)[-1]) %in% meta_cols]
+  counts <- as.data.frame(raw[, sample_cols, drop = FALSE])
+  counts <- counts[, vapply(counts, is.numeric, logical(1)), drop = FALSE]
+  if (ncol(counts) < 1) {
+    cli::cli_abort(c(
+      "read_counts: no numeric sample columns found in {.path {path}}.",
+      "i" = "After the gene-ID and known metadata columns, no numeric columns remained."
+    ))
+  }
+  # `make.names()` the sample columns so they match `make.names(SampleID)` used
+  # by align_counts_to_samplesheet() + the display/group lookups. readr keeps
+  # the raw header (e.g. "HCT116-P53-minus-1"); downstream expects the munged
+  # "HCT116.P53.minus.1" (this is what data.frame()'s check.names used to do).
+  colnames(counts) <- make.names(colnames(counts))
+  rownames(counts) <- as.character(raw[[1]])
+
+  # Drop Ensembl PAR_Y pseudo-autosomal duplicates (e.g.
+  # "ENSG00000002586.20_PAR_Y"). These are copies of the chrX gene in the
+  # pseudo-autosomal region and, once the version suffix is stripped below,
+  # collide with the chrX copy -> "duplicate 'row.names'". Ensembl documents
+  # that they can be ignored, so we remove them.
+  par_y <- grepl("_PAR_Y$", rownames(counts))
+  if (any(par_y)) {
+    cli::cli_alert_info(
+      "Dropping {sum(par_y)} Ensembl _PAR_Y pseudo-autosomal duplicate{?s}"
+    )
+    counts <- counts[!par_y, , drop = FALSE]
+  }
 
   # Strip Ensembl version suffixes (e.g. "ENSMUSG00000000001.3" -> "...001"),
   # but ONLY from Ensembl-style accessions. Gene symbols can carry dots that are

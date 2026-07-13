@@ -14,7 +14,9 @@ run_analysis(
   annotation_db,
   id_type = "ensembl",
   volcano_labels = 10,
-  deseq_norm_counts = NULL
+  deseq_norm_counts = NULL,
+  padj = 0.05,
+  lfc = 0.58
 )
 }
 \arguments{
