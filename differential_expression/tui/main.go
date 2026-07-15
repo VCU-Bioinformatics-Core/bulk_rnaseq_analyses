@@ -63,7 +63,7 @@ func main() {
 
 	if !nonInteractive {
 		fmt.Println(bannerStyle.Render(
-			"Bulk RNA-Seq Differential Expression\nbisrDE · v1.5.3 · Go TUI"))
+			"Bulk RNA-Seq Differential Expression\nbisrDE · v1.5.4 · Go TUI"))
 	}
 
 	cfg, err := BuildConfig(nonInteractive)

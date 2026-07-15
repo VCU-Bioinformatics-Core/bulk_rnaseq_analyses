@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.4] - 2026-07-14
 
 Addresses the first-run feedback in issue #12.
 
@@ -374,6 +374,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.5.4   | 2026-07-14 | Configurable DE thresholds (`--fold-change`/`--padj`, dynamic throughout the report); flexible counts-file layouts (salmon/RSEM/featureCounts); drop Ensembl `_PAR_Y` (#12) |
 | 1.5.3   | 2026-07-07 | `--id-type symbol`/`entrez` fixes (SYMBOL col, heatmaps, dotted-symbol counts); volcano top-N labels (`--volcano-labels`); per-group DisplayName prompt; normalized counts (TMM + DESeq2) in DE sheets |
 | 1.5.2   | 2026-07-01 | Report figures embed (abs outdir); auto-derived + colorblind-safe plots; live Go TUI (PTY); non-empty session log + `.report.json` |
 | 1.5.1   | 2026-06-12 | Go TUI launcher (charmbracelet Phase B); parse_contrasts / DisplayName warnings; roxygen + NAMESPACE fixes |
