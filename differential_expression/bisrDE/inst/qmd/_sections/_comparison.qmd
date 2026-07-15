@@ -8,11 +8,11 @@
 **Volcano Plot**
 
 ::: {.callout-tip title="How to read this"}
-Each dot is a gene. X-axis = log2 fold change (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks `padj = 0.05`; the **black dashed lines** mark `|log2FC| = 0.58` (≈1.5x). Red and blue dots pass both thresholds; grey dots fail at least one.
+Each dot is a gene. X-axis = log2 fold change (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks the `padj` = `r padj_cut` cutoff; the **black dashed lines** mark |log2FC| = `r round(lfc_cut, 2)` (≈`r fc_cut`x). Red and blue dots pass both thresholds; grey dots fail at least one.
 :::
 
 ::: {.callout-note title="What to look for"}
-The strongest hits are in the **top-right** (most-up + most-confident) and **top-left** (most-down + most-confident). The labeled top-20 in each direction are nominated by ascending `padj`. A **roughly symmetric** spread of red and blue is typical of paired contrasts; **heavy bias to one side** can be biological (e.g. a global suppressor) or a normalization artefact. Look at how many dots are above the red line — this is your "true" DEG count.
+The strongest hits are in the **top-right** (most-up + most-confident) and **top-left** (most-down + most-confident). The labeled genes are the top hits by ascending `padj`. A **roughly symmetric** spread of red and blue is typical of paired contrasts; **heavy bias to one side** can be biological (e.g. a global suppressor) or a normalization artefact. Look at how many dots are above the red line — this is your "true" DEG count.
 :::
 
 ::: {.callout-warning title="Common pitfalls"}
@@ -95,8 +95,8 @@ top_up <- NULL
 top_down <- NULL
 if (!is.null(results[[i]]) && !is.null(results[[i]]$deseq)) {
   top_up <- results[[i]]$deseq |>
-    dplyr::filter(!is.na(.data$padj) & .data$padj < 0.05 &
-                    .data$log2FoldChange >= 0.58) |>
+    dplyr::filter(!is.na(.data$padj) & .data$padj < padj_cut &
+                    .data$log2FoldChange >= lfc_cut) |>
     dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
                   pvalue = formatC(.data$pvalue, format = "e", digits = 2),
                   padj   = formatC(.data$padj,   format = "e", digits = 2)) |>
@@ -104,8 +104,8 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$deseq)) {
     head(20)
 
   top_down <- results[[i]]$deseq |>
-    dplyr::filter(!is.na(.data$padj) & .data$padj < 0.05 &
-                    .data$log2FoldChange <= -0.58) |>
+    dplyr::filter(!is.na(.data$padj) & .data$padj < padj_cut &
+                    .data$log2FoldChange <= -lfc_cut) |>
     dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
                   pvalue = formatC(.data$pvalue, format = "e", digits = 2),
                   padj   = formatC(.data$padj,   format = "e", digits = 2)) |>

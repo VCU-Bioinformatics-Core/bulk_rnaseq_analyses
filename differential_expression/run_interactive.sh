@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_interactive.sh — beautiful interactive front-door for the bisrDE
-# bulk RNA-seq DE pipeline (v1.5.3).
+# bulk RNA-seq DE pipeline (v1.5.4).
 #
 # Uses charmbracelet tools when available and degrades gracefully to plain
 # shell prompts otherwise:
@@ -76,10 +76,10 @@ banner() {
   if have gum; then
     gum style --border double --margin "1 0" --padding "1 4" \
       --border-foreground "$BISR_PRIMARY" --foreground "$BISR_PRIMARY" \
-      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.5.3 · VCU Massey BISR"
+      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.5.4 · VCU Massey BISR"
   else
     echo "======================================================="
-    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.5.3 (VCU Massey)"
+    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.5.4 (VCU Massey)"
     echo "======================================================="
   fi
 }
@@ -221,6 +221,8 @@ outdir=$(ask_input      "Output directory"  "./results"                        "
 brs=$(ask_input         "BRS ticket (blank = none)" ""                         "${BISR_BRS:-}")
 idtype=$(ask_choose     "Gene ID type"      "${BISR_IDTYPE:-}" ensembl entrez symbol)
 vlabels=$(ask_input     "Volcano labels — max genes to name (top N)" "10"           "${BISR_VOLCANO_LABELS:-}")
+foldchange=$(ask_input  "Fold-change cutoff (e.g. 2 = 2-fold)"       "1.5"          "${BISR_FOLD_CHANGE:-}")
+padjcut=$(ask_input     "Adjusted p-value (FDR) cutoff"              "0.05"         "${BISR_PADJ:-}")
 
 # v1.5.0 — interactive sample / group / contrast selection (only when the
 # samplesheet is readable; otherwise these stay empty = no filtering).
@@ -274,7 +276,7 @@ fi
 # ---------------------------------------------------------------------------
 args=(--counts "$counts" --samplesheet "$samplesheet" --outdir "$outdir"
       --runid "$runid" --annotation "$annotation" --id-type "$idtype"
-      --volcano-labels "$vlabels")
+      --volcano-labels "$vlabels" --fold-change "$foldchange" --padj "$padjcut")
 [ -n "$brs" ]            && args+=(--brs-ticket "$brs")
 [ -n "$excl_samples" ]   && args+=(--exclude-samples "$excl_samples")
 [ -n "$excl_groups" ]    && args+=(--exclude-groups "$excl_groups")
@@ -297,6 +299,8 @@ summary_md=$(cat <<EOF
 | BRS ticket     | ${brs:-—} |
 | ID type        | $idtype |
 | Volcano labels | $vlabels |
+| Fold-change    | $foldchange |
+| Adj p-value    | $padjcut |
 | Exclude groups | ${excl_groups:-—} |
 | Exclude samples| ${excl_samples:-—} |
 | Include contrasts | ${incl_contrasts:-—} |

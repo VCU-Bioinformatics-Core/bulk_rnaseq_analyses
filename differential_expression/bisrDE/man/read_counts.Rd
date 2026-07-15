@@ -17,13 +17,21 @@ rownames and one column per sample. Non-numeric columns from the input
 }
 \description{
 Read an nf-core/rnaseq-style merged gene-counts file into a
-numeric count matrix. Strips Ensembl version suffixes from rownames so
-downstream annotation joins are stable across \code{org.*.eg.db} versions.
+numeric count matrix (gene IDs as rownames, one column per sample). The
+first column is the gene ID; known metadata columns (\code{gene_name},
+\code{transcript_id(s)}, \code{Chr}/\code{Start}/\code{End}/\code{Strand}/\code{Length}, ...) are dropped
+by name, so salmon / RSEM / featureCounts-style layouts all work as-is.
+Strips Ensembl version suffixes so annotation joins are stable across
+\code{org.*.eg.db} versions.
 }
 \details{
-Equivalent to the inline block at the parent \code{de.R} data-load
-step. The Ensembl-suffix strip (\code{"\\\\..*"} on rownames) is intentional —
-AnnotationDbi keys do not carry version suffixes, so \code{ENSG00000123.4}
-would silently fail to map. Sample-level QC (alignment to samplesheet
-IDs) is the caller's responsibility — see \code{\link[=align_counts_to_samplesheet]{align_counts_to_samplesheet()}}.
+The Ensembl version-suffix strip (\code{"\\\\..*"}) is applied ONLY to
+\verb{^ENS} accessions — AnnotationDbi keys carry no version, so \code{ENSG00000123.4}
+would otherwise fail to map, while gene symbols that legitimately contain
+dots (e.g. \code{H2-M10.1}) are left intact. Ensembl \verb{_PAR_Y} pseudo-autosomal
+genes (e.g. \code{ENSG00000002586.20_PAR_Y}) are dropped first: they are copies
+of the chrX gene and would collide with it once the version is stripped
+(Ensembl documents that they can be ignored). Sample-level QC (alignment to
+samplesheet IDs) is the caller's responsibility — see
+\code{\link[=align_counts_to_samplesheet]{align_counts_to_samplesheet()}}.
 }

@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.5.3** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.5.4** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -136,7 +136,15 @@ Two input files are required: the **merged counts matrix** and the **samplesheet
 
 #### 1. Merged counts (TSV)
 
-The first column is the gene identifier; subsequent columns are sample counts. Headers must match the samplesheet's `SampleID` exactly. Best results with the merged-counts TSV from [`nf-core/rnaseq`](https://nf-co.re/rnaseq).
+The **first column is the gene identifier** (`gene_id`, `Geneid`, …); the remaining columns are **per-sample counts** whose headers must match the samplesheet's `SampleID` values. Known metadata columns are recognised **by name and dropped automatically**, so the common `nf-core/rnaseq` count-file organizations work as-is (no reformatting needed):
+
+| Quantifier | File | Layout |
+|------------|------|--------|
+| salmon | `salmon.merged.gene_counts.tsv` | `gene_id, gene_name, <samples…>` |
+| RSEM | `rsem.merged.gene_counts.tsv` | `gene_id, transcript_id(s), <samples…>` |
+| featureCounts-style | — | `Geneid, Chr, Start, End, Strand, Length, <samples…>` |
+
+The dropped names include `gene_name`, `transcript_id(s)`, `Chr`, `Start`, `End`, `Strand`, `Length`, `biotype`, and `description` — so the numeric `Start`/`End`/`Length` annotation columns are **not** mistaken for samples. Ensembl gene-ID version suffixes (`ENSG…​.4`) are stripped and `_PAR_Y` pseudo-autosomal duplicates dropped, while gene **symbols** that contain dots (e.g. `H2-M10.1`) are left intact.
 
 | gene_id            | sample1_r1 | sample1_r2 | sample1_r3 | sample2_r1 | sample2_r2 | sample2_r3 |
 |--------------------|------------|------------|------------|------------|------------|------------|
@@ -187,7 +195,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.5.3) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.5.4) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 

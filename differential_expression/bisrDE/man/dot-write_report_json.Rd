@@ -22,7 +22,9 @@
   comparisons,
   results,
   rds_path,
-  session_log
+  session_log,
+  padj = 0.05,
+  lfc = 0.58
 )
 }
 \description{
