@@ -70,6 +70,10 @@ When supplied, this call uses it (so a driver can make one log span both
 the analysis and the report render) and does NOT close it — the caller
 owns the lifecycle. When \code{NULL} (default) the pipeline opens and closes
 its own log, as before. Default \code{NULL}.}
+
+\item{tick}{Optional function of one argument (a step label) called before
+each of the \link{.STEPS_PER_COMPARISON} phases, so the caller can advance a
+progress bar mid-comparison. \code{NULL} (default) disables it.}
 }
 \value{
 Invisibly, a named list of pipeline artifacts:

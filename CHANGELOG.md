@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The comparisons progress bar is now genuinely live.** It advanced only once
+  per comparison, so it froze for the minutes each comparison takes — cli never
+  redraws on its own, a bar only repaints inside `cli_progress_update()`. Worse,
+  with `total = n_comparisons` cli's default `auto_terminate` swallowed the
+  final update, so a 3-contrast run only ever rendered 33% and 67% before
+  "jumping" to done. `run_analysis()` now reports its 10 phases (DESeq2,
+  annotate, save, volcano, 2 heatmaps, 4 enrichment backends) through a `tick`
+  callback and the bar is sized `n_comparisons * 10`, with an initial forced 0%
+  frame and `auto_terminate = FALSE`. Measured on the example dataset: in-place
+  redraws 4 → 407, rendered frames 2 → 44, and the bar now names the running
+  step. The session log stays ANSI/`\r`-free.
+
 - **Samplesheet header variants no longer cause a misleading "No contrasts to
   analyse" failure.** A header like `Sample_ID,Group_ID` parsed without
   complaint but left `samplesheet$GroupID` `NULL`, so every contrast silently
