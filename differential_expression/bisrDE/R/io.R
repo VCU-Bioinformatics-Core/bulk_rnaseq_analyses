@@ -114,12 +114,84 @@ read_counts <- function(path) {
 #' @importFrom utils read.delim
 #' @export
 read_samplesheet <- function(path) {
-  utils::read.delim(
+  ss <- utils::read.delim(
     path,
     sep = ",",
     header = TRUE,
     stringsAsFactors = FALSE
   )
+  ss <- .canonicalize_samplesheet_cols(ss)
+
+  missing <- setdiff(c("SampleID", "GroupID"), colnames(ss))
+  if (length(missing) > 0) {
+    cli::cli_abort(c(
+      "Samplesheet is missing required column{?s} {.val {missing}}.",
+      "i" = "Columns found: {.val {colnames(ss)}}",
+      "i" = "Expected {.val SampleID} then {.val GroupID}, followed by one column per contrast.",
+      "x" = "Without {.val GroupID} no contrast can resolve its experimental/control groups."
+    ))
+  }
+  ss
+}
+
+
+#' Samplesheet column aliases (squashed lower-case key -> canonical name)
+#'
+#' @description Real-world samplesheets spell the ID columns many ways
+#'   (`Sample_ID`, `sample id`, `Group_ID`, `condition`, ...). Keys here are
+#'   the column name lower-cased with all non-alphanumerics removed.
+#' @keywords internal
+.samplesheet_aliases <- c(
+  sampleid    = "SampleID",
+  sample      = "SampleID",
+  samplename  = "SampleID",
+  samples     = "SampleID",
+  groupid     = "GroupID",
+  group       = "GroupID",
+  groupname   = "GroupID",
+  condition   = "GroupID",
+  displayname = "DisplayName",
+  exclude     = "Exclude"
+)
+
+
+#' Normalize samplesheet column names to the canonical set
+#'
+#' @description Rename known header variants (see [.samplesheet_aliases]) to
+#'   the canonical `SampleID` / `GroupID` / `DisplayName` / `Exclude` names the
+#'   pipeline uses. Without this a header like `Sample_ID,Group_ID` parses
+#'   fine but yields `samplesheet$GroupID == NULL`, so every contrast silently
+#'   finds no groups and the run dies much later with the misleading
+#'   "No contrasts to analyse" error.
+#'
+#'   Contrast columns (anything containing `_vs_`) are never renamed, and a
+#'   variant is skipped if its canonical name is already present, so no
+#'   duplicate columns can be created.
+#'
+#' @param df Samplesheet data frame.
+#' @return `df` with canonical column names.
+#' @keywords internal
+.canonicalize_samplesheet_cols <- function(df) {
+  nm <- colnames(df)
+  squashed <- tolower(gsub("[^A-Za-z0-9]", "", nm))
+  renamed <- character(0)
+
+  for (i in seq_along(nm)) {
+    if (grepl("_vs_", nm[i], fixed = TRUE)) next          # a contrast column
+    key <- squashed[i]
+    if (!key %in% names(.samplesheet_aliases)) next
+    canon <- .samplesheet_aliases[[key]]
+    if (identical(nm[i], canon)) next                     # already canonical
+    if (canon %in% nm) next                               # don't duplicate
+    renamed <- c(renamed, sprintf("%s -> %s", nm[i], canon))
+    nm[i] <- canon
+  }
+
+  if (length(renamed) > 0) {
+    cli::cli_alert_info("Samplesheet column{?s} normalized: {.val {renamed}}")
+  }
+  colnames(df) <- nm
+  df
 }
 
 

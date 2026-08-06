@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Samplesheet header variants no longer cause a misleading "No contrasts to
+  analyse" failure.** A header like `Sample_ID,Group_ID` parsed without
+  complaint but left `samplesheet$GroupID` `NULL`, so every contrast silently
+  resolved no experimental/control group and the run died several steps later
+  with an unrelated-sounding error. `read_samplesheet()` now normalizes common
+  variants (`Sample_ID`, `sample id`, `Group_ID`, `condition`, …) to the
+  canonical `SampleID` / `GroupID` / `DisplayName` / `Exclude` names — contrast
+  columns (`*_vs_*`) are never renamed and no duplicate column can be created —
+  and **aborts immediately with a clear message** if `SampleID`/`GroupID` are
+  genuinely absent.
+- The "No contrasts to analyse" abort is now self-diagnosing: it distinguishes
+  "the samplesheet has no contrast columns" from "contrast columns found, but
+  none resolved both an experimental and a control group", and says how to fix
+  each.
+
 ## [1.5.4] - 2026-07-14
 
 Addresses the first-run feedback in issue #12.

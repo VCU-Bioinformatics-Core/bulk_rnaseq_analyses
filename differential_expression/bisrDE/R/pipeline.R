@@ -406,9 +406,24 @@ run_pipeline <- function(counts_path,
     exclude_contrasts = exclude_contrasts
   )
   if (length(comparisons) == 0) {
-    cli::cli_abort(
-      "No contrasts to analyse after include/exclude filtering and group checks."
-    )
+    # Say WHY, not just that it happened: the common causes are a samplesheet
+    # with no contrast columns at all vs. contrast columns whose 1/0 coding
+    # never yields both an experimental and a control group.
+    n_contrast_cols <- length(setdiff(
+      colnames(samplesheet)[3:ncol(samplesheet)],
+      .samplesheet_meta_cols
+    ))
+    cli::cli_abort(c(
+      "No contrasts to analyse after include/exclude filtering and group checks.",
+      if (n_contrast_cols == 0) c(
+        "x" = "The samplesheet has no contrast columns.",
+        "i" = "Add one column per comparison, named {.val <experimental>_vs_<control>}, after {.val GroupID}."
+      ) else c(
+        "x" = "{n_contrast_cols} contrast column{?s} found, but none resolved BOTH an experimental and a control group.",
+        "i" = "In each contrast column mark experimental samples {.val 1}, control samples {.val 0}, and leave non-participating samples blank.",
+        "i" = "Check that {.val GroupID} is populated for the marked rows."
+      )
+    ))
   }
 
   # ---- 5. Coerce + align ----
