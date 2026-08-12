@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_interactive.sh — beautiful interactive front-door for the bisrDE
-# bulk RNA-seq DE pipeline (v1.6.1).
+# bulk RNA-seq DE pipeline (v1.6.2).
 #
 # Uses charmbracelet tools when available and degrades gracefully to plain
 # shell prompts otherwise:
@@ -76,10 +76,10 @@ banner() {
   if have gum; then
     gum style --border double --margin "1 0" --padding "1 4" \
       --border-foreground "$BISR_PRIMARY" --foreground "$BISR_PRIMARY" \
-      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.6.1 · VCU Massey BISR"
+      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.6.2 · VCU Massey BISR"
   else
     echo "======================================================="
-    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.6.1 (VCU Massey)"
+    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.6.2 (VCU Massey)"
     echo "======================================================="
   fi
 }
