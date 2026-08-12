@@ -20,7 +20,6 @@ set -u
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo "======================================================================"
@@ -60,7 +59,7 @@ echo ""
 # Pass all arguments to the R script inside the container
 # Bind mount the current directory and common data directories
 echo "Running analysis in container..."
-echo "Arguments: $@"
+echo "Arguments: $*"
 echo ""
 
 # Get current directory for binding

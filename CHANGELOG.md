@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`justfile`** — one discoverable surface (`just --list`) over the repo's
+  entry points: `run`, `tui`, `demo`, `test`/`test-r`/`test-go`/`test-sh`,
+  `check`, `doc`, `lint`, `container`, `bump`, plus gated recipes for the
+  optional tooling (`inspect` visidata, `log-html` aha, `disk` dust/ncdu,
+  `shot` pageres, `optimize` optimizt, `vhs`). A missing tool prints an install
+  hint instead of failing obscurely.
+- **bats-core parity suite** (`differential_expression/tests/bats/parity.bats`,
+  `just test-sh`) — asserts `run_interactive.sh --print-cmd` and
+  `bisrde-tui --print-cmd` emit **byte-identical** argument vectors across BRS
+  ticket, threshold, volcano-label and contrast-selection combinations, that
+  `--print-cmd` never executes the pipeline, and that shellcheck stays clean.
+  This is the first automated guard on the two-launchers-drifting risk.
+- **Colour-preserved HTML session log** — `stop_session_log()` renders
+  `<outdir>/logs/<ts>_session.html` via `aha` from the raw log *before* ANSI is
+  stripped, so you get both a highlighted, linkable page and a clean plain-text
+  `.log`. No-op when `aha` is absent; failures never break a finished run.
+- **`docs/demo.tape`** — a charmbracelet **VHS** script so the terminal demo
+  re-records deterministically each release (`just vhs`) instead of being
+  hand-performed.
+- **Graceful interrupt** — Ctrl-C during a run now closes the session-log sink,
+  finalizes the log (ANSI/`\r` stripped), reports where partial results were
+  kept, and exits **130** instead of looking like a clean finish.
+
 ### Fixed
 
 - **The comparisons progress bar is now genuinely live.** It advanced only once

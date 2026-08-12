@@ -111,7 +111,7 @@ elif [ "$EXEC_METHOD" == "local" ]; then
     fi
     
     # Run the analysis
-    echo "Running: Rscript de.R $@"
+    echo "Running: Rscript de.R $*"
     echo ""
     exec Rscript de.R "$@"
     
