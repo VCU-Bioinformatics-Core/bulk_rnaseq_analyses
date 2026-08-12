@@ -49,6 +49,16 @@ setup_directories <- function(base_dir) {
 }
 
 
+#' Number of progress sub-steps [run_analysis()] reports per comparison
+#'
+#' @description Keep in sync with the `.tick()` calls in [run_analysis()]:
+#'   DESeq2, annotate, save DE table, volcano, 2 heatmaps, and 4 enrichment
+#'   backends. Used by [run_pipeline()] to size the progress bar so it advances
+#'   during a comparison rather than once per comparison.
+#' @keywords internal
+.STEPS_PER_COMPARISON <- 10L
+
+
 #' Run the full per-comparison DE + enrichment workflow
 #'
 #' @description Per-comparison driver: DESeq2 contrast, annotation, volcano
@@ -81,7 +91,12 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          out_dirs, annotation, annotation_db,
                          id_type = "ensembl", volcano_labels = 10,
                          deseq_norm_counts = NULL,
-                         padj = 0.05, lfc = 0.58) {
+                         padj = 0.05, lfc = 0.58,
+                         tick = NULL) {
+  # Advance the caller's progress bar one sub-step. No-op when called directly
+  # (tick = NULL), so this function still works outside run_pipeline().
+  .tick <- function(step) if (is.function(tick)) tick(step)
+
   tryCatch(
     {
       cli::cli_h2("Comparison: {.strong {comparison$name}}")
@@ -90,12 +105,14 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         "*" = "Control:      {.val {comparison$ctrl}}"
       ))
 
+      .tick("DESeq2")
       deseq_results <- perform_deseq2_analysis(dds, comparison$exp, comparison$ctrl)
       if (is.null(deseq_results)) {
         cli::cli_alert_warning("DESeq2 analysis returned NULL; skipping comparison")
         return(NULL)
       }
 
+      .tick("annotate")
       cli::cli_alert_info("Annotating results...")
       annotated_results <- annotate_results(
         deseq_results,
@@ -119,9 +136,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       }
 
       output_file <- create_file_path(out_dirs$de_data, "DESeq2_", comparison$name)
+      .tick("save DE table")
       cli::cli_alert_info("Saving DE results: {.path {output_file}}")
       utils::write.csv(de_out, output_file)
 
+      .tick("volcano")
       cli::cli_alert_info("Generating volcano plot...")
       volcano_plot <- generate_volcano(
         annotated_results,
@@ -135,6 +154,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         create_file_path(out_dirs$volcano, "", comparison$name, "_volcano.png")
       )
 
+      .tick("heatmap (all)")
       cli::cli_alert_info("Generating heatmap (all significant DEGs)...")
       grDevices::png(
         create_file_path(out_dirs$heatmap, "", comparison$name, "_heatmap_all_sig.png"),
@@ -145,6 +165,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                        exp_name = comparison$exp, ctrl_name = comparison$ctrl)
       grDevices::dev.off()
 
+      .tick("heatmap (top 100)")
       cli::cli_alert_info("Generating heatmap (top 100 DEGs by padj)...")
       grDevices::png(
         create_file_path(out_dirs$heatmap, "", comparison$name, "_heatmap_top100.png"),
@@ -157,6 +178,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       grDevices::dev.off()
 
       # ---- Enrichment: GO ----
+      .tick("GO")
       cli::cli_alert_info("Enrichment: GO (gseGO)...")
       gse <- process_gsea(annotated_results, annotation_db = annotation_db)
       if (!is.null(gse)) {
@@ -175,6 +197,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       }
 
       # ---- Enrichment: KEGG ----
+      .tick("KEGG")
       cli::cli_alert_info("Enrichment: KEGG (gseKEGG)...")
       kegg_gse <- process_kegg_gsea(annotated_results,
                                     annotation = annotation,
@@ -195,6 +218,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       }
 
       # ---- Enrichment: Reactome ----
+      .tick("Reactome")
       cli::cli_alert_info("Enrichment: Reactome (gsePathway)...")
       reactome_gse <- process_reactome_gsea(annotated_results,
                                             annotation = annotation,
@@ -217,6 +241,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       }
 
       # ---- Enrichment: MSigDB Hallmark ----
+      .tick("Hallmark")
       cli::cli_alert_info("Enrichment: MSigDB Hallmark...")
       hallmark_gse <- process_msigdb_hallmark(annotated_results,
                                               annotation = annotation,
@@ -287,6 +312,9 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #'   skip (denylist). Default `NULL`.
 #' @param volcano_labels Max genes to label on each volcano plot (the top N by
 #'   significance). Default `10`. Passed through to [generate_volcano()].
+#' @param tick Optional function of one argument (a step label) called before
+#'   each of the [.STEPS_PER_COMPARISON] phases, so the caller can advance a
+#'   progress bar mid-comparison. `NULL` (default) disables it.
 #' @param padj Adjusted p-value (FDR) cutoff for calling DEGs. Default `0.05`.
 #' @param fold_change Linear fold-change cutoff for calling DEGs (e.g. `2` for
 #'   2-fold). Default `1.5`; converted to a log2 cutoff internally and applied
@@ -406,9 +434,24 @@ run_pipeline <- function(counts_path,
     exclude_contrasts = exclude_contrasts
   )
   if (length(comparisons) == 0) {
-    cli::cli_abort(
-      "No contrasts to analyse after include/exclude filtering and group checks."
-    )
+    # Say WHY, not just that it happened: the common causes are a samplesheet
+    # with no contrast columns at all vs. contrast columns whose 1/0 coding
+    # never yields both an experimental and a control group.
+    n_contrast_cols <- length(setdiff(
+      colnames(samplesheet)[3:ncol(samplesheet)],
+      .samplesheet_meta_cols
+    ))
+    cli::cli_abort(c(
+      "No contrasts to analyse after include/exclude filtering and group checks.",
+      if (n_contrast_cols == 0) c(
+        "x" = "The samplesheet has no contrast columns.",
+        "i" = "Add one column per comparison, named {.val <experimental>_vs_<control>}, after {.val GroupID}."
+      ) else c(
+        "x" = "{n_contrast_cols} contrast column{?s} found, but none resolved BOTH an experimental and a control group.",
+        "i" = "In each contrast column mark experimental samples {.val 1}, control samples {.val 0}, and leave non-participating samples blank.",
+        "i" = "Check that {.val GroupID} is populated for the marked rows."
+      )
+    ))
   }
 
   # ---- 5. Coerce + align ----
@@ -494,20 +537,56 @@ run_pipeline <- function(counts_path,
   cli::cli_h1("Per-comparison differential expression")
   results <- vector("list", length(comparisons))
 
-  cli::cli_progress_bar(
+  # Progress granularity: cli NEVER redraws on its own — the bar only repaints
+  # inside cli_progress_update(). Ticking once per comparison therefore froze
+  # the bar for the minutes each comparison takes, and with total = n the
+  # default `auto_terminate` swallowed the final update (3 comparisons only
+  # ever rendered 33% and 67%, then "jumped" to done). Counting sub-steps
+  # instead gives ~.STEPS_PER_COMPARISON repaints per comparison.
+  pb_total <- length(comparisons) * .STEPS_PER_COMPARISON
+
+  # When a front-end is consuming the structured event stream it renders the
+  # progress UI itself; running cli's bar as well would mean two components
+  # writing \r redraws to the same terminal. Emit events either way.
+  events_on <- .events_enabled()
+  .emit_event("start", total = pb_total,
+              comparisons = length(comparisons), runid = runid)
+
+  pb <- if (events_on) NULL else cli::cli_progress_bar(
     name   = "Comparisons",
-    total  = length(comparisons),
+    total  = pb_total,
     format = paste0(
-      "{cli::pb_name} {cli::pb_current}/{cli::pb_total} | ",
-      "{cli::pb_extra$current} | ETA {cli::pb_eta} | ",
-      "[{cli::pb_bar}] {cli::pb_percent}"
+      "{cli::pb_name} {cli::pb_extra$current} | {cli::pb_extra$step} | ",
+      "[{cli::pb_bar}] {cli::pb_percent} | ETA {cli::pb_eta}"
     ),
-    extra  = list(current = ""),
-    clear  = FALSE
+    extra  = list(current = "", step = "starting"),
+    clear  = FALSE,
+    # Default TRUE would end (and destroy) the bar the moment the last tick
+    # reaches `total`, so the end-of-comparison re-sync below would then fail
+    # with "Cannot find progress bar". Terminate explicitly via
+    # cli_progress_done() after the loop instead.
+    auto_terminate = FALSE
   )
+  # cli_progress_bar() paints nothing; without this the bar first appears
+  # already part-way through. Force an initial 0% frame.
+  if (!is.null(pb)) cli::cli_progress_update(id = pb, set = 0, force = TRUE)
 
   for (i in seq_along(comparisons)) {
-    cli::cli_progress_update(extra = list(current = comparisons[[i]]$name))
+    .label <- sprintf("%d/%d %s", i, length(comparisons), comparisons[[i]]$name)
+    .step_n <- 0L
+    tick <- function(step) {
+      .step_n <<- .step_n + 1L
+      .emit_event("tick",
+                  current = (i - 1L) * .STEPS_PER_COMPARISON + .step_n,
+                  total = pb_total, i = i, n = length(comparisons),
+                  comparison = comparisons[[i]]$name, step = step)
+      if (!is.null(pb)) {
+        cli::cli_progress_update(
+          id = pb, inc = 1,
+          extra = list(current = .label, step = step)
+        )
+      }
+    }
     res <- run_analysis(
       comparison        = comparisons[[i]],
       dds               = dds,
@@ -520,8 +599,21 @@ run_pipeline <- function(counts_path,
       volcano_labels    = volcano_labels,
       deseq_norm_counts = deseq_norm_counts,
       padj              = padj,
-      lfc               = lfc
+      lfc               = lfc,
+      tick              = tick
     )
+    # Re-sync: a comparison that bailed early (e.g. DESeq2 returned NULL) will
+    # have ticked fewer than .STEPS_PER_COMPARISON times, so pin the bar to the
+    # exact position for i completed comparisons.
+    .emit_event("tick", current = i * .STEPS_PER_COMPARISON, total = pb_total,
+                i = i, n = length(comparisons),
+                comparison = comparisons[[i]]$name, step = "done")
+    if (!is.null(pb)) {
+      cli::cli_progress_update(
+        id = pb, set = i * .STEPS_PER_COMPARISON, force = TRUE,
+        extra = list(current = .label, step = "done")
+      )
+    }
     if (!is.null(res)) {
       results[[i]] <- res
       cli::cli_alert_success(paste0(
@@ -538,9 +630,10 @@ run_pipeline <- function(counts_path,
       )
     }
   }
-  cli::cli_progress_done()
+  if (!is.null(pb)) cli::cli_progress_done()
 
   # ---- 9. Sample Exploration QC plots ----
+  .emit_event("phase", name = "Sample Exploration QC plots")
   cli::cli_h1("Sample Exploration QC plots")
 
   # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
@@ -595,6 +688,7 @@ run_pipeline <- function(counts_path,
   cli::cli_alert_success("QC: hclust + density saved")
 
   # ---- 10. PCA ----
+  .emit_event("phase", name = "PCA")
   cli::cli_h1("PCA")
   pca_plot <- pca_static(tmm, sample_info)
   save_plot(pca_plot, file.path(out_dirs$pca, "PCA_plot.png"))
@@ -641,6 +735,7 @@ run_pipeline <- function(counts_path,
     session_log      = if (!is.null(session_log)) session_log$path else NA_character_
   )
 
+  .emit_event("done", ok = TRUE)
   cli::cli_h1("Pipeline complete")
 
   invisible(list(

@@ -44,6 +44,24 @@ func RunPipeline(projectDir string, c Config) error {
 		return cmd.Run()
 	}
 
+	// Interactive terminal: prefer the live event-driven UI. The pipeline
+	// writes NDJSON progress events to this file (and suppresses its own cli
+	// bar when it sees BISR_EVENTS_FILE), so we can render from state instead
+	// of scraping terminal output. Falls back to plain relaying on any setup
+	// failure — the run itself must never depend on the UI.
+	if evFile, err := os.CreateTemp("", "bisrde_events_*.ndjson"); err == nil {
+		evPath := evFile.Name()
+		evFile.Close()
+		defer os.Remove(evPath)
+		cmd.Env = append(os.Environ(), "BISR_EVENTS_FILE="+evPath)
+		if err := runLiveUI(cmd, evPath); err != ErrLiveUIUnavailable {
+			return err
+		}
+		// Live UI could not start; fall through to the plain PTY path.
+		cmd = exec.Command("bash", append([]string{"run_analysis.sh"}, c.ToArgs()...)...)
+		cmd.Dir = projectDir
+	}
+
 	// Interactive terminal: run under a PTY so cli renders live progress.
 	ptmx, err := pty.Start(cmd)
 	if err != nil {

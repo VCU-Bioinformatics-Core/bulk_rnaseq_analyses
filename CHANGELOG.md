@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-08-12
+
+Live terminal UI, developer tooling, and real-data fixes.
+
+### Added
+
+- **Bounded live output box.** Pipeline output no longer scrolls the terminal
+  forever: the most recent lines (default 8, `BISR_TUI_LINES`, clamped 3–40)
+  are kept in a ring buffer and redrawn **in place** inside a bordered box that
+  sits above the progress bar, with older lines falling off the top. The box
+  keeps a stable height so the layout never jumps, and long lines are truncated
+  to the terminal width. The terminal is never scrolled: lines that leave the
+  top of the box are simply dropped from the view, and the complete transcript
+  is written to `<outdir>/logs/<ts>_session.log` (plus `_session.html` when
+  `aha` is installed).
+- **Typewriter output streaming in the Go TUI.** Relayed pipeline lines are
+  revealed a few characters at a time (~12 ms/char) instead of being dumped as
+  chunks, so output flows organically. Tunable with `BISR_TUI_TYPE_DELAY_MS`
+  (`0` disables it). The reveal rate **scales with backlog** and flushes
+  outright past 40 queued lines, so a burst (Quarto alone emits hundreds of
+  lines) can never leave the UI narrating output after the run has finished.
+- **Functional severity colours.** Each line is classified by its `cli` glyph
+  — header / success / info / warning / error — and given a deliberate style,
+  so severity reads at a glance. Incoming ANSI is stripped first, which is what
+  makes character-by-character streaming safe: revealing a raw escape sequence
+  one byte at a time would otherwise spray garbage.
+- **`bin/bisrde` wrapper + `just install-cli`** — `just` only finds its
+  justfile by searching *upward*, so it works anywhere inside the repo but not
+  outside it. The wrapper resolves the repo from its own location, so
+  `bisrde tui` works from any directory.
+
+- **Live event-driven Go TUI.** The pipeline now emits a structured NDJSON
+  progress stream (`start` / `phase` / `tick` / `done`) when
+  `BISR_EVENTS_FILE` is set, and the Go TUI tails it to drive a bubbletea UI:
+  a `bubbles/progress` bar, spinner, current comparison and current step stay
+  pinned beneath the live output box (see above). The UI is rendered from
+  *state* rather than scraped from
+  terminal output — the same model React/Ink gives Claude Code. When the event
+  stream is active the R side suppresses its own `cli` bar, so exactly one
+  component renders progress. Entirely opt-in: with the variable unset the
+  bash launcher and `Rscript de.R` behave exactly as before, and any failure to
+  start the UI falls back to plain output relaying.
+
+- **`justfile`** — one discoverable surface (`just --list`) over the repo's
+  entry points: `run`, `tui`, `demo`, `test`/`test-r`/`test-go`/`test-sh`,
+  `check`, `doc`, `lint`, `container`, `bump`, plus gated recipes for the
+  optional tooling (`inspect` visidata, `log-html` aha, `disk` dust/ncdu,
+  `shot` pageres, `optimize` optimizt, `vhs`). A missing tool prints an install
+  hint instead of failing obscurely.
+- **bats-core parity suite** (`differential_expression/tests/bats/parity.bats`,
+  `just test-sh`) — asserts `run_interactive.sh --print-cmd` and
+  `bisrde-tui --print-cmd` emit **byte-identical** argument vectors across BRS
+  ticket, threshold, volcano-label and contrast-selection combinations, that
+  `--print-cmd` never executes the pipeline, and that shellcheck stays clean.
+  This is the first automated guard on the two-launchers-drifting risk.
+- **Colour-preserved HTML session log** — `stop_session_log()` renders
+  `<outdir>/logs/<ts>_session.html` via `aha` from the raw log *before* ANSI is
+  stripped, so you get both a highlighted, linkable page and a clean plain-text
+  `.log`. No-op when `aha` is absent; failures never break a finished run.
+- **`docs/demo.tape`** — a charmbracelet **VHS** script so the terminal demo
+  re-records deterministically each release (`just vhs`) instead of being
+  hand-performed.
+- **Graceful interrupt** — Ctrl-C during a run now closes the session-log sink,
+  finalizes the log (ANSI/`\r` stripped), reports where partial results were
+  kept, and exits **130** instead of looking like a clean finish.
+
+### Fixed
+
+- **The comparisons progress bar is now genuinely live.** It advanced only once
+  per comparison, so it froze for the minutes each comparison takes — cli never
+  redraws on its own, a bar only repaints inside `cli_progress_update()`. Worse,
+  with `total = n_comparisons` cli's default `auto_terminate` swallowed the
+  final update, so a 3-contrast run only ever rendered 33% and 67% before
+  "jumping" to done. `run_analysis()` now reports its 10 phases (DESeq2,
+  annotate, save, volcano, 2 heatmaps, 4 enrichment backends) through a `tick`
+  callback and the bar is sized `n_comparisons * 10`, with an initial forced 0%
+  frame and `auto_terminate = FALSE`. Measured on the example dataset: in-place
+  redraws 4 → 407, rendered frames 2 → 44, and the bar now names the running
+  step. The session log stays ANSI/`\r`-free.
+
+- **Samplesheet header variants no longer cause a misleading "No contrasts to
+  analyse" failure.** A header like `Sample_ID,Group_ID` parsed without
+  complaint but left `samplesheet$GroupID` `NULL`, so every contrast silently
+  resolved no experimental/control group and the run died several steps later
+  with an unrelated-sounding error. `read_samplesheet()` now normalizes common
+  variants (`Sample_ID`, `sample id`, `Group_ID`, `condition`, …) to the
+  canonical `SampleID` / `GroupID` / `DisplayName` / `Exclude` names — contrast
+  columns (`*_vs_*`) are never renamed and no duplicate column can be created —
+  and **aborts immediately with a clear message** if `SampleID`/`GroupID` are
+  genuinely absent.
+- The "No contrasts to analyse" abort is now self-diagnosing: it distinguishes
+  "the samplesheet has no contrast columns" from "contrast columns found, but
+  none resolved both an experimental and a control group", and says how to fix
+  each.
+
 ## [1.5.4] - 2026-07-14
 
 Addresses the first-run feedback in issue #12.
@@ -374,6 +469,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.6.1   | 2026-08-12 | Live event-driven Go TUI (NDJSON progress → bubbletea box + bar, typewriter streaming, severity colours); justfile / bats parity suite / shellcheck / aha / VHS; graceful interrupt; samplesheet header variants; genuinely live progress |
 | 1.5.4   | 2026-07-14 | Configurable DE thresholds (`--fold-change`/`--padj`, dynamic throughout the report); flexible counts-file layouts (salmon/RSEM/featureCounts); drop Ensembl `_PAR_Y` (#12) |
 | 1.5.3   | 2026-07-07 | `--id-type symbol`/`entrez` fixes (SYMBOL col, heatmaps, dotted-symbol counts); volcano top-N labels (`--volcano-labels`); per-group DisplayName prompt; normalized counts (TMM + DESeq2) in DE sheets |
 | 1.5.2   | 2026-07-01 | Report figures embed (abs outdir); auto-derived + colorblind-safe plots; live Go TUI (PTY); non-empty session log + `.report.json` |

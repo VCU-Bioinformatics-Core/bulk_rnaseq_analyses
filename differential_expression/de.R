@@ -167,6 +167,7 @@ if (!dir.exists(opt$outdir)) {
   dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
 }
 outdir_abs <- normalizePath(opt$outdir, mustWork = FALSE)
+interrupted <- FALSE
 slog <- bisrDE::start_session_log(file.path(outdir_abs, "logs"))
 tryCatch({
   res <- bisrDE::run_pipeline(
@@ -192,6 +193,18 @@ tryCatch({
     output_dir = opt$outdir,
     brs_ticket = brs_ticket
   )
+}, interrupt = function(cnd) {
+  # Ctrl-C during a long run: don't leave the session log sink open and the
+  # log full of raw ANSI. `finally` below still closes and cleans it; here we
+  # just record that this was a deliberate interrupt so we can exit 130 with
+  # an actionable message rather than looking like a successful run.
+  interrupted <<- TRUE
 }, finally = {
   bisrDE::stop_session_log(slog)
 })
+
+if (isTRUE(interrupted)) {
+  cli::cli_alert_warning("Interrupted by user - partial results kept in {.path {outdir_abs}}")
+  cli::cli_alert_info("The session log was closed cleanly; re-run to start over.")
+  quit(status = 130, save = "no")
+}

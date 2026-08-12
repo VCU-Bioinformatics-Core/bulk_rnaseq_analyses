@@ -50,13 +50,54 @@ stop_session_log <- function(log) {
   if (sink.number() > 0) sink(NULL, type = "output")
   cli::stop_app()
   if (!is.null(log$con) && isOpen(log$con)) close(log$con)
-  # The split sink captured cli's raw ANSI + progress-redraw bytes; strip them
-  # so the on-disk log is clean, plain-text and greppable.
+
   if (!is.null(log$path) && file.exists(log$path)) {
+    # Optional colour-preserved HTML copy, rendered from the RAW log while the
+    # ANSI escapes are still present (aha needs them). Produces a linkable page
+    # a PI can open with warnings still highlighted — something the fixed-size
+    # `freeze` screenshot cannot do for a 5000-line log. No-op without aha.
+    .render_log_html(log$path)
+
+    # The split sink captured cli's raw ANSI + progress-redraw bytes; strip them
+    # so the on-disk log is clean, plain-text and greppable.
     lines <- gsub("\r", "", cli::ansi_strip(readLines(log$path, warn = FALSE)))
     writeLines(lines, log$path)
   }
   invisible(NULL)
+}
+
+
+#' Render a session log to colour-preserved HTML with `aha`
+#'
+#' @description Convert the raw (still ANSI-coloured) session log into a
+#'   standalone HTML page next to it, so warnings/errors keep their colour and
+#'   the whole run is linkable from the report. Entirely optional: a no-op when
+#'   the `aha` binary is not on `PATH`, and any failure is swallowed — a
+#'   cosmetic artifact must never break a finished run.
+#'
+#' @param log_path Path to the raw session log.
+#' @return Invisibly the HTML path, or `NULL` if nothing was written.
+#' @keywords internal
+.render_log_html <- function(log_path) {
+  if (!nzchar(Sys.which("aha"))) return(invisible(NULL))
+  html <- sub("\\.log$", ".html", log_path)
+  ok <- tryCatch({
+    status <- system2(
+      "aha",
+      args   = c("--black", "--title", shQuote("bisrDE session log"),
+                 "-f", shQuote(log_path)),
+      stdout = html, stderr = FALSE
+    )
+    identical(as.integer(status), 0L) && file.exists(html)
+  }, error = function(e) FALSE, warning = function(w) FALSE)
+
+  if (isTRUE(ok)) {
+    cli::cli_alert_success("Session log (HTML): {.path {html}}")
+    invisible(html)
+  } else {
+    if (file.exists(html)) unlink(html)
+    invisible(NULL)
+  }
 }
 
 

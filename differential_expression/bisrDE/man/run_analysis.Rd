@@ -16,7 +16,8 @@ run_analysis(
   volcano_labels = 10,
   deseq_norm_counts = NULL,
   padj = 0.05,
-  lfc = 0.58
+  lfc = 0.58,
+  tick = NULL
 )
 }
 \arguments{

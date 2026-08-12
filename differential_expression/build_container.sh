@@ -64,7 +64,7 @@ echo "Select build method:"
 echo "  1) Standard build (requires sudo)"
 echo "  2) Fakeroot build (no sudo required, if fakeroot is configured)"
 echo ""
-read -p "Enter choice [1/2]: " BUILD_CHOICE
+read -r -p "Enter choice [1/2]: " BUILD_CHOICE
 
 case $BUILD_CHOICE in
     1)
