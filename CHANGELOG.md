@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typewriter output streaming in the Go TUI.** Relayed pipeline lines are
+  revealed a few characters at a time (~12 ms/char) instead of being dumped as
+  chunks, so output flows organically. Tunable with `BISR_TUI_TYPE_DELAY_MS`
+  (`0` disables it). The reveal rate **scales with backlog** and flushes
+  outright past 40 queued lines, so a burst (Quarto alone emits hundreds of
+  lines) can never leave the UI narrating output after the run has finished.
+- **Functional severity colours.** Each line is classified by its `cli` glyph
+  — header / success / info / warning / error — and given a deliberate style,
+  so severity reads at a glance. Incoming ANSI is stripped first, which is what
+  makes character-by-character streaming safe: revealing a raw escape sequence
+  one byte at a time would otherwise spray garbage.
+- **`bin/bisrde` wrapper + `just install-cli`** — `just` only finds its
+  justfile by searching *upward*, so it works anywhere inside the repo but not
+  outside it. The wrapper resolves the repo from its own location, so
+  `bisrde tui` works from any directory.
+
 - **Live event-driven Go TUI.** The pipeline now emits a structured NDJSON
   progress stream (`start` / `phase` / `tick` / `done`) when
   `BISR_EVENTS_FILE` is set, and the Go TUI tails it to drive a bubbletea UI:

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -23,6 +24,7 @@ type eventMsg Event      // one decoded NDJSON progress event
 type outputMsg string    // one line of child stdout/stderr
 type streamDoneMsg struct{ which string } // a stream closed
 type finishedMsg struct{ err error }      // the child process exited
+type typeTickMsg struct{}                 // reveal the next characters
 
 var (
 	stepStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
@@ -45,6 +47,15 @@ type runModel struct {
 	phase          string
 	i, n           int
 
+	// Typewriter streaming: `cur` is the line being revealed, `queue` the
+	// lines waiting behind it. Completed lines are committed to scrollback
+	// with tea.Println; only the in-flight one lives in the View.
+	queue   []string
+	cur     []rune
+	curKind lineKind
+	pos     int
+	delay   time.Duration
+
 	finished bool
 	err      error
 	// Once both the child has exited and the event stream has closed there is
@@ -62,7 +73,42 @@ func newRunModel(events <-chan Event, output <-chan string, done <-chan error) r
 		prog: p, spin: s,
 		events: events, output: output, done: done,
 		phase: "starting", step: "…",
+		delay: time.Duration(typeDelayMS()) * time.Millisecond,
 	}
+}
+
+// printLine commits one finished line to scrollback, styled by severity.
+func printLine(text string, kind lineKind) tea.Cmd {
+	return tea.Println(styleFor(kind).Render(text))
+}
+
+// startNext begins revealing the next queued line, or reports that the
+// typewriter is now idle.
+func (m *runModel) startNext() tea.Cmd {
+	if len(m.queue) == 0 {
+		m.cur, m.pos = nil, 0
+		return nil
+	}
+	next := m.queue[0]
+	m.queue = m.queue[1:]
+	m.cur = []rune(next)
+	m.curKind = classifyLine(next)
+	m.pos = 0
+	return tea.Tick(m.delay, func(time.Time) tea.Msg { return typeTickMsg{} })
+}
+
+// flushAll abandons typing for this burst and prints everything pending at
+// once, so a flood of output can never make the UI lag behind the pipeline.
+func (m *runModel) flushAll() tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(m.queue)+1)
+	if len(m.cur) > 0 {
+		cmds = append(cmds, printLine(string(m.cur), m.curKind))
+	}
+	for _, l := range m.queue {
+		cmds = append(cmds, printLine(l, classifyLine(l)))
+	}
+	m.queue, m.cur, m.pos = nil, nil, 0
+	return tea.Batch(cmds...)
 }
 
 func (m runModel) Init() tea.Cmd {
@@ -130,9 +176,38 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitEvent(m.events)
 
 	case outputMsg:
-		// Print above the pinned UI rather than into it.
-		line := strings.TrimRight(string(msg), "\r\n")
-		return m, tea.Batch(tea.Println(line), waitOutput(m.output))
+		// Strip R's ANSI so the line can be typed a character at a time without
+		// splitting an escape sequence; we re-colour it by severity ourselves.
+		line := stripANSI(strings.TrimRight(string(msg), "\r\n"))
+		next := waitOutput(m.output)
+
+		if m.delay <= 0 { // typing disabled: straight to scrollback
+			return m, tea.Batch(printLine(line, classifyLine(line)), next)
+		}
+		m.queue = append(m.queue, line)
+		if len(m.queue) >= flushBacklog {
+			return m, tea.Batch(m.flushAll(), next)
+		}
+		if len(m.cur) == 0 { // idle -> start revealing immediately
+			return m, tea.Batch(m.startNext(), next)
+		}
+		return m, next
+
+	case typeTickMsg:
+		if len(m.cur) == 0 {
+			return m, m.startNext()
+		}
+		chunk := typeChunk(len(m.queue))
+		if chunk == 0 { // backlog blew past the threshold mid-line
+			return m, m.flushAll()
+		}
+		m.pos += chunk
+		if m.pos < len(m.cur) {
+			return m, tea.Tick(m.delay, func(time.Time) tea.Msg { return typeTickMsg{} })
+		}
+		// Line finished: commit it to scrollback and move on.
+		done := printLine(string(m.cur), m.curKind)
+		return m, tea.Batch(done, m.startNext())
 
 	case streamDoneMsg:
 		if msg.which == "events" {
@@ -148,7 +223,8 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 		}
-		return m, tea.Quit
+		// Don't drop anything still being typed when the child exits.
+		return m, tea.Sequence(m.flushAll(), tea.Quit)
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -187,6 +263,11 @@ func (m runModel) View() string {
 	}
 
 	var b strings.Builder
+	// The line currently being revealed lives here until it is complete, then
+	// it is committed to scrollback with tea.Println.
+	if m.pos > 0 && m.pos < len(m.cur) {
+		b.WriteString(styleFor(m.curKind).Render(string(m.cur[:m.pos])) + "\n")
+	}
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("%s %s  %s\n", m.spin.View(), head, stepStyle.Render("· "+m.step)))
 	b.WriteString("  " + m.prog.ViewAs(pct))

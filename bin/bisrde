@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#
+# bisrde — run any `just` recipe from ANY directory.
+#
+# `just` finds its justfile by walking UP from the current directory, so
+# `just tui` works anywhere inside the repo but fails outside it. This wrapper
+# resolves the repo root from its own location instead, so the command works
+# from anywhere on the system (including $HOME and /tmp).
+#
+# Install once:
+#     just install-cli          # symlinks this into ~/.local/bin
+# then:
+#     bisrde tui
+#     bisrde demo
+#     bisrde --list
+#
+set -euo pipefail
+
+# Resolve this script's real path even when invoked through a symlink.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+    dir="$(cd -P "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    [[ "$src" != /* ]] && src="$dir/$src"
+done
+here="$(cd -P "$(dirname "$src")" && pwd)"
+root="$(cd -P "$here/.." && pwd)"
+
+if ! command -v just >/dev/null 2>&1; then
+    printf '! just is not installed.\n  install: brew install just\n' >&2
+    exit 127
+fi
+
+exec just --justfile "$root/justfile" --working-directory "$root" "$@"

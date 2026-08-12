@@ -29,6 +29,19 @@ _need tool hint:
 run:
     cd {{de}} && bash run_interactive.sh
 
+# Install the `bisrde` wrapper so recipes run from ANY directory.
+# (`just` alone only works inside the repo — it searches upward for a justfile.)
+install-cli:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "{{justfile_directory()}}/bin/bisrde" "$HOME/.local/bin/bisrde"
+    printf '\033[32m✓\033[0m installed: %s\n' "$HOME/.local/bin/bisrde"
+    case ":$PATH:" in
+      *":$HOME/.local/bin:"*) printf '  now run `bisrde tui` from anywhere.\n' ;;
+      *) printf '\033[33m!\033[0m add to PATH: export PATH="$HOME/.local/bin:$PATH"\n' ;;
+    esac
+
 # Build and run the Go TUI directly.
 tui:
     cd {{de}}/tui && go build -o bisrde-tui . && BISR_PROJECT_DIR={{de}} ./bisrde-tui
