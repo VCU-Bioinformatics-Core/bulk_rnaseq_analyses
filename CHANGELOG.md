@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Live event-driven Go TUI.** The pipeline now emits a structured NDJSON
+  progress stream (`start` / `phase` / `tick` / `done`) when
+  `BISR_EVENTS_FILE` is set, and the Go TUI tails it to drive a bubbletea UI:
+  a `bubbles/progress` bar, spinner, current comparison and current step stay
+  **pinned at the bottom** while the pipeline's own output scrolls above via
+  `tea.Println`. The UI is rendered from *state* rather than scraped from
+  terminal output — the same model React/Ink gives Claude Code. When the event
+  stream is active the R side suppresses its own `cli` bar, so exactly one
+  component renders progress. Entirely opt-in: with the variable unset the
+  bash launcher and `Rscript de.R` behave exactly as before, and any failure to
+  start the UI falls back to plain output relaying.
+
 - **`justfile`** — one discoverable surface (`just --list`) over the repo's
   entry points: `run`, `tui`, `demo`, `test`/`test-r`/`test-go`/`test-sh`,
   `check`, `doc`, `lint`, `container`, `bump`, plus gated recipes for the

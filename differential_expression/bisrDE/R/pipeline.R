@@ -544,7 +544,15 @@ run_pipeline <- function(counts_path,
   # ever rendered 33% and 67%, then "jumped" to done). Counting sub-steps
   # instead gives ~.STEPS_PER_COMPARISON repaints per comparison.
   pb_total <- length(comparisons) * .STEPS_PER_COMPARISON
-  pb <- cli::cli_progress_bar(
+
+  # When a front-end is consuming the structured event stream it renders the
+  # progress UI itself; running cli's bar as well would mean two components
+  # writing \r redraws to the same terminal. Emit events either way.
+  events_on <- .events_enabled()
+  .emit_event("start", total = pb_total,
+              comparisons = length(comparisons), runid = runid)
+
+  pb <- if (events_on) NULL else cli::cli_progress_bar(
     name   = "Comparisons",
     total  = pb_total,
     format = paste0(
@@ -561,15 +569,23 @@ run_pipeline <- function(counts_path,
   )
   # cli_progress_bar() paints nothing; without this the bar first appears
   # already part-way through. Force an initial 0% frame.
-  cli::cli_progress_update(id = pb, set = 0, force = TRUE)
+  if (!is.null(pb)) cli::cli_progress_update(id = pb, set = 0, force = TRUE)
 
   for (i in seq_along(comparisons)) {
     .label <- sprintf("%d/%d %s", i, length(comparisons), comparisons[[i]]$name)
+    .step_n <- 0L
     tick <- function(step) {
-      cli::cli_progress_update(
-        id = pb, inc = 1,
-        extra = list(current = .label, step = step)
-      )
+      .step_n <<- .step_n + 1L
+      .emit_event("tick",
+                  current = (i - 1L) * .STEPS_PER_COMPARISON + .step_n,
+                  total = pb_total, i = i, n = length(comparisons),
+                  comparison = comparisons[[i]]$name, step = step)
+      if (!is.null(pb)) {
+        cli::cli_progress_update(
+          id = pb, inc = 1,
+          extra = list(current = .label, step = step)
+        )
+      }
     }
     res <- run_analysis(
       comparison        = comparisons[[i]],
@@ -589,10 +605,15 @@ run_pipeline <- function(counts_path,
     # Re-sync: a comparison that bailed early (e.g. DESeq2 returned NULL) will
     # have ticked fewer than .STEPS_PER_COMPARISON times, so pin the bar to the
     # exact position for i completed comparisons.
-    cli::cli_progress_update(
-      id = pb, set = i * .STEPS_PER_COMPARISON, force = TRUE,
-      extra = list(current = .label, step = "done")
-    )
+    .emit_event("tick", current = i * .STEPS_PER_COMPARISON, total = pb_total,
+                i = i, n = length(comparisons),
+                comparison = comparisons[[i]]$name, step = "done")
+    if (!is.null(pb)) {
+      cli::cli_progress_update(
+        id = pb, set = i * .STEPS_PER_COMPARISON, force = TRUE,
+        extra = list(current = .label, step = "done")
+      )
+    }
     if (!is.null(res)) {
       results[[i]] <- res
       cli::cli_alert_success(paste0(
@@ -609,9 +630,10 @@ run_pipeline <- function(counts_path,
       )
     }
   }
-  cli::cli_progress_done()
+  if (!is.null(pb)) cli::cli_progress_done()
 
   # ---- 9. Sample Exploration QC plots ----
+  .emit_event("phase", name = "Sample Exploration QC plots")
   cli::cli_h1("Sample Exploration QC plots")
 
   # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
@@ -666,6 +688,7 @@ run_pipeline <- function(counts_path,
   cli::cli_alert_success("QC: hclust + density saved")
 
   # ---- 10. PCA ----
+  .emit_event("phase", name = "PCA")
   cli::cli_h1("PCA")
   pca_plot <- pca_static(tmm, sample_info)
   save_plot(pca_plot, file.path(out_dirs$pca, "PCA_plot.png"))
@@ -712,6 +735,7 @@ run_pipeline <- function(counts_path,
     session_log      = if (!is.null(session_log)) session_log$path else NA_character_
   )
 
+  .emit_event("done", ok = TRUE)
   cli::cli_h1("Pipeline complete")
 
   invisible(list(
