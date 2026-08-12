@@ -97,6 +97,54 @@ tui_cmd() {
     [ "$status" -eq 0 ]
 }
 
+# Load just the discovery helpers out of the launcher, without running it.
+load_discovery() {
+    eval "$(sed -n '/^find_inputs()/,/^}/p;/^rank_inputs()/,/^}/p' "$DE/run_interactive.sh")"
+}
+
+@test "discovery ranks the likely counts/samplesheet files first" {
+    load_discovery
+    tmp="$(mktemp -d)"
+    : > "$tmp/random.tsv"; : > "$tmp/salmon.merged.gene_counts.tsv"
+    : > "$tmp/misc.csv";   : > "$tmp/deg_human_ss.csv"
+
+    best_counts="$(find_inputs "$tmp" counts | rank_inputs counts | head -1)"
+    best_sheet="$(find_inputs "$tmp" sheet  | rank_inputs sheet  | head -1)"
+    rm -rf "$tmp"
+
+    [[ "$best_counts" == *"salmon.merged.gene_counts.tsv" ]]
+    [[ "$best_sheet"  == *"deg_human_ss.csv" ]]
+}
+
+@test "discovery never offers a previous run's pipeline output" {
+    load_discovery
+    tmp="$(mktemp -d)"
+    : > "$tmp/deg_ss.csv"
+    mkdir -p "$tmp/results/data/de_data" "$tmp/results/figures" "$tmp/results/logs" "$tmp/renv/library"
+    : > "$tmp/results/data/de_data/DESeq2_A_vs_B.csv"
+    : > "$tmp/results/data/de_data/normalizedCounts_tmm2026-01-01.csv"
+    : > "$tmp/results/figures/x.csv"
+    : > "$tmp/results/logs/y.csv"
+    : > "$tmp/renv/library/z.csv"
+
+    out="$(find_inputs "$tmp" sheet | rank_inputs sheet)"
+    rm -rf "$tmp"
+
+    [[ "$out" != *de_data* ]]
+    [[ "$out" != *figures* ]]
+    [[ "$out" != *logs* ]]
+    [[ "$out" != *renv* ]]
+    [[ "$out" == *deg_ss.csv* ]]
+}
+
+@test "discovery agrees with the Go TUI on the repo's own inputs" {
+    load_discovery
+    bash_counts="$(find_inputs "$DE" counts | rank_inputs counts | head -1)"
+    bash_sheet="$(find_inputs "$DE" sheet  | rank_inputs sheet  | head -1)"
+    [[ "$bash_counts" == *"assets/example_counts.tsv" ]]
+    [[ "$bash_sheet"  == *"assets/example_samplesheet.csv" ]]
+}
+
 @test "samplesheet header variants are accepted (Sample_ID/Group_ID)" {
     # Mirrors the R-side test-samplesheet-columns.R: a header variant must not
     # silently produce zero contrasts.

@@ -207,14 +207,107 @@ write_display_samplesheet() {
   printf '%s\n' "$out"
 }
 
+# ---------------------------------------------------------------------------
+# Input discovery — mirrors tui/discover.go so both front-ends behave alike.
+# Ask for a project directory once, then offer the plausible files inside it
+# instead of making the user type full paths.
+# ---------------------------------------------------------------------------
+MANUAL_ENTRY="→ enter a path manually…"
+
+# find_inputs <base> <counts|sheet> — print candidate files.
+# Prunes the pipeline's OWN output: without this a previous run's
+# data/de_data/DESeq2_*.csv would swamp the samplesheet list.
+find_inputs() {
+  local base="$1" kind="$2"
+  [ -d "$base" ] || return 0
+  if [ "$kind" = "counts" ]; then
+    find "$base" -maxdepth 3 \
+      \( -type d \( -name de_data -o -name gsea_data -o -name kegg_data \
+         -o -name reactome_data -o -name hallmark_data -o -name figures \
+         -o -name logs -o -name renv -o -name work -o -name '.*' \) -prune \) -o \
+      \( -type f \( -name '*.tsv' -o -name '*.txt' \) -print \) 2>/dev/null
+  else
+    find "$base" -maxdepth 3 \
+      \( -type d \( -name de_data -o -name gsea_data -o -name kegg_data \
+         -o -name reactome_data -o -name hallmark_data -o -name figures \
+         -o -name logs -o -name renv -o -name work -o -name '.*' \) -prune \) -o \
+      \( -type f -name '*.csv' -print \) 2>/dev/null
+  fi
+}
+
+# rank_inputs <counts|sheet> — reads paths on stdin, prints best guess first.
+# Same heuristics as discover.go: filename hints, then shallower paths.
+rank_inputs() {
+  awk -v kind="$1" '
+    {
+      path = $0; n = tolower(path); sub(/.*\//, "", n); s = 0
+      if (kind == "counts") {
+        if (n ~ /counts/)  s += 10
+        if (n ~ /merged/)  s += 10
+        if (n ~ /gene/)    s += 10
+        if (n ~ /matrix/)  s += 10
+        if (n ~ /\.tsv$/)  s += 5
+      } else {
+        if (n ~ /samplesheet/) s += 10
+        if (n ~ /sheet/)       s += 10
+        if (n ~ /samples/)     s += 10
+        if (n ~ /deg/)         s += 10
+        if (n ~ /_ss/)         s += 10
+        if (n ~ /^ss\./)       s += 10
+        if (n ~ /^deseq2_/)        s -= 50
+        if (n ~ /normalizedcounts/) s -= 50
+      }
+      d = gsub(/\//, "/", path)
+      printf "%d\t%d\t%s\n", s, d, path
+    }
+  ' | sort -k1,1nr -k2,2n -k3,3 | cut -f3-
+}
+
+# ask_file <title> <default> <preset> <base> <kind> -> echoes chosen path.
+# Presets and non-interactive mode short-circuit exactly like ask_input, so
+# --print-cmd output (and its parity with the Go TUI) is unchanged.
+ask_file() {
+  local title="$1" default="$2" preset="$3" base="$4" kind="$5"
+  if [ -n "$preset" ]; then echo "$preset"; return 0; fi
+  if [ "$INTERACTIVE" = "0" ]; then echo "$default"; return 0; fi
+
+  local -a cands=()
+  while IFS= read -r line; do
+    [ -n "$line" ] && cands+=("$line")
+  done < <(find_inputs "$base" "$kind" | rank_inputs "$kind" | head -25)
+
+  if [ "${#cands[@]}" -eq 0 ]; then
+    note "No $kind files found under $base — enter a path."
+    ask_input "$title" "$default" ""
+    return 0
+  fi
+
+  local choice
+  if have gum; then
+    choice=$(printf '%s\n' "${cands[@]}" "$MANUAL_ENTRY" | gum choose --header "$title")
+  else
+    choice=$(ask_choose "$title" "" "${cands[@]}" "$MANUAL_ENTRY")
+  fi
+
+  if [ -z "$choice" ] || [ "$choice" = "$MANUAL_ENTRY" ]; then
+    ask_input "$title" "$default" ""
+  else
+    echo "$choice"
+  fi
+}
+
 # ===========================================================================
 # Flow
 # ===========================================================================
 choose_frontend   # may exec into the Go TUI and never return
 banner
 
-counts=$(ask_input      "Counts TSV"        "assets/example_counts.tsv"        "${BISR_COUNTS:-}")
-samplesheet=$(ask_input "Samplesheet CSV"   "assets/example_samplesheet.csv"   "${BISR_SAMPLESHEET:-}")
+# Project directory first, then pick the inputs found inside it.
+basedir=$(ask_input     "Project directory" "$SCRIPT_DIR"                      "${BISR_BASE_DIR:-}")
+case "$basedir" in "~"*) basedir="$HOME${basedir#\~}" ;; esac
+
+counts=$(ask_file       "Counts matrix"     "assets/example_counts.tsv"        "${BISR_COUNTS:-}"      "$basedir" counts)
+samplesheet=$(ask_file  "Samplesheet"       "assets/example_samplesheet.csv"   "${BISR_SAMPLESHEET:-}" "$basedir" sheet)
 annotation=$(ask_choose "Genome annotation" "${BISR_ANNOTATION:-}" human mouse)
 runid=$(ask_input       "Run ID"            "run_$(date +%Y%m%d_%H%M%S)"        "${BISR_RUNID:-}")
 outdir=$(ask_input      "Output directory"  "./results"                        "${BISR_OUTDIR:-}")
