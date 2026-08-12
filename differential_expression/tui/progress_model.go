@@ -14,14 +14,19 @@ import (
 // Live run UI.
 //
 // The pipeline's structured events (events.go) drive a bubbletea model, so the
-// bar is redrawn from STATE rather than scraped from R's pretty output — the
-// same "state -> re-render" idea Claude Code gets from React/Ink. The child's
-// own log lines are printed ABOVE the persistent UI with tea.Println, so the
-// progress block stays pinned to the bottom while output scrolls past it.
+// UI is redrawn from STATE rather than scraped from R's pretty output — the
+// same "state -> re-render" idea Claude Code gets from React/Ink.
 //
-// Messages arriving from the two goroutines started by runner.go:
-type eventMsg Event      // one decoded NDJSON progress event
-type outputMsg string    // one line of child stdout/stderr
+// Output is NOT committed to terminal scrollback. Instead the last
+// `maxLines` lines live in a ring buffer and are redrawn in place inside a
+// bordered box, with the progress block underneath: the display updates live
+// and older lines fall off the top instead of the terminal scrolling forever.
+// Nothing is lost by this — the complete transcript is always written to
+// <outdir>/logs/<ts>_session.log (and _session.html when aha is installed).
+//
+// Messages arriving from the goroutines started by runner.go:
+type eventMsg Event                       // one decoded NDJSON progress event
+type outputMsg string                     // one line of child stdout/stderr
 type streamDoneMsg struct{ which string } // a stream closed
 type finishedMsg struct{ err error }      // the child process exited
 type typeTickMsg struct{}                 // reveal the next characters
@@ -31,7 +36,18 @@ var (
 	nameStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 	phaseStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))
 	failStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
+	boxStyle   = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(0, 1)
+	titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
+
+// styledLine is one buffered output line plus its severity.
+type styledLine struct {
+	text string
+	kind lineKind
+}
 
 type runModel struct {
 	prog progress.Model
@@ -47,9 +63,13 @@ type runModel struct {
 	phase          string
 	i, n           int
 
+	// Bounded live output: only the most recent maxLines are kept and redrawn.
+	ring     []styledLine
+	maxLines int
+	width    int
+
 	// Typewriter streaming: `cur` is the line being revealed, `queue` the
-	// lines waiting behind it. Completed lines are committed to scrollback
-	// with tea.Println; only the in-flight one lives in the View.
+	// lines waiting behind it.
 	queue   []string
 	cur     []rune
 	curKind lineKind
@@ -73,13 +93,19 @@ func newRunModel(events <-chan Event, output <-chan string, done <-chan error) r
 		prog: p, spin: s,
 		events: events, output: output, done: done,
 		phase: "starting", step: "…",
-		delay: time.Duration(typeDelayMS()) * time.Millisecond,
+		delay:    time.Duration(typeDelayMS()) * time.Millisecond,
+		maxLines: tuiLines(),
+		width:    100,
 	}
 }
 
-// printLine commits one finished line to scrollback, styled by severity.
-func printLine(text string, kind lineKind) tea.Cmd {
-	return tea.Println(styleFor(kind).Render(text))
+// push appends a completed line to the ring buffer, dropping the oldest once
+// it is full.
+func (m *runModel) push(text string, kind lineKind) {
+	m.ring = append(m.ring, styledLine{text: text, kind: kind})
+	if len(m.ring) > m.maxLines {
+		m.ring = m.ring[len(m.ring)-m.maxLines:]
+	}
 }
 
 // startNext begins revealing the next queued line, or reports that the
@@ -97,18 +123,16 @@ func (m *runModel) startNext() tea.Cmd {
 	return tea.Tick(m.delay, func(time.Time) tea.Msg { return typeTickMsg{} })
 }
 
-// flushAll abandons typing for this burst and prints everything pending at
+// flushAll abandons typing for this burst and buffers everything pending at
 // once, so a flood of output can never make the UI lag behind the pipeline.
-func (m *runModel) flushAll() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(m.queue)+1)
+func (m *runModel) flushAll() {
 	if len(m.cur) > 0 {
-		cmds = append(cmds, printLine(string(m.cur), m.curKind))
+		m.push(string(m.cur), m.curKind)
 	}
 	for _, l := range m.queue {
-		cmds = append(cmds, printLine(l, classifyLine(l)))
+		m.push(l, classifyLine(l))
 	}
 	m.queue, m.cur, m.pos = nil, nil, 0
-	return tea.Batch(cmds...)
 }
 
 func (m runModel) Init() tea.Cmd {
@@ -148,6 +172,10 @@ func waitDone(ch <-chan error) tea.Cmd {
 func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
+
 	case eventMsg:
 		switch msg.T {
 		case "start":
@@ -181,12 +209,14 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		line := stripANSI(strings.TrimRight(string(msg), "\r\n"))
 		next := waitOutput(m.output)
 
-		if m.delay <= 0 { // typing disabled: straight to scrollback
-			return m, tea.Batch(printLine(line, classifyLine(line)), next)
+		if m.delay <= 0 { // typing disabled: straight into the box
+			m.push(line, classifyLine(line))
+			return m, next
 		}
 		m.queue = append(m.queue, line)
 		if len(m.queue) >= flushBacklog {
-			return m, tea.Batch(m.flushAll(), next)
+			m.flushAll()
+			return m, next
 		}
 		if len(m.cur) == 0 { // idle -> start revealing immediately
 			return m, tea.Batch(m.startNext(), next)
@@ -199,15 +229,16 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		chunk := typeChunk(len(m.queue))
 		if chunk == 0 { // backlog blew past the threshold mid-line
-			return m, m.flushAll()
+			m.flushAll()
+			return m, nil
 		}
 		m.pos += chunk
 		if m.pos < len(m.cur) {
 			return m, tea.Tick(m.delay, func(time.Time) tea.Msg { return typeTickMsg{} })
 		}
-		// Line finished: commit it to scrollback and move on.
-		done := printLine(string(m.cur), m.curKind)
-		return m, tea.Batch(done, m.startNext())
+		// Line finished: move it into the box and start the next one.
+		m.push(string(m.cur), m.curKind)
+		return m, m.startNext()
 
 	case streamDoneMsg:
 		if msg.which == "events" {
@@ -223,8 +254,8 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 		}
-		// Don't drop anything still being typed when the child exits.
-		return m, tea.Sequence(m.flushAll(), tea.Quit)
+		m.flushAll() // don't drop anything still queued
+		return m, tea.Quit
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -241,12 +272,49 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// truncate shortens a line to fit the box, marking the cut with an ellipsis.
+func truncate(s string, w int) string {
+	if w <= 1 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= w {
+		return s
+	}
+	return string(r[:w-1]) + "…"
+}
+
+// boxLines renders the ring buffer plus the in-flight line, padded to a fixed
+// height so the layout never jumps as output arrives.
+func (m runModel) boxLines(inner int) []string {
+	rows := make([]string, 0, m.maxLines)
+	for _, l := range m.ring {
+		rows = append(rows, styleFor(l.kind).Render(truncate(l.text, inner)))
+	}
+	if m.pos > 0 && m.pos < len(m.cur) { // partially typed line
+		rows = append(rows, styleFor(m.curKind).Render(truncate(string(m.cur[:m.pos]), inner)))
+	}
+	if len(rows) > m.maxLines {
+		rows = rows[len(rows)-m.maxLines:]
+	}
+	for len(rows) < m.maxLines { // pad to a stable height
+		rows = append(rows, "")
+	}
+	return rows
+}
+
 func (m runModel) View() string {
-	// Nothing lingering once the run is over — the final summary is printed by
-	// runner.go after the program exits.
+	// Leave nothing behind once the run is over; the final status is printed
+	// by main.go and the full transcript is in the session log.
 	if m.childExited {
 		return ""
 	}
+
+	boxW := m.width - 4
+	if boxW < 20 {
+		boxW = 20
+	}
+	inner := boxW - 2
 
 	pct := 0.0
 	if m.total > 0 {
@@ -263,11 +331,9 @@ func (m runModel) View() string {
 	}
 
 	var b strings.Builder
-	// The line currently being revealed lives here until it is complete, then
-	// it is committed to scrollback with tea.Println.
-	if m.pos > 0 && m.pos < len(m.cur) {
-		b.WriteString(styleFor(m.curKind).Render(string(m.cur[:m.pos])) + "\n")
-	}
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render("  pipeline output") + "\n")
+	b.WriteString(boxStyle.Width(boxW).Render(strings.Join(m.boxLines(inner), "\n")))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("%s %s  %s\n", m.spin.View(), head, stepStyle.Render("· "+m.step)))
 	b.WriteString("  " + m.prog.ViewAs(pct))

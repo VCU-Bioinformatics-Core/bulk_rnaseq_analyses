@@ -99,6 +99,25 @@ func typeDelayMS() int {
 	return 12
 }
 
+// tuiLines is how many output lines the live box shows before older ones fall
+// off the top. Configurable via BISR_TUI_LINES; clamped to something sane so a
+// typo cannot produce a zero-height or screen-filling box.
+func tuiLines() int {
+	n := 8
+	if v, ok := os.LookupEnv("BISR_TUI_LINES"); ok {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			n = parsed
+		}
+	}
+	if n < 3 {
+		n = 3
+	}
+	if n > 40 {
+		n = 40
+	}
+	return n
+}
+
 // typeChunk decides how many characters to reveal per tick.
 //
 // A fixed 1-char-per-tick reads beautifully for a trickle of status lines but

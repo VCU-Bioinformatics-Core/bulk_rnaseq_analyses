@@ -94,19 +94,97 @@ func TestTypeDelayMSConfigurable(t *testing.T) {
 	}
 }
 
-func TestFlushAllDrainsEverything(t *testing.T) {
+func TestFlushAllDrainsIntoTheRing(t *testing.T) {
 	m := runModel{
-		queue:   []string{"a", "b", "c"},
-		cur:     []rune("in flight"),
-		curKind: kindInfo,
-		pos:     3,
+		queue:    []string{"a", "b", "c"},
+		cur:      []rune("in flight"),
+		curKind:  kindInfo,
+		pos:      3,
+		maxLines: 8,
 	}
-	cmd := m.flushAll()
-	if cmd == nil {
-		t.Fatal("flushAll returned no command")
-	}
+	m.flushAll()
+
 	if len(m.queue) != 0 || len(m.cur) != 0 || m.pos != 0 {
 		t.Errorf("state not drained: queue=%d cur=%d pos=%d", len(m.queue), len(m.cur), m.pos)
+	}
+	// The in-flight line plus all three queued lines must survive.
+	if len(m.ring) != 4 {
+		t.Fatalf("ring has %d lines, want 4: %+v", len(m.ring), m.ring)
+	}
+	if m.ring[0].text != "in flight" || m.ring[3].text != "c" {
+		t.Errorf("unexpected ring contents: %+v", m.ring)
+	}
+}
+
+func TestRingBufferIsBounded(t *testing.T) {
+	m := runModel{maxLines: 5}
+	for i := 0; i < 20; i++ {
+		m.push(string(rune('a'+i)), kindPlain)
+	}
+	if len(m.ring) != 5 {
+		t.Fatalf("ring grew to %d, want a hard cap of 5", len(m.ring))
+	}
+	// It must keep the NEWEST lines, dropping the oldest off the top.
+	if m.ring[0].text != "p" || m.ring[4].text != "t" {
+		t.Errorf("ring kept the wrong window: %+v", m.ring)
+	}
+}
+
+func TestBoxHasStableHeight(t *testing.T) {
+	m := runModel{maxLines: 8}
+	if got := len(m.boxLines(60)); got != 8 {
+		t.Errorf("empty box rendered %d rows, want 8 (padded)", got)
+	}
+	for i := 0; i < 3; i++ {
+		m.push("line", kindInfo)
+	}
+	if got := len(m.boxLines(60)); got != 8 {
+		t.Errorf("partly filled box rendered %d rows, want 8", got)
+	}
+	for i := 0; i < 50; i++ {
+		m.push("line", kindInfo)
+	}
+	if got := len(m.boxLines(60)); got != 8 {
+		t.Errorf("overfull box rendered %d rows, want 8", got)
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	if got := truncate("hello", 10); got != "hello" {
+		t.Errorf("short line altered: %q", got)
+	}
+	got := truncate("abcdefghij", 5)
+	if []rune(got)[len([]rune(got))-1] != '…' {
+		t.Errorf("truncated line should end in an ellipsis, got %q", got)
+	}
+	if len([]rune(got)) != 5 {
+		t.Errorf("truncate(_, 5) produced %d runes: %q", len([]rune(got)), got)
+	}
+	if truncate("anything", 1) != "" {
+		t.Error("degenerate width should produce an empty string, not a panic")
+	}
+	// Multi-byte content must be cut by rune, never mid-character.
+	if got := truncate("αβγδεζηθ", 4); len([]rune(got)) != 4 {
+		t.Errorf("unicode truncate produced %d runes: %q", len([]rune(got)), got)
+	}
+}
+
+func TestTUILinesClamped(t *testing.T) {
+	t.Setenv("BISR_TUI_LINES", "10")
+	if got := tuiLines(); got != 10 {
+		t.Errorf("tuiLines() = %d, want 10", got)
+	}
+	t.Setenv("BISR_TUI_LINES", "1") // too small to be useful
+	if got := tuiLines(); got != 3 {
+		t.Errorf("tuiLines() = %d, want clamp to 3", got)
+	}
+	t.Setenv("BISR_TUI_LINES", "9999") // would fill the screen
+	if got := tuiLines(); got != 40 {
+		t.Errorf("tuiLines() = %d, want clamp to 40", got)
+	}
+	t.Setenv("BISR_TUI_LINES", "nonsense")
+	if got := tuiLines(); got != 8 {
+		t.Errorf("tuiLines() = %d, want default 8", got)
 	}
 }
 
