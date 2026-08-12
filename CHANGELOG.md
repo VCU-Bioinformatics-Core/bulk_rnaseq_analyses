@@ -13,9 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   forever: the most recent lines (default 8, `BISR_TUI_LINES`, clamped 3–40)
   are kept in a ring buffer and redrawn **in place** inside a bordered box that
   sits above the progress bar, with older lines falling off the top. The box
-  keeps a stable height so the layout never jumps, long lines are truncated to
-  the terminal width, and nothing is lost — the full transcript is still
-  written to `<outdir>/logs/<ts>_session.log`.
+  keeps a stable height so the layout never jumps, and long lines are truncated
+  to the terminal width. **Scrollback is preserved**: a line pushed out of the
+  top of the box is printed to the terminal above the UI (in order), and the
+  remaining box is drained to scrollback when the run ends — so you get a live
+  bounded view *and* the complete scrollable history. The full transcript is
+  also still written to `<outdir>/logs/<ts>_session.log`.
 - **Typewriter output streaming in the Go TUI.** Relayed pipeline lines are
   revealed a few characters at a time (~12 ms/char) instead of being dumped as
   chunks, so output flows organically. Tunable with `BISR_TUI_TYPE_DELAY_MS`
