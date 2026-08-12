@@ -408,6 +408,7 @@ run_pipeline <- function(counts_path,
   }
 
   # ---- 3. Read data ----
+  .emit_event("phase", name = "loading data")
   cli::cli_h1("Loading data")
   counts <- read_counts(counts_path)
   samplesheet <- read_samplesheet(samplesheet_path)
@@ -418,6 +419,7 @@ run_pipeline <- function(counts_path,
   # ---- 3b. Apply sample / group exclusions (Exclude column + flags) ----
   if (length(exclude_samples) > 0 || length(exclude_groups) > 0 ||
       "Exclude" %in% colnames(samplesheet)) {
+    .emit_event("phase", name = "applying exclusions")
     cli::cli_h1("Applying sample exclusions")
     samplesheet <- filter_samplesheet(
       samplesheet,
@@ -427,6 +429,7 @@ run_pipeline <- function(counts_path,
   }
 
   # ---- 4. Parse contrasts (with optional include/exclude filtering) ----
+  .emit_event("phase", name = "parsing contrasts")
   cli::cli_h1("Parsing contrasts")
   comparisons <- parse_contrasts(
     samplesheet,
@@ -461,6 +464,7 @@ run_pipeline <- function(counts_path,
   countsdf <- align_counts_to_samplesheet(countsdf, samplesheet)
 
   # ---- 6. TMM normalization ----
+  .emit_event("phase", name = "normalizing counts (TMM)")
   cli::cli_h1("Normalization (edgeR TMM)")
   tmm <- run_tmm(countsdf)
   utils::write.csv(
@@ -471,6 +475,7 @@ run_pipeline <- function(counts_path,
   cli::cli_alert_success("TMM-normalized counts saved")
 
   # ---- 7. DESeq2 dataset + pre-filter ----
+  .emit_event("phase", name = "setting up DESeq2")
   cli::cli_h1("DESeq2 setup")
   sample_info <- data.frame(
     sample    = samplesheet$SampleID,
@@ -534,6 +539,7 @@ run_pipeline <- function(counts_path,
                                       normalized = TRUE)
 
   # ---- 8. Per-comparison loop ----
+  .emit_event("phase", name = "running differential expression")
   cli::cli_h1("Per-comparison differential expression")
   results <- vector("list", length(comparisons))
 
@@ -633,7 +639,7 @@ run_pipeline <- function(counts_path,
   if (!is.null(pb)) cli::cli_progress_done()
 
   # ---- 9. Sample Exploration QC plots ----
-  .emit_event("phase", name = "Sample Exploration QC plots")
+  .emit_event("phase", name = "generating QC plots")
   cli::cli_h1("Sample Exploration QC plots")
 
   # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
@@ -688,7 +694,7 @@ run_pipeline <- function(counts_path,
   cli::cli_alert_success("QC: hclust + density saved")
 
   # ---- 10. PCA ----
-  .emit_event("phase", name = "PCA")
+  .emit_event("phase", name = "generating PCA plots")
   cli::cli_h1("PCA")
   pca_plot <- pca_static(tmm, sample_info)
   save_plot(pca_plot, file.path(out_dirs$pca, "PCA_plot.png"))
@@ -709,6 +715,7 @@ run_pipeline <- function(counts_path,
   )
 
   # ---- 11. Save RDS ----
+  .emit_event("phase", name = "saving results")
   cli::cli_h1("Saving session")
   rds <- list(results, comparisons, out_dirs, pca_plot,
               pca_plotly_2d_obj, pca_plotly_3d_obj, annotation,

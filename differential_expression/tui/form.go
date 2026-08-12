@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,6 +50,63 @@ func defaultConfig() Config {
 	}
 }
 
+// expandPath resolves a leading ~ and makes the path absolute.
+func expandPath(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	if strings.HasPrefix(p, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			p = filepath.Join(home, strings.TrimPrefix(p, "~"))
+		}
+	}
+	return filepath.Abs(p)
+}
+
+// pickOne offers the discovered files for one input, always with a manual
+// escape hatch. Falls back to a plain text prompt when nothing was found.
+func pickOne(title, desc, base string, k fileKind, dest *string) error {
+	found := findCandidates(base, k, 25)
+	if len(found) == 0 {
+		return huh.NewForm(huh.NewGroup(
+			huh.NewInput().
+				Title(title).
+				Description("Nothing found in " + base + " — enter a path").
+				Value(dest),
+		)).WithTheme(huh.ThemeCharm()).Run()
+	}
+
+	opts := make([]huh.Option[string], 0, len(found)+1)
+	for _, f := range found {
+		opts = append(opts, huh.NewOption(relLabel(base, f), f))
+	}
+	opts = append(opts, huh.NewOption(manualEntry, manualEntry))
+
+	choice := found[0]
+	if err := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().Title(title).Description(desc).
+			Options(opts...).Value(&choice),
+	)).WithTheme(huh.ThemeCharm()).Run(); err != nil {
+		return err
+	}
+
+	if choice == manualEntry {
+		return huh.NewForm(huh.NewGroup(
+			huh.NewInput().Title(title).Value(dest),
+		)).WithTheme(huh.ThemeCharm()).Run()
+	}
+	*dest = choice
+	return nil
+}
+
+// pickInputs prompts for the counts matrix and samplesheet.
+func pickInputs(c *Config, base string) error {
+	if err := pickOne("Counts matrix", "gene counts from nf-core/rnaseq (.tsv)",
+		base, kindCounts, &c.Counts); err != nil {
+		return err
+	}
+	return pickOne("Samplesheet", "SampleID, GroupID, then one column per contrast (.csv)",
+		base, kindSamplesheet, &c.Samplesheet)
+}
+
 // BuildConfig collects parameters. In nonInteractive mode it returns the
 // env/default config without prompting (used for --print-cmd and non-TTY).
 func BuildConfig(nonInteractive bool) (Config, error) {
@@ -57,7 +115,30 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 		return c, nil
 	}
 
-	// Stage 1 — core parameters.
+	// Stage 0 — project directory, then offer the input files found inside it
+	// so nobody has to type a full path from memory.
+	base := envOr("BISR_BASE_DIR", "")
+	if base == "" {
+		base, _ = os.Getwd()
+	}
+	baseForm := huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title("Project directory").
+			Description("Searched for counts / samplesheet files").
+			Value(&base),
+	)).WithTheme(huh.ThemeCharm())
+	if err := baseForm.Run(); err != nil {
+		return c, err
+	}
+	if expanded, err := expandPath(base); err == nil {
+		base = expanded
+	}
+	if err := pickInputs(&c, base); err != nil {
+		return c, err
+	}
+
+	// Stage 1 — core parameters. Counts/samplesheet are already chosen above,
+	// but stay editable here.
 	core := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Counts TSV").Value(&c.Counts),

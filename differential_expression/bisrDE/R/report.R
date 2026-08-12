@@ -106,6 +106,9 @@ generate_report <- function(rds_path,
     file.copy(f, sections_dest, overwrite = TRUE)
   }
 
+  # Trailing phase: this runs after run_pipeline() has emitted its "done"
+  # event, so a front-end shows the bar at 100% while the report renders.
+  .emit_event("phase", name = "rendering report")
   cli::cli_alert_info("Rendering Quarto report (template: {.path {template_path}})")
 
   quarto::quarto_render(

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-08-12
+
+Launcher usability: know what the pipeline is doing, and stop typing paths.
+
+### Added
+
+- **Both launchers now find your input files for you.** They ask for a *project
+  directory* first (default: cwd / the pipeline dir, or `BISR_BASE_DIR`), scan
+  it, and offer the
+  counts matrix and samplesheet as pick-lists instead of making you type full
+  paths — best guess first, ranked by filename. `→ enter a path manually…` is
+  always offered, and a directory with no candidates falls back to a plain text
+  prompt. Crucially the scan **skips pipeline output** (`de_data`, `gsea_data`,
+  `figures`, `logs`, `renv`, `work`, dotfiles), so a previous run's
+  `DESeq2_*.csv` files can't swamp the samplesheet list. The bash launcher
+  (`gum choose`) and the Go TUI use the same heuristics and agree on the same
+  files — asserted by the bats suite. Interactive-only, so `--print-cmd` parity
+  between the two front-ends is unaffected.
+
+- **Phase status line under the progress bar.** The TUI now shows the current
+  pipeline stage — `loading data`, `parsing contrasts`,
+  `normalizing counts (TMM)`, `setting up DESeq2`,
+  `running differential expression`, `generating QC plots`,
+  `generating PCA plots`, `saving results`, `rendering report` — updating live
+  as the run progresses. The spinner line names the *unit of work* (the current
+  comparison) and the phase line names the *stage*, so nothing is duplicated.
+  `generate_report()` emits its own phase, so the trailing Quarto render is
+  visible with the bar at 100% instead of looking stalled.
+
 ## [1.6.1] - 2026-08-12
 
 Live terminal UI, developer tooling, and real-data fixes.
@@ -469,6 +498,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.6.2   | 2026-08-12 | Phase status line under the progress bar; both launchers discover counts/samplesheet files from a project directory instead of requiring typed paths |
 | 1.6.1   | 2026-08-12 | Live event-driven Go TUI (NDJSON progress → bubbletea box + bar, typewriter streaming, severity colours); justfile / bats parity suite / shellcheck / aha / VHS; graceful interrupt; samplesheet header variants; genuinely live progress |
 | 1.5.4   | 2026-07-14 | Configurable DE thresholds (`--fold-change`/`--padj`, dynamic throughout the report); flexible counts-file layouts (salmon/RSEM/featureCounts); drop Ensembl `_PAR_Y` (#12) |
 | 1.5.3   | 2026-07-07 | `--id-type symbol`/`entrez` fixes (SYMBOL col, heatmaps, dotted-symbol counts); volcano top-N labels (`--volcano-labels`); per-group DisplayName prompt; normalized counts (TMM + DESeq2) in DE sheets |
