@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Phase status line under the progress bar.** The TUI now shows the current
+  pipeline stage — `loading data`, `parsing contrasts`,
+  `normalizing counts (TMM)`, `setting up DESeq2`,
+  `running differential expression`, `generating QC plots`,
+  `generating PCA plots`, `saving results`, `rendering report` — updating live
+  as the run progresses. The spinner line names the *unit of work* (the current
+  comparison) and the phase line names the *stage*, so nothing is duplicated.
+  `generate_report()` emits its own phase, so the trailing Quarto render is
+  visible with the bar at 100% instead of looking stalled.
+
 ## [1.6.1] - 2026-08-12
 
 Live terminal UI, developer tooling, and real-data fixes.

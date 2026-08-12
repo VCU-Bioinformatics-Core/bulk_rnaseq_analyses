@@ -181,7 +181,8 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "start":
 			m.total = msg.Total
 			m.n = msg.Comparisons
-			m.phase = "differential expression"
+			// Phase text comes solely from "phase" events, so R stays the
+			// single source of truth for what the pipeline is doing.
 		case "tick":
 			m.current, m.step = msg.Current, msg.Step
 			m.comparison, m.i = msg.Comparison, msg.I
@@ -324,7 +325,9 @@ func (m runModel) View() string {
 		}
 	}
 
-	head := phaseStyle.Render(m.phase)
+	// The spinner line names the unit of work (the comparison); the phase line
+	// under the bar names the stage. Keep them distinct so nothing is repeated.
+	head := stepStyle.Render("working…")
 	if m.comparison != "" {
 		head = fmt.Sprintf("%s %s", nameStyle.Render(m.comparison),
 			stepStyle.Render(fmt.Sprintf("(%d/%d)", m.i, m.n)))
@@ -340,6 +343,9 @@ func (m runModel) View() string {
 	if m.total > 0 {
 		b.WriteString(stepStyle.Render(fmt.Sprintf("  %d/%d", m.current, m.total)))
 	}
+	// Current high-level stage, under the bar: "loading data", "running
+	// differential expression", "generating QC plots", "rendering report", ...
+	b.WriteString("\n  " + phaseStyle.Render(m.phase))
 	if m.err != nil {
 		b.WriteString("\n  " + failStyle.Render("✗ "+m.err.Error()))
 	}
