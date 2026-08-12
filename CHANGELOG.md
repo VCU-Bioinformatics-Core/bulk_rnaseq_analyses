@@ -14,11 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are kept in a ring buffer and redrawn **in place** inside a bordered box that
   sits above the progress bar, with older lines falling off the top. The box
   keeps a stable height so the layout never jumps, and long lines are truncated
-  to the terminal width. **Scrollback is preserved**: a line pushed out of the
-  top of the box is printed to the terminal above the UI (in order), and the
-  remaining box is drained to scrollback when the run ends — so you get a live
-  bounded view *and* the complete scrollable history. The full transcript is
-  also still written to `<outdir>/logs/<ts>_session.log`.
+  to the terminal width. The terminal is never scrolled: lines that leave the
+  top of the box are simply dropped from the view, and the complete transcript
+  is written to `<outdir>/logs/<ts>_session.log` (plus `_session.html` when
+  `aha` is installed).
 - **Typewriter output streaming in the Go TUI.** Relayed pipeline lines are
   revealed a few characters at a time (~12 ms/char) instead of being dumped as
   chunks, so output flows organically. Tunable with `BISR_TUI_TYPE_DELAY_MS`
@@ -39,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   progress stream (`start` / `phase` / `tick` / `done`) when
   `BISR_EVENTS_FILE` is set, and the Go TUI tails it to drive a bubbletea UI:
   a `bubbles/progress` bar, spinner, current comparison and current step stay
-  **pinned at the bottom** while the pipeline's own output scrolls above via
-  `tea.Println`. The UI is rendered from *state* rather than scraped from
+  pinned beneath the live output box (see above). The UI is rendered from
+  *state* rather than scraped from
   terminal output — the same model React/Ink gives Claude Code. When the event
   stream is active the R side suppresses its own `cli` bar, so exactly one
   component renders progress. Entirely opt-in: with the variable unset the

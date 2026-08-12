@@ -116,41 +116,6 @@ func TestFlushAllDrainsIntoTheRing(t *testing.T) {
 	}
 }
 
-func TestPushEmitsScrollbackOnlyOnEviction(t *testing.T) {
-	m := runModel{maxLines: 3}
-
-	// Filling the box evicts nothing, so nothing goes to scrollback yet.
-	for i := 0; i < 3; i++ {
-		if cmd := m.push("line", kindPlain); cmd != nil {
-			t.Fatalf("push %d evicted while the box was still filling", i)
-		}
-	}
-	// The 4th push pushes the 1st line out of the top -> print it.
-	if cmd := m.push("overflow", kindPlain); cmd == nil {
-		t.Error("expected an eviction to produce a scrollback print command")
-	}
-	if len(m.ring) != 3 {
-		t.Errorf("ring = %d lines, want 3", len(m.ring))
-	}
-}
-
-func TestDrainRingEmptiesAndPrints(t *testing.T) {
-	m := runModel{maxLines: 8}
-	for i := 0; i < 4; i++ {
-		m.push("line", kindInfo)
-	}
-	if cmd := m.drainRing(); cmd == nil {
-		t.Fatal("drainRing returned no command for a non-empty box")
-	}
-	if len(m.ring) != 0 {
-		t.Errorf("ring not emptied: %d lines left", len(m.ring))
-	}
-	// Draining an empty box is a no-op, not a stray blank print.
-	if cmd := m.drainRing(); cmd != nil {
-		t.Error("drainRing on an empty box should return nil")
-	}
-}
-
 func TestRingBufferIsBounded(t *testing.T) {
 	m := runModel{maxLines: 5}
 	for i := 0; i < 20; i++ {

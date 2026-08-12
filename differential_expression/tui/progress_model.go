@@ -99,35 +99,13 @@ func newRunModel(events <-chan Event, output <-chan string, done <-chan error) r
 	}
 }
 
-// push appends a completed line to the ring buffer. When that pushes a line
-// out of the top of the box it is not discarded — the returned command prints
-// it to terminal scrollback, so the box shows the live tail while the full
-// history remains scrollable above it. Returns nil when nothing was evicted.
-func (m *runModel) push(text string, kind lineKind) tea.Cmd {
+// push appends a completed line to the ring buffer, dropping the oldest once
+// it is full.
+func (m *runModel) push(text string, kind lineKind) {
 	m.ring = append(m.ring, styledLine{text: text, kind: kind})
-	if len(m.ring) <= m.maxLines {
-		return nil
+	if len(m.ring) > m.maxLines {
+		m.ring = m.ring[len(m.ring)-m.maxLines:]
 	}
-	evicted := m.ring[0]
-	m.ring = m.ring[1:]
-	return tea.Println(styleFor(evicted.kind).Render(evicted.text))
-}
-
-// drainRing prints everything still in the box to scrollback and empties it.
-// Called when the run ends so the last screenful is preserved rather than
-// disappearing with the UI.
-func (m *runModel) drainRing() tea.Cmd {
-	if len(m.ring) == 0 {
-		return nil
-	}
-	cmds := make([]tea.Cmd, 0, len(m.ring))
-	for _, l := range m.ring {
-		cmds = append(cmds, tea.Println(styleFor(l.kind).Render(l.text)))
-	}
-	m.ring = nil
-	// Sequence, not Batch: Batch has no ordering guarantee and these are lines
-	// of a transcript.
-	return tea.Sequence(cmds...)
 }
 
 // startNext begins revealing the next queued line, or reports that the
@@ -147,18 +125,14 @@ func (m *runModel) startNext() tea.Cmd {
 
 // flushAll abandons typing for this burst and buffers everything pending at
 // once, so a flood of output can never make the UI lag behind the pipeline.
-// Any lines pushed out of the box on the way are printed to scrollback, in
-// order.
-func (m *runModel) flushAll() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(m.queue)+1)
+func (m *runModel) flushAll() {
 	if len(m.cur) > 0 {
-		cmds = append(cmds, m.push(string(m.cur), m.curKind))
+		m.push(string(m.cur), m.curKind)
 	}
 	for _, l := range m.queue {
-		cmds = append(cmds, m.push(l, classifyLine(l)))
+		m.push(l, classifyLine(l))
 	}
 	m.queue, m.cur, m.pos = nil, nil, 0
-	return tea.Sequence(cmds...)
 }
 
 func (m runModel) Init() tea.Cmd {
@@ -236,11 +210,13 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next := waitOutput(m.output)
 
 		if m.delay <= 0 { // typing disabled: straight into the box
-			return m, tea.Batch(m.push(line, classifyLine(line)), next)
+			m.push(line, classifyLine(line))
+			return m, next
 		}
 		m.queue = append(m.queue, line)
 		if len(m.queue) >= flushBacklog {
-			return m, tea.Batch(m.flushAll(), next)
+			m.flushAll()
+			return m, next
 		}
 		if len(m.cur) == 0 { // idle -> start revealing immediately
 			return m, tea.Batch(m.startNext(), next)
@@ -253,15 +229,16 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		chunk := typeChunk(len(m.queue))
 		if chunk == 0 { // backlog blew past the threshold mid-line
-			return m, m.flushAll()
+			m.flushAll()
+			return m, nil
 		}
 		m.pos += chunk
 		if m.pos < len(m.cur) {
 			return m, tea.Tick(m.delay, func(time.Time) tea.Msg { return typeTickMsg{} })
 		}
 		// Line finished: move it into the box and start the next one.
-		printed := m.push(string(m.cur), m.curKind)
-		return m, tea.Batch(printed, m.startNext())
+		m.push(string(m.cur), m.curKind)
+		return m, m.startNext()
 
 	case streamDoneMsg:
 		if msg.which == "events" {
@@ -277,10 +254,8 @@ func (m runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 		}
-		// Don't drop anything still queued, and preserve the last screenful:
-		// flush pending output into the box, then print the whole box to
-		// scrollback before the UI disappears.
-		return m, tea.Sequence(m.flushAll(), m.drainRing(), tea.Quit)
+		m.flushAll() // don't drop anything still queued
+		return m, tea.Quit
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
