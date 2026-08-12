@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The Go TUI now finds your input files for you.** It asks for a *project
+  directory* first (default: cwd, or `BISR_BASE_DIR`), scans it, and offers the
+  counts matrix and samplesheet as pick-lists instead of making you type full
+  paths — best guess first, ranked by filename. `→ enter a path manually…` is
+  always offered, and a directory with no candidates falls back to a plain text
+  prompt. Crucially the scan **skips pipeline output** (`de_data`, `gsea_data`,
+  `figures`, `logs`, `renv`, `work`, dotfiles), so a previous run's
+  `DESeq2_*.csv` files can't swamp the samplesheet list. Interactive-only, so
+  `--print-cmd` parity with the bash launcher is unaffected.
+
 - **Phase status line under the progress bar.** The TUI now shows the current
   pipeline stage — `loading data`, `parsing contrasts`,
   `normalizing counts (TMM)`, `setting up DESeq2`,
