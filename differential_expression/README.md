@@ -122,24 +122,41 @@ micromamba create -n bisrde -f environment.yml \
     --override-channels -c conda-forge -c bioconda -y
 micromamba activate bisrde          # or: conda activate bisrde
 
-# 3. The pipeline package itself
+# 3. ONE-TIME: stop renv from hijacking this environment.
+#    The repo ships a .Rprofile that auto-activates renv, which points R at an
+#    empty project library and hides everything conda installed (the symptom is
+#    "there is no package called 'remotes'"). Baking the setting into the env
+#    means every future activation is safe — including plain `Rscript` calls.
+mkdir -p "$CONDA_PREFIX/etc/conda/activate.d"
+echo 'export RENV_CONFIG_AUTOLOADER_ENABLED=FALSE' \
+    > "$CONDA_PREFIX/etc/conda/activate.d/renv_off.sh"
+micromamba deactivate && micromamba activate bisrde
+
+Rscript -e '.libPaths()'   # sanity: must be inside $CONDA_PREFIX, not renv/library
+
+# 4. The pipeline package itself
 Rscript -e 'remotes::install_local("bisrDE", upgrade = "never")'
 
-# 4. Smoke-test on the bundled 10-gene fixture (~2 min)
+# 5. Smoke-test on the bundled 10-gene fixture (~2 min)
 bash run_analysis.sh --counts assets/example_counts.tsv \
     --samplesheet assets/example_samplesheet.csv \
     --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
 ```
 
-If step 4 produces `rnaseq_analysis_*.html`, the install is good.
+If step 5 produces `rnaseq_analysis_*.html`, the install is good.
 
-> **Why the environment matters more than it looks.** The repo ships a
-> `.Rprofile` that auto-activates `renv`, which would otherwise shadow the
-> conda library and produce confusing "package not found" errors.
-> `run_analysis.sh` detects an activated conda env and disables the renv
-> autoloader automatically — but if you invoke `Rscript de.R` directly, set
-> `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` yourself. Sanity check with
-> `Rscript -e '.libPaths()'`: it should point inside `$CONDA_PREFIX`.
+> **If you skipped step 3**, any direct `Rscript` call fails with
+> `there is no package called 'remotes'` (or any other conda-installed
+> package). That is renv's autoloader pointing R at an empty project library.
+> One-off escape hatch:
+>
+> ```bash
+> RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript -e '...'
+> ```
+>
+> `run_analysis.sh` sets this itself when it sees an activated conda env, so
+> pipeline *runs* are safe either way — it is direct `Rscript` invocations
+> (installing the package, `de.R`, `compare_runs.R`) that need step 3.
 
 **Note:** `environment.yml` pins **Bioconductor 3.18 / R 4.3**, not the
 `renv.lock` 3.16 — Bioc 3.16 is not installable from bioconda (see the header
