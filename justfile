@@ -163,6 +163,17 @@ conda-env:
     "$solver" create -n bisrde -f environment.yml --override-channels -c conda-forge -c bioconda -y
     printf '\033[32m✓\033[0m then: conda activate bisrde && R -e '"'"'remotes::install_local("bisrDE")'"'"'\n'
 
+# Diff two runs (e.g. renv reference vs conda candidate) before trusting a new
+# environment. Exit 0 = PASS, 1 = WARN, 2 = FAIL, so it can gate a deployment.
+compare a b out="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    extra=""
+    [ -n "{{out}}" ] && extra="--out {{out}}"
+    # shellcheck disable=SC2086
+    {{rscript}} compare_runs.R --a "{{a}}" --b "{{b}}" $extra
+
 # Dry-run the conda solve for a target platform without installing anything.
 conda-solve platform="linux-64":
     cd {{de}} && CONDA_OVERRIDE_GLIBC=2.28 CONDA_OVERRIDE_LINUX=5.4 \
