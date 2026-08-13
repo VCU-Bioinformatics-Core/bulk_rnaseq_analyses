@@ -149,3 +149,33 @@ bump version:
 # Build the Apptainer image (needs a Linux host with apptainer/singularity).
 container:
     cd {{de}} && bash build_container.sh
+
+# Create the conda environment from environment.yml (Bioconductor 3.18 / R 4.3).
+conda-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    if command -v micromamba >/dev/null 2>&1; then solver=micromamba
+    elif command -v mamba >/dev/null 2>&1; then solver=mamba
+    elif command -v conda >/dev/null 2>&1; then solver=conda
+    else printf '! no conda/mamba/micromamba found.\n  install: brew install micromamba\n'; exit 127; fi
+    printf 'creating env with %s (channels: conda-forge, bioconda — no defaults)\n' "$solver"
+    "$solver" create -n bisrde -f environment.yml --override-channels -c conda-forge -c bioconda -y
+    printf '\033[32m✓\033[0m then: conda activate bisrde && R -e '"'"'remotes::install_local("bisrDE")'"'"'\n'
+
+# Diff two runs (e.g. renv reference vs conda candidate) before trusting a new
+# environment. Exit 0 = PASS, 1 = WARN, 2 = FAIL, so it can gate a deployment.
+compare a b out="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    extra=""
+    [ -n "{{out}}" ] && extra="--out {{out}}"
+    # shellcheck disable=SC2086
+    {{rscript}} compare_runs.R --a "{{a}}" --b "{{b}}" $extra
+
+# Dry-run the conda solve for a target platform without installing anything.
+conda-solve platform="linux-64":
+    cd {{de}} && CONDA_OVERRIDE_GLIBC=2.28 CONDA_OVERRIDE_LINUX=5.4 \
+        micromamba create -n bisrde_solvecheck --dry-run --platform {{platform}} \
+        --override-channels -c conda-forge -c bioconda -f environment.yml -y

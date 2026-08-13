@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-08-13
+
+HPC deployment: a conda environment, a validation gate, and a documented path
+onto the cluster.
+
+### Added
+
+- **`environment.yml`** — a solve-verified conda environment for a centrally
+  managed bioconda install (344 packages, verified with a real
+  `micromamba --dry-run` against `linux-64`). It pins **Bioconductor 3.18 /
+  R 4.3**, *not* `renv.lock`'s 3.16: Bioc 3.16 is **not installable** from
+  bioconda, for two independent and unfixable reasons —
+  `enrichplot 1.18.0` → `r-ggraph` → `r-ggforce` → `r-tweenr` has no
+  R-4.2-compatible path, and `enrichplot` pulls `bioconductor-hdo.db`, which
+  requires `annotationdbi >= 1.62`, newer than 3.16's 1.60. 3.18 is the nearest
+  solvable release. The file documents the admin-facing caveats (named env not
+  `base`, read-only, channel priority without `defaults`, `R_LIBS_USER`
+  isolation).
+- **`compare_runs.R`** — validation gate for an environment change. Diffs two
+  run directories: gene coverage, log2FC Spearman/Pearson plus median and max
+  drift, padj rank correlation, DEG-set Jaccard with the specific genes
+  gained/lost, and enrichment term agreement across all four backends. Exits
+  `0` PASS / `1` WARN / `2` FAIL so it can gate a deployment. Base R only, so
+  it runs in either environment without becoming part of what it validates.
+- **`submit_slurm.sh`** — sbatch template (4 cpu / 32 G / 4 h, overridable via
+  `--export`) that handles the conda shell hook `conda activate` needs in a
+  non-interactive job.
+- README section documenting the full HPC path: clone → micromamba bootstrap
+  (no admin rights) → environment → install `bisrDE` → smoke test → sbatch →
+  validate.
+- `just conda-env`, `just conda-solve <platform>`, `just compare <a> <b>`.
+
+### Fixed
+
+- **`run_analysis.sh` is now conda-aware.** The repo ships a `.Rprofile` +
+  `renv/activate.R`, so on a fresh clone renv autoloaded and **shadowed an
+  activated conda environment's R library** — producing "package not found"
+  even when the environment was built correctly. R coming from `$CONDA_PREFIX`
+  now disables the renv autoloader automatically, warns when `$CONDA_PREFIX` is
+  set but `Rscript` resolves elsewhere, and skips the renv-bootstrap branch.
+- `jsonlite` was used by `events.R` and `cli.R` (the `.report.json` summary and
+  the progress event stream) but never declared in `DESCRIPTION`. It only
+  worked because jsonlite arrived transitively; in a minimal environment both
+  features would have broken.
+
 ## [1.6.2] - 2026-08-12
 
 Launcher usability: know what the pipeline is doing, and stop typing paths.
@@ -498,6 +543,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.6.3   | 2026-08-13 | HPC deployment: solve-verified conda `environment.yml` (Bioc 3.18), `compare_runs.R` validation gate, Slurm template, conda-aware launcher |
 | 1.6.2   | 2026-08-12 | Phase status line under the progress bar; both launchers discover counts/samplesheet files from a project directory instead of requiring typed paths |
 | 1.6.1   | 2026-08-12 | Live event-driven Go TUI (NDJSON progress → bubbletea box + bar, typewriter streaming, severity colours); justfile / bats parity suite / shellcheck / aha / VHS; graceful interrupt; samplesheet header variants; genuinely live progress |
 | 1.5.4   | 2026-07-14 | Configurable DE thresholds (`--fold-change`/`--padj`, dynamic throughout the report); flexible counts-file layouts (salmon/RSEM/featureCounts); drop Ensembl `_PAR_Y` (#12) |

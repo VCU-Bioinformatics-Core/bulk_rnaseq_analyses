@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.6.2** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.6.3** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -105,6 +105,68 @@ bash run_analysis.sh \
     --outdir results --runid my_run --annotation mouse
 ```
 
+### Linux / HPC (conda, recommended)
+
+Getting the pipeline onto the cluster, start to finish:
+
+```bash
+# 1. Code
+git clone https://github.com/VCU-Bioinformatics-Core/bulk_rnaseq_analyses.git
+cd bulk_rnaseq_analyses/differential_expression
+
+# 2. Environment. If your site has no conda, bootstrap micromamba into $HOME
+#    (single static binary, no admin rights, ~10 MB):
+#      curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+#      export PATH="$PWD/bin:$PATH"
+micromamba create -n bisrde -f environment.yml \
+    --override-channels -c conda-forge -c bioconda -y
+micromamba activate bisrde          # or: conda activate bisrde
+
+# 3. The pipeline package itself
+Rscript -e 'remotes::install_local("bisrDE", upgrade = "never")'
+
+# 4. Smoke-test on the bundled 10-gene fixture (~2 min)
+bash run_analysis.sh --counts assets/example_counts.tsv \
+    --samplesheet assets/example_samplesheet.csv \
+    --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
+```
+
+If step 4 produces `rnaseq_analysis_*.html`, the install is good.
+
+> **Why the environment matters more than it looks.** The repo ships a
+> `.Rprofile` that auto-activates `renv`, which would otherwise shadow the
+> conda library and produce confusing "package not found" errors.
+> `run_analysis.sh` detects an activated conda env and disables the renv
+> autoloader automatically — but if you invoke `Rscript de.R` directly, set
+> `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` yourself. Sanity check with
+> `Rscript -e '.libPaths()'`: it should point inside `$CONDA_PREFIX`.
+
+**Note:** `environment.yml` pins **Bioconductor 3.18 / R 4.3**, not the
+`renv.lock` 3.16 — Bioc 3.16 is not installable from bioconda (see the header
+of `environment.yml` for the two blocking dependency conflicts). Results are
+therefore *near*-equivalent, not identical. Validate before production use:
+
+```bash
+Rscript compare_runs.R --a <renv_reference_run> --b <conda_run> --out validation.md
+```
+
+Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
+
+#### Batch submission
+
+`submit_slurm.sh` is a ready sbatch template (4 cpus / 32 G / 4 h by default):
+
+```bash
+sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
+OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
+
+squeue -u "$USER"
+tail -f slurm-bisrde-<jobid>.out
+```
+
+Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
+GSEA backends are memory-bound rather than CPU-bound.
+
 ### Linux / HPC (renv)
 
 Identical command; the launcher falls back to local R + renv when no container is found.
@@ -195,7 +257,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.6.2) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.6.3) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 
