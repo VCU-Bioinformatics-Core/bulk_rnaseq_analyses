@@ -35,6 +35,7 @@ Imports:
     grDevices,
     grid,
     htmlwidgets,
+    jsonlite,
     knitr,
     msigdbr,
     patchwork,

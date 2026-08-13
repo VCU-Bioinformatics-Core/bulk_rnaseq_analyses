@@ -1,0 +1,116 @@
+# bisrDE — conda environment for a centrally managed bioconda install.
+#
+#     micromamba create -n bisrde -f environment.yml     # or: conda env create
+#     conda activate bisrde
+#     R -e 'remotes::install_local("bisrDE")'
+#
+# ============================================================================
+# WHY THIS IS BIOCONDUCTOR 3.18 AND NOT 3.16
+# ============================================================================
+# The pipeline's renv.lock pins Bioconductor 3.16 / R 4.2.1, and pinning conda
+# to match was attempted first. It is NOT SOLVABLE, for two independent and
+# unfixable reasons (verified with real `micromamba --dry-run` solves against
+# linux-64):
+#
+#   1. bioconductor-enrichplot 1.18.0 depends on r-ggraph -> r-ggforce ->
+#      r-tweenr, and no r-tweenr build satisfying that chain targets r-base 4.2.
+#   2. bioconductor-enrichplot pulls bioconductor-hdo.db, which requires
+#      annotationdbi >= 1.62 — NEWER than Bioc 3.16's 1.60. hdo.db post-dates
+#      the 3.16 cycle entirely, so no combination of pins can satisfy it.
+#
+# Bioc 3.18 / R 4.3.3 is the NEAREST solvable release, so it is the smallest
+# possible move away from the current pin — not a jump to the newest.
+#
+# This environment is therefore NOT a reproduction of renv.lock. Package
+# versions differ (DESeq2 1.38.3 -> 1.42.0, clusterProfiler 4.6.2 -> 4.10.0,
+# edgeR 3.40.2 -> 4.0.16). RE-VALIDATE DE OUTPUT against a known result before
+# trusting this for production analyses: diff gene rankings, log2FCs, adjusted
+# p-values and enrichment results against a renv-based run.
+#
+# For byte-exact reproduction of an old analysis, keep using renv.lock (or the
+# Apptainer image built from it). This file is for the shared/HPC install.
+#
+# ============================================================================
+# NOTES FOR THE ADMIN
+# ============================================================================
+# * Build this as a NAMED environment, never into `base`. bioconductor-*
+#   packages are built against one specific r-base minor version, so a single
+#   environment can hold exactly one Bioconductor release.
+# * Set `channel_priority: strict` in the system .condarc, and do NOT add
+#   `defaults` / `pkgs/main` / `pkgs/r` — they are Anaconda-ToS-encumbered,
+#   which matters for a fee-for-service university core. Prefer miniforge.
+# * Make the environment READ-ONLY to users. If someone runs
+#   BiocManager::install() inside it they bypass the solver and can produce an
+#   ABI-mismatched mix that segfaults at runtime rather than failing cleanly.
+# * In the modulefile, isolate R_LIBS_USER (e.g. `setenv R_LIBS_USER
+#   /nonexistent`, or scope it per env AND R version). An inherited site-wide
+#   ~/R/library silently shadows this environment — the classic "works for me"
+#   breakage. Verify with: Rscript -e '.libPaths()'
+# * Solve on the TARGET NODE. Solving from another platform produces confusing
+#   false negatives from missing glibc virtual packages.
+#
+# Verified: `micromamba create --dry-run --platform linux-64
+# --override-channels -c conda-forge -c bioconda` resolves this spec to 344
+# packages / 663 MB.
+
+name: bisrde
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  # ---- interpreter ---------------------------------------------------------
+  # Pinned to the minor version: every bioconductor-* build below declares
+  # `r-base >=4.3,<4.4`, which is what makes the solve coherent.
+  - r-base=4.3
+
+  # ---- Bioconductor 3.18 ---------------------------------------------------
+  - bioconductor-deseq2=1.42.0
+  - bioconductor-edger=4.0.16
+  - bioconductor-clusterprofiler=4.10.0
+  - bioconductor-enrichplot=1.22.0
+  - bioconductor-reactomepa=1.46.0
+  - bioconductor-complexheatmap=2.18.0
+  - bioconductor-annotationdbi=1.64.1
+  - bioconductor-summarizedexperiment=1.32.0
+  # Organism annotation databases.
+  - bioconductor-org.hs.eg.db=3.18.0
+  - bioconductor-org.mm.eg.db=3.18.0
+
+  # ---- CRAN ----------------------------------------------------------------
+  # Deliberately unpinned so the solver can pick builds compatible with
+  # r-base 4.3. Pinning the renv versions (e.g. ggplot2 4.0.0, built against a
+  # much newer R) would make this unsolvable.
+  - r-ggplot2
+  - r-ggrepel
+  - r-ggdendro
+  - r-gplots
+  - r-circlize
+  - r-patchwork
+  - r-plotly
+  - r-dt
+  - r-htmlwidgets
+  - r-dplyr
+  - r-readr
+  - r-stringr
+  - r-tidyselect
+  - r-rlang
+  - r-cli
+  - r-yaml
+  - r-jsonlite
+  - r-msigdbr
+  - r-knitr
+  - r-rmarkdown
+  - r-quarto
+  - r-optparse
+  - r-testthat
+  # For installing the bisrDE package itself.
+  - r-remotes
+
+  # ---- non-R runtime -------------------------------------------------------
+  # renv.lock does not capture these and they are easy to miss. `quarto` is the
+  # CLI — NOT r-quarto, which is only the thin R wrapper that shells out to it —
+  # and it is a hard runtime dependency of the report step.
+  - quarto
+  - pandoc
