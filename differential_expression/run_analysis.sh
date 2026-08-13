@@ -101,8 +101,22 @@ elif [ "$EXEC_METHOD" == "local" ]; then
         exit 1
     fi
     
-    # Check if renv is set up
-    if [ ! -d "renv" ]; then
+    # If R is coming from an activated conda environment, that environment owns
+    # the package library. The repo ships a .Rprofile + renv/activate.R, so
+    # without this renv autoloads and shadows the conda library — the classic
+    # "works for me" breakage on HPC. Disabling the autoloader makes
+    # `conda activate bisrde && bash run_analysis.sh ...` work as expected.
+    if [ -n "${CONDA_PREFIX:-}" ] && \
+       [ "$(command -v Rscript)" != "${CONDA_PREFIX}/bin/Rscript" ]; then
+        echo -e "${YELLOW}NOTE: \$CONDA_PREFIX is set but Rscript is not from that env.${NC}"
+        echo "      Using: $(command -v Rscript)"
+    elif [ -n "${CONDA_PREFIX:-}" ]; then
+        echo -e "${GREEN}Using R from conda env: ${CONDA_PREFIX}${NC}"
+        export RENV_CONFIG_AUTOLOADER_ENABLED=FALSE
+    fi
+
+    # Check if renv is set up (skipped when a conda env is providing R).
+    if [ -z "${CONDA_PREFIX:-}" ] && [ ! -d "renv" ]; then
         echo -e "${YELLOW}renv not initialized. Initializing now...${NC}"
         echo "This is a one-time setup and may take 30-60 minutes."
         echo ""
