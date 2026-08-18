@@ -149,12 +149,22 @@ bash run_analysis.sh --counts assets/example_counts.tsv \
 #    usually have no outbound internet, so without this every run fails with
 #    "MSigDB Hallmark error: Timeout was reached [zenodo.org]" and silently
 #    produces no Hallmark enrichment.
-Rscript -e 'msigdbr::msigdbr(species = "Homo sapiens", collection = "H")' \
-  && Rscript -e 'msigdbr::msigdbr(species = "Mus musculus", collection = "H")'
-
-# Confirm it landed (~100 MB of .rds files):
-Rscript -e 'cat(tools::R_user_dir("msigdbr","cache"),"\n"); print(list.files(tools::R_user_dir("msigdbr","cache")))'
+Rscript warm_msigdb_cache.R
 ```
+
+> **If the cluster has no outbound internet at all** (login nodes included —
+> check with `curl -sI https://zenodo.org`), warm the cache on your laptop and
+> copy it across. It is ~85 MB:
+>
+> ```bash
+> # on the machine WITH internet
+> Rscript warm_msigdb_cache.R
+> Rscript -e 'cat(tools::R_user_dir("msigdbr","cache"))'   # prints the source dir
+>
+> # then, from that machine (Linux target path is ~/.cache/R/msigdbr)
+> ssh <cluster> 'mkdir -p ~/.cache/R/msigdbr'
+> rsync -avP "<source dir>/" <cluster>:~/.cache/R/msigdbr/
+> ```
 
 If step 5 produces `rnaseq_analysis_*.html`, the install is good.
 
@@ -164,10 +174,14 @@ If step 5 produces `rnaseq_analysis_*.html`, the install is good.
 >
 > ```bash
 > export R_USER_CACHE_DIR=/lustre/home/<lab>/rcache
+> Rscript warm_msigdb_cache.R
 > ```
 >
 > Verified: with the cache warm, Hallmark enrichment returns all 50 gene sets
 > with outbound network fully blocked.
+>
+> Everything in this section needs only `R` — `just` is a developer convenience
+> and is not required on the cluster.
 
 > **If you skipped step 3**, any direct `Rscript` call fails with
 > `there is no package called 'remotes'` (or any other conda-installed
