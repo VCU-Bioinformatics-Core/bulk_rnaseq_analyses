@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-08-13
+
+### Fixed
+
+- **HPC install instructions no longer fail on the renv autoloader.** The
+  documented `Rscript -e 'remotes::install_local("bisrDE")'` step failed on a
+  fresh clone with `there is no package called 'remotes'`, even inside a
+  correctly built conda environment: the shipped `.Rprofile` autoloads renv,
+  which repoints `.libPaths()` at an empty project library and hides everything
+  conda installed. `run_analysis.sh` already guarded pipeline *runs*, but not
+  direct `Rscript` calls — which is exactly what the install step is. The README
+  now writes the setting into the environment itself
+  (`$CONDA_PREFIX/etc/conda/activate.d/renv_off.sh`, works for conda and
+  micromamba), so every activation is safe, and documents the one-off
+  `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` escape hatch alongside the exact error
+  it resolves.
+
 ## [1.6.3] - 2026-08-13
 
 HPC deployment: a conda environment, a validation gate, and a documented path
@@ -543,6 +560,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.6.4   | 2026-08-13 | Fix the HPC install step that renv's autoloader breaks (bake `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` into the conda env) |
 | 1.6.3   | 2026-08-13 | HPC deployment: solve-verified conda `environment.yml` (Bioc 3.18), `compare_runs.R` validation gate, Slurm template, conda-aware launcher |
 | 1.6.2   | 2026-08-12 | Phase status line under the progress bar; both launchers discover counts/samplesheet files from a project directory instead of requiring typed paths |
 | 1.6.1   | 2026-08-12 | Live event-driven Go TUI (NDJSON progress → bubbletea box + bar, typewriter streaming, severity colours); justfile / bats parity suite / shellcheck / aha / VHS; graceful interrupt; samplesheet header variants; genuinely live progress |
