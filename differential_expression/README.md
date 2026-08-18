@@ -143,7 +143,31 @@ bash run_analysis.sh --counts assets/example_counts.tsv \
     --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
 ```
 
+```bash
+# 6. ONE-TIME: pre-download the MSigDB gene sets, ON A LOGIN NODE.
+#    msigdbr fetches its archive from Zenodo on first use. Compute nodes
+#    usually have no outbound internet, so without this every run fails with
+#    "MSigDB Hallmark error: Timeout was reached [zenodo.org]" and silently
+#    produces no Hallmark enrichment.
+Rscript -e 'msigdbr::msigdbr(species = "Homo sapiens", collection = "H")' \
+  && Rscript -e 'msigdbr::msigdbr(species = "Mus musculus", collection = "H")'
+
+# Confirm it landed (~100 MB of .rds files):
+Rscript -e 'cat(tools::R_user_dir("msigdbr","cache"),"\n"); print(list.files(tools::R_user_dir("msigdbr","cache")))'
+```
+
 If step 5 produces `rnaseq_analysis_*.html`, the install is good.
+
+> **If `$HOME` is not shared with the compute nodes**, point the cache at a
+> shared filesystem instead — set `R_USER_CACHE_DIR` to the same path when
+> warming the cache *and* in your job script:
+>
+> ```bash
+> export R_USER_CACHE_DIR=/lustre/home/<lab>/rcache
+> ```
+>
+> Verified: with the cache warm, Hallmark enrichment returns all 50 gene sets
+> with outbound network fully blocked.
 
 > **If you skipped step 3**, any direct `Rscript` call fails with
 > `there is no package called 'remotes'` (or any other conda-installed

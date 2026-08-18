@@ -150,6 +150,30 @@ bump version:
 container:
     cd {{de}} && bash build_container.sh
 
+# Pre-download the MSigDB gene sets so Hallmark enrichment works OFFLINE.
+# msigdbr fetches its archive from Zenodo on first use; HPC compute nodes
+# usually have no outbound internet, so run this once on a login node.
+msigdb-cache:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    # Under conda the env owns the library, so renv's autoloader must be off.
+    # Outside conda, renv IS the library — leave it alone. (Same rule as
+    # run_analysis.sh.)
+    [ -n "${CONDA_PREFIX:-}" ] && export RENV_CONFIG_AUTOLOADER_ENABLED=FALSE
+    {{rscript}} -e '
+      cache <- tools::R_user_dir("msigdbr", "cache")
+      cat("cache dir:", cache, "\n")
+      for (sp in c("Homo sapiens", "Mus musculus")) {
+        n <- nrow(msigdbr::msigdbr(species = sp, collection = "H"))
+        cat(sprintf("  %-14s H collection rows: %d\n", sp, n))
+      }
+      cat("cached files:\n"); print(list.files(cache))
+    '
+    printf '\033[32m✓\033[0m compute nodes will now read this cache instead of downloading.\n'
+    printf '  If $HOME is not shared with the compute nodes, set R_USER_CACHE_DIR\n'
+    printf '  to a shared path in your job script and re-run this recipe.\n'
+
 # Create the conda environment from environment.yml (Bioconductor 3.18 / R 4.3).
 conda-env:
     #!/usr/bin/env bash

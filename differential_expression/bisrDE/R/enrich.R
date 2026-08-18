@@ -369,6 +369,21 @@ process_msigdb_hallmark <- function(annotated_result, p = 1,
     },
     error = function(e) {
       cli::cli_alert_danger("MSigDB Hallmark error: {e$message}")
+      # msigdbr >= 24 fetches the gene-set archive from Zenodo on first use and
+      # caches it. On an HPC compute node with no outbound internet that surfaces
+      # as an opaque timeout, so name the actual fix rather than leaving the user
+      # to guess. Only for network-ish failures — a genuine analysis error should
+      # not be buried under installation advice.
+      if (grepl("timeout|timed out|resolve host|connection|curl|download|internet",
+                e$message, ignore.case = TRUE)) {
+        cli::cli_alert_info(c(
+          "This looks like {.pkg msigdbr} failing to download its gene sets.",
+          "i" = "Warm the cache once on a machine WITH internet (e.g. a login node):",
+          "*" = '{.code Rscript -e \'msigdbr::msigdbr(species = "Homo sapiens", collection = "H")\'}',
+          "i" = "The cache lives in {.path {tools::R_user_dir(\"msigdbr\", \"cache\")}} and is reused offline.",
+          "i" = "Override the location with the {.envvar R_USER_CACHE_DIR} environment variable."
+        ))
+      }
       NULL
     }
   )

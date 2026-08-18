@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **MSigDB Hallmark enrichment now works on offline HPC nodes.** `msigdbr` ≥ 24
+  downloads its gene-set archive from Zenodo on first use, so on a compute node
+  with no outbound internet every run failed with
+  `Timeout was reached [zenodo.org]` and silently produced no Hallmark results.
+  The archive is cached (`tools::R_user_dir("msigdbr", "cache")`) and the
+  download is skipped entirely once present, so warming the cache once on a
+  login node fixes it permanently — verified: with outbound network fully
+  blocked, Hallmark returns all 50 gene sets. Adds `just msigdb-cache` to warm
+  it, README instructions (including `R_USER_CACHE_DIR` when `$HOME` is not
+  shared with compute nodes), and — when the failure looks network-related —
+  an actionable hint naming the cache path and the command to run, instead of
+  an opaque timeout.
+
 ## [1.6.4] - 2026-08-13
 
 ### Fixed
