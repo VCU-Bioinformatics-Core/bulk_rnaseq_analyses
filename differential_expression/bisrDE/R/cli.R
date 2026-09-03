@@ -114,8 +114,13 @@ stop_session_log <- function(log) {
                                started, finished, n_genes_input,
                                n_genes_filtered, n_samples, n_samplesheet_rows,
                                comparisons, results, rds_path, session_log,
-                               padj = 0.05, lfc = 0.58) {
+                               padj = 0.05, lfc = 0.58,
+                               options = NULL, software = NULL, qc = NULL) {
   iso <- function(t) format(t, "%Y-%m-%dT%H:%M:%S")
+  n_sig_sets <- function(g) {
+    if (is.null(g)) return(0L)
+    sum(!is.na(g@result$p.adjust) & g@result$p.adjust < padj)
+  }
 
   comp_summaries <- lapply(seq_along(results), function(i) {
     r  <- results[[i]]
@@ -123,14 +128,24 @@ stop_session_log <- function(log) {
     if (is.null(r) || is.null(r$deseq)) return(list(name = nm, ok = FALSE))
     d   <- r$deseq
     sig <- sum(!is.na(d$padj) & d$padj < padj & abs(d$log2FoldChange) >= lfc)
+    o   <- if (is.null(r$de_options)) list() else r$de_options
     list(
       name        = nm,
       ok          = TRUE,
       n_genes     = nrow(d),
       n_sig       = sig,
+      n_padj_na   = sum(is.na(d$padj)),
+      design      = o$design,
+      reference_level = o$reference_level,
+      coefficient = o$coef,
+      lfc_shrink  = o$lfc_shrink,
+      independent_filtering = o$independent_filtering,
       enrichments = list(GO = !is.null(r$gsea),     KEGG     = !is.null(r$kegg),
                          Reactome = !is.null(r$reactome),
-                         Hallmark = !is.null(r$hallmark))
+                         Hallmark = !is.null(r$hallmark)),
+      n_significant_sets = list(GO = n_sig_sets(r$gsea), KEGG = n_sig_sets(r$kegg),
+                                Reactome = n_sig_sets(r$reactome),
+                                Hallmark = n_sig_sets(r$hallmark))
     )
   })
 
@@ -152,12 +167,15 @@ stop_session_log <- function(log) {
                         fold_change = round(2^lfc, 3)),
     contrasts    = vapply(comparisons, function(x) x$name, character(1)),
     comparisons  = comp_summaries,
+    options      = options,
+    software     = software,
+    qc           = if (is.null(qc)) NULL else qc[setdiff(names(qc), c("libsize_M", "detected"))],
     outputs      = list(rds = rds_path, session_log = session_log)
   )
 
   tryCatch({
     jsonlite::write_json(summary, path, auto_unbox = TRUE, pretty = TRUE,
-                         null = "null")
+                         null = "null", na = "null")
     cli::cli_alert_success("Run summary: {.path {path}}")
   }, error = function(e)
     cli::cli_alert_warning("Could not write run summary JSON: {conditionMessage(e)}"))

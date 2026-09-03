@@ -19,7 +19,10 @@ run_pipeline(
   volcano_labels = 10,
   padj = 0.05,
   fold_change = 1.5,
-  session_log = NULL
+  session_log = NULL,
+  independent_filtering = FALSE,
+  gsea_rank = c("stat", "log2fc"),
+  lfc_shrink = c("apeglm", "normal", "none")
 )
 }
 \arguments{
@@ -70,6 +73,19 @@ When supplied, this call uses it (so a driver can make one log span both
 the analysis and the report render) and does NOT close it — the caller
 owns the lifecycle. When \code{NULL} (default) the pipeline opens and closes
 its own log, as before. Default \code{NULL}.}
+
+\item{independent_filtering}{DESeq2 \code{results(independentFiltering =)}.
+Default \code{FALSE} (the historical BISR setting; DESeq2's default is
+\code{TRUE}). Recorded in the run JSON and stated in the report Methods.}
+
+\item{gsea_rank}{Ranking metric for pre-ranked GSEA: \code{"stat"} (default,
+the DESeq2 Wald statistic) or \code{"log2fc"} (pre-v1.7 behaviour).}
+
+\item{lfc_shrink}{Log2 fold-change shrinkage: \code{"apeglm"} (default; falls
+back to \code{"normal"} with a message when apeglm is not installed),
+\code{"normal"}, or \code{"none"}. Adds \code{log2FC_shrunken} / \code{lfcSE_shrunken} to
+the DE tables and places volcano points at the shrunken value; DEG
+calls always use the MLE \code{log2FoldChange}.}
 
 \item{tick}{Optional function of one argument (a step label) called before
 each of the \link{.STEPS_PER_COMPARISON} phases, so the caller can advance a

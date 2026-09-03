@@ -11,7 +11,8 @@ generate_volcano(
   p = 0.05,
   lfc = 0.58,
   sig = "padj",
-  n_labels = 10
+  n_labels = 10,
+  use_shrunken = TRUE
 )
 }
 \arguments{
@@ -35,6 +36,14 @@ the threshold line, and the top-genes-label selection.}
 \code{n_labels} most-significant genes (by ascending \code{sig}) that pass both
 thresholds. Default \code{10} — keeps the plot readable when many genes are
 significant. Configurable via the \code{--volcano-labels} CLI flag.}
+
+\item{use_shrunken}{When \code{TRUE} (default) and \code{data} carries a
+\code{log2FC_shrunken} column (see \code{\link[=perform_deseq2_analysis]{perform_deseq2_analysis()}} with
+\code{lfc_shrink}), points are placed at the shrunken log2 fold change. The
+colour (the DEG call) and the dashed threshold lines still use the MLE
+\code{log2FoldChange}, so a significant gene can sit inside the lines: that
+is the shrinkage showing a noisy estimate. \code{FALSE} or no such column:
+the x axis is the MLE.}
 }
 \value{
 A \code{ggplot} object.

@@ -53,11 +53,13 @@ Imports:
     utils,
     yaml
 Suggests:
+    apeglm,
+    cluster,
+    lintr,
+    optparse,
     org.Hs.eg.db,
     org.Mm.eg.db,
-    optparse,
-    testthat (>= 3.0.0),
-    lintr
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 biocViews:
     DifferentialExpression,

@@ -28,6 +28,9 @@ params:
   brs_ticket: ""
   genome_assembly: "primary assembly"
   sections_dir: ""
+  bisrde_version: ""
+  upstream_versions_path: ""
+  run_platform: ""
 ---
 
 ```{r setup, include=FALSE}
@@ -52,14 +55,48 @@ annotation <- rds_data[[7]]
 padj_cut <- if (length(rds_data) >= 8 && !is.null(rds_data[[8]])) rds_data[[8]] else 0.05
 fc_cut   <- if (length(rds_data) >= 9 && !is.null(rds_data[[9]])) rds_data[[9]] else 1.5
 lfc_cut  <- log2(fc_cut)
+# v1.7: QC summary (element 10) and run options (element 11); older bundles
+# fall back to the pre-v1.7 behaviour so the report still renders.
+qc_summary <- if (length(rds_data) >= 10) rds_data[[10]] else NULL
+run_opts   <- if (length(rds_data) >= 11 && !is.null(rds_data[[11]])) rds_data[[11]] else list()
+.opt <- function(name, default) if (!is.null(run_opts[[name]])) run_opts[[name]] else default
+gsea_rank_used  <- .opt("gsea_rank", "log2fc")
+gsea_rank_label <- if (gsea_rank_used == "stat") "the DESeq2 Wald statistic" else "log2 fold-change"
+shrink_used     <- .opt("lfc_shrink_used", "none")
+indep_filt      <- isTRUE(.opt("independent_filtering", FALSE))
+qc_transform    <- .opt("qc_transform", "linear")
+qc_transform_label <- switch(qc_transform,
+  vst = "blind variance-stabilised (VST) counts, all genes",
+  log2_tmm_cpm = "log2(TMM-CPM + 1), all genes",
+  "TMM-normalized counts (linear scale)")
+min_group_size  <- .opt("smallest_group_size", 3)
 
 # Phase 7.2: Tool versions from a single source of truth. Upstream tool
 # versions live in `inst/extdata/upstream_versions.yml` (bump them there
 # when nf-core/rnaseq is upgraded). R package versions are read live so
-# they always match the renv-pinned lockfile.
-upstream <- yaml::read_yaml(
+# they always match the renv-pinned lockfile. The YAML path comes from
+# generate_report() (params$upstream_versions_path) because this document
+# renders in its own R process where system.file() finds nothing in dev mode;
+# a missing file yields "version not recorded" clauses, never blanks.
+.yaml_path <- if (nzchar(params$upstream_versions_path) && file.exists(params$upstream_versions_path)) {
+  params$upstream_versions_path
+} else {
   system.file("extdata/upstream_versions.yml", package = "bisrDE")
-)
+}
+upstream <- if (nzchar(.yaml_path) && file.exists(.yaml_path)) {
+  # Read as UTF-8 explicitly: under a C locale (Slurm, containers, quarto
+  # subprocesses) a non-ASCII byte in the file made read_yaml() return NULL
+  # silently, which is how the Methods once rendered "STAR v" with no number.
+  tryCatch(yaml::read_yaml(.yaml_path, fileEncoding = "UTF-8"), error = function(e) list())
+} else list()
+.up <- function(tool) {
+  v <- tryCatch(upstream[[tool]][["version"]], error = function(e) NULL)
+  if (is.null(v) || !nzchar(as.character(v))) NULL else as.character(v)
+}
+.tool <- function(label, tool) {
+  v <- .up(tool)
+  if (is.null(v)) sprintf("%s (version not recorded)", label) else sprintf("%s v%s", label, v)
+}
 
 # Defensive version readers: `packageVersion()` fails if the package was
 # loaded via `devtools::load_all()` (no DESCRIPTION on the install path).
@@ -76,14 +113,30 @@ upstream <- yaml::read_yaml(
   }
   "dev"
 }
+# Prefer the versions recorded at ANALYSIS time (run_options$software, v1.7+)
+# over the render-time library, so a bundle re-rendered under another renv
+# still names the packages that produced the numbers.
+.rec <- function(key) {
+  v <- run_opts$software[[key]]
+  if (is.null(v) || is.na(v)) NULL else as.character(v)
+}
+.ver <- function(key, pkg) { v <- .rec(key); if (is.null(v)) .pkg_version(pkg) else v }
 r_versions <- list(
-  deseq2          = .pkg_version("DESeq2"),
-  edger           = .pkg_version("edgeR"),
-  clusterprofiler = .pkg_version("clusterProfiler"),
-  reactomepa      = .pkg_version("ReactomePA"),
-  msigdbr         = .pkg_version("msigdbr"),
-  bisrde          = .pkg_version("bisrDE")
+  deseq2          = .ver("DESeq2", "DESeq2"),
+  apeglm          = .ver("apeglm", "apeglm"),
+  edger           = .ver("edgeR", "edgeR"),
+  clusterprofiler = .ver("clusterProfiler", "clusterProfiler"),
+  reactomepa      = .ver("ReactomePA", "ReactomePA"),
+  msigdbr         = .ver("msigdbr", "msigdbr"),
+  bisrde          = if (!is.null(.rec("bisrDE"))) .rec("bisrDE") else if (nzchar(params$bisrde_version)) params$bisrde_version else .pkg_version("bisrDE")
 )
+run_platform <- if (!is.null(run_opts$platform) && nzchar(run_opts$platform)) run_opts$platform else
+  if (nzchar(params$run_platform)) params$run_platform else
+  sprintf("%s (R %s.%s)", Sys.info()[["sysname"]], R.version$major, R.version$minor)
+# Bundles written before v1.7 carry no run options: the sample-QC figures in
+# them were computed on linear TMM-CPM and DE-gene subsets, so say so instead
+# of describing the current pipeline.
+legacy_bundle <- length(rds_data) < 11
 ```
 
 ## Overview
@@ -128,12 +181,20 @@ data files.
     if (is.null(obj)) next
     df <- as.data.frame(obj)
     if (nrow(df) == 0 || !"p.adjust" %in% colnames(df)) next
-    top <- df[which.min(df$p.adjust), , drop = FALSE]
+    # Significant sets only; ties on p.adjust (common at the p-value floor)
+    # are broken by |NES| so "strongest" is never a coin flip.
+    df <- df[!is.na(df$p.adjust) & df$p.adjust < padj_cut, , drop = FALSE]
+    if (nrow(df) == 0) next
+    nes <- if ("NES" %in% colnames(df)) df$NES else rep(0, nrow(df))
+    top <- df[order(df$p.adjust, -abs(nes))[1], , drop = FALSE]
     label <- switch(slot, gsea = "GO", kegg = "KEGG",
                     reactome = "Reactome", hallmark = "Hallmark")
     cand <- list(backend = label, desc = top$Description,
-                 padj = top$p.adjust)
-    if (is.null(best) || cand$padj < best$padj) best <- cand
+                 padj = top$p.adjust,
+                 nes = if ("NES" %in% colnames(top)) top$NES else NA_real_)
+    if (is.null(best) || cand$padj < best$padj ||
+        (cand$padj == best$padj && !is.na(cand$nes) && !is.na(best$nes) &&
+         abs(cand$nes) > abs(best$nes))) best <- cand
   }
   best
 }
@@ -159,10 +220,10 @@ for (i in seq_along(comparisons)) {
 
   if (total == 0) {
     cat(paste0(
-      sprintf("- **0 genes** passed FDR < %s and |log2FC| ≥ %.2f (%.1f-fold). ",
+      sprintf("- **0 genes** passed FDR < %s and |log2FC| &ge; %.2f (%.1f-fold). ",
               padj_cut, lfc_cut, fc_cut),
       "Possible causes: small effect size, low replicate count, ",
-      "or a contrast that doesn't capture the biology — ",
+      "or a contrast that doesn't capture the biology; ",
       "see Volcano + QC sections below.\n\n"
     ))
     next
@@ -184,11 +245,12 @@ for (i in seq_along(comparisons)) {
   }
   if (!is.null(pathway)) {
     cat(sprintf(
-      "- Strongest enriched gene set: **%s** in %s (p.adjust = %s).\n",
-      pathway$desc, pathway$backend, .fmt_pval(pathway$padj)
+      "- Strongest enriched gene set: **%s** in %s (p.adjust = %s%s).\n",
+      pathway$desc, pathway$backend, .fmt_pval(pathway$padj),
+      if (!is.na(pathway$nes)) sprintf(", NES = %.2f", pathway$nes) else ""
     ))
   } else {
-    cat("- No enriched gene sets were detected by GO / KEGG / Reactome / Hallmark.\n")
+    cat(sprintf("- No gene set reached p.adjust < %s in GO / KEGG / Reactome / Hallmark.\n", padj_cut))
   }
   cat("\n")
 }
@@ -200,33 +262,46 @@ The full per-comparison breakdown (with volcano, heatmaps, DT tables, and dotplo
 
 For this analysis we used the following steps:
 
-1. **Data preprocessing**: Count data was filtered to remove genes with low expression.
-2. **Normalization**: TMM normalization was applied using edgeR TMM function.
-3. **Differential expression**: DESeq2 was used to identify differentially expressed genes.
-4. **Functional analysis**: Gene Set Enrichment Analysis (GSEA) was performed using clusterProfiler.
-5. **Thresholds**: Genes with adjusted p-value < `r padj_cut` and |FC| ≥ `r fc_cut` (equivalent to log2(FC) = `r round(lfc_cut, 2)`) were considered differentially expressed.
+1. **Data preprocessing**: Salmon/RSEM estimated counts were rounded to integers and genes with fewer than `r min_group_size` samples at ≥ 10 reads (the smallest group size) were removed.
+2. **Differential expression**: DESeq2 was used to identify differentially expressed genes. DESeq2 estimates its own size factors (median-of-ratios) for testing.
+3. **Normalization for plots and export**: edgeR TMM-normalized counts-per-million are written to `normalizedCounts_TMM[date].csv` and drive the DE heatmaps; they are **not** the input to DESeq2. Sample exploration (PCA, correlation, distances) uses `r qc_transform_label`.
+4. **Functional analysis**: pre-ranked Gene Set Enrichment Analysis (GSEA), ranking every tested gene by `r gsea_rank_label`, against GO, KEGG, Reactome and MSigDB Hallmark.
+5. **Thresholds**: Genes with adjusted p-value < `r padj_cut` and |FC| ≥ `r fc_cut` (equivalent to log2(FC) = `r round(lfc_cut, 2)`) were considered differentially expressed. Gene sets with p.adjust < `r padj_cut` are called enriched.
 6. **Genome annotation**: `r annotation`
 
 As part of this pipeline we produce the following files for your downstream use:
 
-```
-output/
-├── de_data/
-│ ├── DESeq2_[comparison].csv
-│ └── normalizedCounts_TMM[date].csv
-├── gsea_data/
-│ └── GO_Analysis_[comparison].csv
-└── figures/
-  ├── volcano/
-  │   └── [comparison]_volcano.png
-  ├── heatmap/
-  │ └── [comparison]_heatmap_*.png
-  ├── gsea/
-  │ └── [comparison]_GSEA.png
-  └── pca/
-    ├── PCA_plot.png
-    ├── allsamples_PCA_plot.html
-    └── allsamples_PCA_plot3D.html
+```{r output-tree, results='asis'}
+# Built from the directories that actually exist for this run, so the tree
+# never advertises files that were not written (or omits ones that were).
+.tree_entry <- function(label, dir, pattern) {
+  if (is.null(dir) || !dir.exists(dir)) return(NULL)
+  n <- length(list.files(dir, pattern = pattern))
+  if (n == 0) return(NULL)
+  sprintf("%s (%d file%s)", label, n, if (n == 1) "" else "s")
+}
+entries <- c(
+  .tree_entry("data/de_data/DESeq2_[comparison].csv + normalizedCounts_tmm[date].csv", out_dirs$de_data, "\\.csv$"),
+  .tree_entry("data/gsea_data/GO_Analysis_[comparison].csv",             out_dirs$gsea_data,     "\\.csv$"),
+  .tree_entry("data/kegg_data/KEGG_Analysis_[comparison].csv",           out_dirs$kegg_data,     "\\.csv$"),
+  .tree_entry("data/reactome_data/Reactome_Analysis_[comparison].csv",   out_dirs$reactome_data, "\\.csv$"),
+  .tree_entry("data/hallmark_data/Hallmark_Analysis_[comparison].csv",   out_dirs$hallmark_data, "\\.csv$"),
+  .tree_entry("figures/volcano/[comparison]_volcano.png",                out_dirs$volcano,  "\\.png$"),
+  .tree_entry("figures/heatmap/[comparison]_heatmap_*.png",              out_dirs$heatmap,  "\\.png$"),
+  .tree_entry("figures/gsea/[comparison]_GSEA.png",                      out_dirs$gsea,     "\\.png$"),
+  .tree_entry("figures/kegg/[comparison]_KEGG.png",                      out_dirs$kegg,     "\\.png$"),
+  .tree_entry("figures/reactome/[comparison]_Reactome.png",              out_dirs$reactome, "\\.png$"),
+  .tree_entry("figures/hallmark/[comparison]_Hallmark.png",              out_dirs$hallmark, "\\.png$"),
+  .tree_entry("figures/pca/PCA_plot.png + allsamples_PCA_plot*.html",    out_dirs$pca,      "\\.(png|html)$"),
+  .tree_entry("figures/qc/qc_*.png",                                     out_dirs$qc,       "\\.png$"),
+  .tree_entry("logs/ (session log + run summary JSON)",                  out_dirs$logs,     ".")
+)
+if (length(entries) == 0) {
+  cat("_The output directories of this run are not reachable from the machine rendering this report; see the run's `logs/*_report.json` for the file inventory._\n")
+} else {
+  # ASCII only inside R code: the render may run under a C locale.
+  cat("```\noutput/\n", paste0("|-- ", entries, collapse = "\n"), "\n```\n", sep = "")
+}
 ```
 
 ## Sample Exploration using PCA
@@ -236,8 +311,18 @@ to identify potential batch effects or outliers. **What we expect:** Samples wit
 expression profiles should cluster together, while dissimilar samples are expected to
 separate into distinct clusters.
 
+```{r qc-at-a-glance, results='asis'}
+if (legacy_bundle) {
+  cat("::: {.callout-note title=\"Older analysis bundle\"}\nThis bundle predates bisrDE v1.7: its PCA and correlation heatmap were computed on linear TMM-normalized counts (correlation on the union of DE genes) and no QC summary or run options were recorded. The descriptions below refer to that pipeline.\n:::\n\n")
+}
+if (!is.null(qc_summary) && !is.null(qc_summary$text)) {
+  cat("::: {.callout-important title=\"QC at a glance (computed for this dataset)\"}\n",
+      qc_summary$text, "\n:::\n\n", sep = "")
+}
+```
+
 ::: {.callout-tip title="How to read this"}
-Each dot is a sample, projected onto the two (or three) axes (PC1, PC2, PC3) that capture the largest sources of variation across all genes. PCA is computed on TMM-normalized counts, so library-size differences are already accounted for. The percent-variance label on each axis tells you how much of the total spread that PC explains.
+Each dot is a sample, projected onto the two (or three) axes (PC1, PC2, PC3) that capture the largest sources of variation across all genes. PCA is computed on `r qc_transform_label`, so library-size differences are already accounted for`r if (!legacy_bundle) " and a handful of very abundant genes cannot dominate the axes" else ""`. The percent-variance label on each axis tells you how much of the total spread that PC explains.
 :::
 
 ::: {.callout-note title="What to look for"}
@@ -286,7 +371,7 @@ Standalone interactive PCA files are also produced for sharing or embedding else
 These four sample-level QC plots complement the PCA above. Use them to spot outlier samples (poor depth, atypical distributions, mis-clustered replicates) before drawing conclusions from the differential-expression results.
 
 ::: {.callout-tip title="How to read these"}
-Four complementary views of sample-level quality. The **correlation heatmap** asks "do replicates correlate?" using Spearman correlation on DE genes. The **vst distance heatmap** asks "do samples cluster by group?" using Euclidean distance on variance-stabilized counts. The **library-size barplot** asks "is sequencing depth uneven?" by summing raw counts per sample (top panel) and counting expressed genes per sample (bottom panel). The **hclust + density** asks "do all samples have similar expression distributions?" via a Ward dendrogram (left) and per-sample log-CPM density curves (right).
+Four complementary views of sample-level quality. The **correlation heatmap** asks "do replicates correlate?" using Spearman correlation on `r if (legacy_bundle) "the union of DE genes (TMM-normalized counts)" else paste0("**all genes** (", qc_transform_label, "); restricting it to DE genes would separate the groups by construction")`. The **vst distance heatmap** asks "do samples cluster by group?" using Euclidean distance on variance-stabilized counts. The **library-size barplot** asks "is sequencing depth uneven?" by summing raw counts per sample (top panel) and counting expressed genes per sample (bottom panel). The **hclust + density** asks "do all samples have similar expression distributions?" via a Ward dendrogram (left) and per-sample log-CPM density curves (right).
 :::
 
 ::: {.callout-note title="What to look for"}
@@ -301,7 +386,7 @@ On the correlation heatmap, **dark red within-group blocks** (high Spearman ρ, 
 If you spot a clear outlier, the canonical workflow is: (1) drop it from the samplesheet, (2) re-run the pipeline, (3) compare DE results to confirm the outlier was suppressing real signal (or was a benign noise source). Don't drop more than one sample per group without consulting the experimental statistician — small N is the more common failure mode than outlier contamination. If everything looks healthy here, you can read the per-comparison DE results below with high confidence.
 :::
 
-**Sample × Sample correlation heatmap (Spearman, DE genes)**
+**Sample × Sample correlation heatmap (Spearman, `r if (legacy_bundle) "DE genes" else "all genes"`)**
 
 ```{r}
 #| out-width: "900px"
@@ -376,7 +461,13 @@ for (i in seq_along(comparisons)) {
       up_degs    <- sum(!is.na(res_df$padj) & res_df$padj < padj_cut & res_df$log2FoldChange >= lfc_cut)
       down_degs  <- sum(!is.na(res_df$padj) & res_df$padj < padj_cut & res_df$log2FoldChange <= -lfc_cut)
 
-      yn <- function(x) ifelse(!is.null(x), "Yes", "No")
+      # Number of gene sets significant at padj_cut (not "did the backend
+      # run"): a backend that ran and found nothing shows 0, not "Yes".
+      n_sig <- function(x) {
+        if (is.null(x)) return("not run")
+        df <- as.data.frame(x)
+        as.character(sum(!is.na(df$p.adjust) & df$p.adjust < padj_cut))
+      }
 
       summary_table <- rbind(summary_table, data.frame(
         Comparison    = comparisons[[i]]$name,
@@ -385,10 +476,10 @@ for (i in seq_along(comparisons)) {
         Total_DEGs    = total_degs,
         Upregulated   = up_degs,
         Downregulated = down_degs,
-        GO            = yn(results[[i]]$gsea),
-        KEGG          = yn(results[[i]]$kegg),
-        Reactome      = yn(results[[i]]$reactome),
-        Hallmark      = yn(results[[i]]$hallmark),
+        GO            = n_sig(results[[i]]$gsea),
+        KEGG          = n_sig(results[[i]]$kegg),
+        Reactome      = n_sig(results[[i]]$reactome),
+        Hallmark      = n_sig(results[[i]]$hallmark),
         stringsAsFactors = FALSE
       ))
     }
@@ -406,16 +497,25 @@ plot, heatmap, table of top hits, and GSEA results (shown as both a bubble plot 
 
 Briefly, we report the following:
 
-- Total number of comparisons analyzed: `r length(comparisons)`
-- Comparison with the highest number of DEGs: `r if (nrow(summary_table) > 0) summary_table$Comparison[which.max(summary_table$Total_DEGs)] else "n/a"` (`r if (nrow(summary_table) > 0) max(summary_table$Total_DEGs) else 0` DEGs)
-- Comparison with the lowest number of DEGs: `r if (nrow(summary_table) > 0) summary_table$Comparison[which.min(summary_table$Total_DEGs)] else "n/a"` (`r if (nrow(summary_table) > 0) min(summary_table$Total_DEGs) else 0` DEGs)
+```{r summary-lines, results='asis'}
+cat(sprintf("- Total number of comparisons analyzed: %d\n", length(comparisons)))
+if (nrow(summary_table) == 1) {
+  cat(sprintf("- Number of DEGs: %d (%d up, %d down)\n", summary_table$Total_DEGs[1],
+              summary_table$Upregulated[1], summary_table$Downregulated[1]))
+} else if (nrow(summary_table) > 1) {
+  cat(sprintf("- Comparison with the highest number of DEGs: %s (%d DEGs)\n",
+              summary_table$Comparison[which.max(summary_table$Total_DEGs)], max(summary_table$Total_DEGs)))
+  cat(sprintf("- Comparison with the lowest number of DEGs: %s (%d DEGs)\n",
+              summary_table$Comparison[which.min(summary_table$Total_DEGs)], min(summary_table$Total_DEGs)))
+}
+```
 
 The table below summarizes differential expression results from all comparisons.
 Specifically, the **Total_DEGs** column reports the number of genes with an adjusted
 p-value < `r padj_cut` and |FC| ≥ `r fc_cut`. The **Upregulated** and **Downregulated** columns break
 down this count accordingly. The **GO**, **KEGG**, **Reactome**, and **Hallmark** columns
-indicate whether each enrichment backend produced any results for that comparison
-(`Yes`) or returned no enriched gene sets (`No`).
+give the number of gene sets significant at p.adjust < `r padj_cut` for each backend
+(`not run` when a backend produced no result object).
 
 ```{r display-summary-table}
 kable(summary_table, caption = "")
@@ -424,8 +524,10 @@ kable(summary_table, caption = "")
 ```{r per-comparison, results='asis'}
 sec_path <- file.path(params$sections_dir, "_comparison.qmd")
 for (i in seq_along(comparisons)) {
-  cat(knitr::knit_child(sec_path, envir = environment(), quiet = TRUE),
-      sep = "\n")
+  # writeLines(useBytes = TRUE) emits the knitted child untouched; cat() would
+  # re-encode under a C locale (Slurm, containers) and print "<U+2248>".
+  writeLines(knitr::knit_child(sec_path, envir = environment(), quiet = TRUE),
+             useBytes = TRUE)
 }
 ```
 
@@ -449,11 +551,11 @@ Videos" the **Qiagen Digital Insights Youtube** page.
 
 ### Methods
 
-Raw RNA-Seq fastq files were processed by the VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR) using the NextFlow nf-core/rnaseq v`r upstream$nf_core_rnaseq$version` pipeline [4]. Briefly, this pipeline assesses sequencing quality using FastQC v`r upstream$fastqc$version` [1] before and after trimming, performs adaptor trimming with Trim Galore! v`r upstream$trim_galore$version` [5], and aligns sequencing reads to the `r params$genome_assembly` reference genome using STAR v`r upstream$star$version` [2] with transcriptome quantification by Salmon v`r upstream$salmon$version` [8]. Pipeline output includes gene expression raw count data and a comprehensive QC report compiled by MultiQC v`r upstream$multiqc$version` [3].
+Raw RNA-Seq fastq files were processed by the VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR) using the NextFlow `r .tool("nf-core/rnaseq", "nf_core_rnaseq")` pipeline [4]. Briefly, this pipeline assesses sequencing quality using `r .tool("FastQC", "fastqc")` [1] before and after trimming, performs adaptor trimming with `r .tool("Trim Galore!", "trim_galore")` [5], and aligns sequencing reads to the `r params$genome_assembly` reference genome (assembly inferred from the annotation setting of this run; confirm against the nf-core run record) using `r .tool("STAR", "star")` [2] with transcriptome quantification by `r .tool("Salmon", "salmon")` [8]. Pipeline output includes gene expression raw count data and a comprehensive QC report compiled by `r .tool("MultiQC", "multiqc")` [3].
 
-Differential expression analysis was performed using DESeq2 v`r r_versions$deseq2` [7]. Lowly expressed genes (fewer than three samples with ≥10 reads) were filtered out per DESeq2 methods [7] prior to normalization and differential expression testing. Significance was calculated using the Wald test and adjusted using the Benjamini-Hochberg False Discovery Rate (FDR). Significant differentially expressed genes (DEGs) are defined as those with an FDR < `r padj_cut` and absolute fold-change ≥ `r fc_cut` (log2 fold-change ≥ `r round(lfc_cut, 2)`). Heatmaps were generated from edgeR v`r r_versions$edger` TMM-normalized counts [9].
+Differential expression analysis was performed using DESeq2 v`r r_versions$deseq2` [7]. Salmon estimated counts were rounded to integers, and lowly expressed genes (fewer than `r min_group_size` samples with ≥10 reads, where `r min_group_size` is the smallest group size) were filtered out per DESeq2 methods [7] prior to differential expression testing. Significance was calculated using the Wald test and adjusted using the Benjamini-Hochberg False Discovery Rate (FDR)`r if (indep_filt) " with DESeq2's independent filtering enabled (genes below the data-driven mean-count threshold receive no adjusted p-value)" else "; DESeq2's independent filtering was disabled (independentFiltering = FALSE), so adjusted p-values are missing only for genes DESeq2 flags as count outliers by its Cook's-distance rule"`. `r if (shrink_used == "none") "Log2 fold changes are the unshrunken maximum-likelihood estimates." else if (grepl("/", shrink_used)) "Log2 fold changes were additionally shrunken with DESeq2's lfcShrink for visualisation (apeglm where a model coefficient was available, otherwise type = \"normal\"; see each comparison); DEG calls use the unshrunken estimates." else sprintf("Log2 fold changes were additionally shrunken with DESeq2's lfcShrink (type = \"%s\"%s) for visualisation; DEG calls use the unshrunken estimates.", shrink_used, if (shrink_used == "apeglm") sprintf(", apeglm v%s [13]", r_versions$apeglm) else "")` Significant differentially expressed genes (DEGs) are defined as those with an FDR < `r padj_cut` and absolute fold-change ≥ `r fc_cut` (log2 fold-change ≥ `r round(lfc_cut, 2)`). Gene identifiers were annotated with Entrez ID, symbol and gene name from the Bioconductor `r if (identical(tolower(annotation), "human")) "org.Hs.eg.db" else "org.Mm.eg.db"` package; where one input identifier mapped to several annotation rows the first row was kept, and genes without an annotation symbol retain the gene name from the count matrix. Heatmaps were generated from log2-transformed edgeR v`r r_versions$edger` TMM-normalized counts [9]; PCA and sample-correlation analyses used `r qc_transform_label`.
 
-Pre-ranked Gene Set Enrichment Analysis (GSEA) [10] was performed across all genes (regardless of significance), using log2 fold-change as the ranking metric, against four complementary gene set collections: (i) Gene Ontology terms (BP / MF / CC) via `clusterProfiler` v`r r_versions$clusterprofiler` [11]; (ii) KEGG pathways via the same package; (iii) Reactome pathways via `ReactomePA` v`r r_versions$reactomepa` [12]; and (iv) MSigDB Hallmark gene sets [6] retrieved via `msigdbr` v`r r_versions$msigdbr`. The orchestrating R package is `bisrDE` v`r r_versions$bisrde` (this report's source). All computational analyses were performed on VCU's High Performance Research Computing cluster.
+Pre-ranked Gene Set Enrichment Analysis (GSEA) [10] was performed across all tested genes (regardless of significance), using `r gsea_rank_label` as the ranking metric (gene-set size 10 to 1000, Benjamini-Hochberg FDR, p-values estimated by fgsea's multilevel method with no lower bound (eps = 0), random seed 1000), against four complementary gene set collections: (i) Gene Ontology terms (BP / MF / CC) via `clusterProfiler` v`r r_versions$clusterprofiler` [11]; (ii) KEGG pathways via the same package; (iii) Reactome pathways via `ReactomePA` v`r r_versions$reactomepa` [12]; and (iv) MSigDB Hallmark gene sets [6] retrieved via `msigdbr` v`r r_versions$msigdbr`. Gene sets with an adjusted p-value < `r padj_cut` were reported as enriched. The orchestrating R package is `bisrDE` v`r r_versions$bisrde` (this report's source). All computational analyses were performed on `r run_platform`.
 
 ### References
 
@@ -467,7 +569,7 @@ References are alphabetized by first-author surname. The bracketed numbers in th
 
 4) Ewels P, Peltzer A, Fillinger S, Patel H, Alneberg J, Wilm A, Garcia MU, Di Tommaso P, Nahnsen S. The nf-core framework for community-curated bioinformatics pipelines. Nat Biotechnol. 2020;38(3):276-278. doi:10.1038/s41587-020-0439-x
 
-5) Krueger F. Trim Galore! v`r upstream$trim_galore$version`. 2023. <https://github.com/FelixKrueger/TrimGalore>
+5) Krueger F. Trim Galore!`r if (!is.null(.up("trim_galore"))) paste0(" v", .up("trim_galore")) else ""`. 2023. <https://github.com/FelixKrueger/TrimGalore>
 
 6) Liberzon A, Birger C, Thorvaldsdóttir H, Ghandi M, Mesirov JP, Tamayo P. The Molecular Signatures Database (MSigDB) hallmark gene set collection. Cell Syst. 2015;1(6):417-425. doi:10.1016/j.cels.2015.12.004
 
@@ -482,6 +584,8 @@ References are alphabetized by first-author surname. The bracketed numbers in th
 11) Yu G, Wang LG, Han Y, He QY. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS. 2012;16(5):284-287. doi:10.1089/omi.2011.0118
 
 12) Yu G, He QY. ReactomePA: an R/Bioconductor package for reactome pathway analysis and visualization. Mol Biosyst. 2016;12(2):477-479. doi:10.1039/c5mb00663e
+
+13) Zhu A, Ibrahim JG, Love MI. Heavy-tailed prior distributions for sequence count data: removing the noise and preserving large differences. Bioinformatics. 2019;35(12):2084-2092. doi:10.1093/bioinformatics/bty895
 
 ### Required Acknowledgements
 
@@ -505,7 +609,7 @@ Plain-English definitions for the terms used throughout this report. Terms are a
 
 **DESeq2.** The R package that fits a negative-binomial model per gene, estimates dispersion, and runs the Wald test that produces our DE results.
 
-**edgeR.** A separate Bioconductor package; we use only its TMM normalization function (not its DE testing) to produce the count matrix that underlies heatmaps and PCA.
+**edgeR.** A separate Bioconductor package; we use only its TMM normalization function (not its DE testing) to produce the normalized-count export and the matrix behind the DE heatmaps (log2-transformed).
 
 **FDR (False Discovery Rate).** The expected fraction of false positives among the genes you call "significant." Setting `padj` < `r padj_cut` means you accept ≤ `r round(padj_cut * 100)`% of your DEGs being noise on average. The whole point of multiple-testing correction.
 
@@ -513,7 +617,7 @@ Plain-English definitions for the terms used throughout this report. Terms are a
 
 **GO (Gene Ontology).** A controlled vocabulary describing gene function in three orthogonal axes: Biological Process (what the gene does), Molecular Function (how it does it), Cellular Component (where it does it).
 
-**GSEA (Gene Set Enrichment Analysis).** A method for asking "are the genes in this set systematically up or down in my data?" without needing a pre-filtered DEG list. We run pre-ranked GSEA, ranking all genes by `log2FoldChange`.
+**GSEA (Gene Set Enrichment Analysis).** A method for asking "are the genes in this set systematically up or down in my data?" without needing a pre-filtered DEG list. We run pre-ranked GSEA, ranking all tested genes by `r gsea_rank_label`.
 
 **Hallmark.** MSigDB's curated set of 50 well-defined gene signatures representing high-level biological states (e.g. "EMT", "Hypoxia", "Inflammatory response"). Conservative; a Hallmark hit is usually robust.
 
@@ -535,8 +639,26 @@ Plain-English definitions for the terms used throughout this report. Terms are a
 
 **TMM (Trimmed Mean of M-values).** edgeR's normalization method. Adjusts for differences in library composition (not just library size); robust to a few highly-expressed genes dominating a sample.
 
-**vst (variance-stabilizing transformation).** A DESeq2 transform that puts counts onto an approximately log-scale where variance is similar across the full expression range. Used here for the QC distance heatmap; **not** used for the DE testing itself (which works on raw counts).
+**vst (variance-stabilizing transformation).** A DESeq2 transform that puts counts onto an approximately log-scale where variance is similar across the full expression range. Used here for PCA, the sample-correlation heatmap and the distance heatmap; **not** used for the DE testing itself (which works on raw counts).
 
 **Wald test.** The hypothesis test DESeq2 uses to ask "is `log2FoldChange` significantly different from 0 for this gene?" Generates the raw `pvalue`; BH correction generates `padj`.
 
-**z-score.** On the heatmaps: `(value - row_mean) / row_sd`, computed per gene. Centers + standardizes each gene's expression so a value of `+2` means "this sample is 2 standard deviations above the gene's average."
+**z-score.** On the heatmaps: `(value - row_mean) / row_sd`, computed per gene on log2(TMM-CPM + 1). Centers + standardizes each gene's expression so a value of `+2` means "this sample is 2 standard deviations above the gene's average."
+
+## Session information
+
+Every rendered report records the software that produced it, so the numbers above can be tied to exact versions.
+
+```{r session-versions}
+sv <- run_opts$software
+if (!is.null(sv)) {
+  kable(data.frame(Software = names(sv), Version = unname(vapply(sv, function(x) if (is.na(x)) "not installed" else as.character(x), character(1)))),
+        caption = "Versions recorded at analysis time (run JSON).")
+}
+```
+
+::: {.callout-note collapse="true" title="Full sessionInfo() of the report render"}
+```{r session-info}
+sessionInfo()
+```
+:::

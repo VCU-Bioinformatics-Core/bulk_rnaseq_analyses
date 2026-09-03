@@ -39,12 +39,23 @@
 #'   or `org.Mm.eg.db::org.Mm.eg.db`). Defaults to the `annotation_db`
 #'   global set during option parsing in the parent pipeline. Errors if
 #'   neither the argument nor the global is supplied.
+#' @param gene_meta Optional data frame with columns `id`, `id_versioned`,
+#'   `gene_name` (the `"gene_meta"` attribute of [read_counts()]). When
+#'   supplied: genes the OrgDb cannot name get their `SYMBOL` from the
+#'   input's `gene_name` (recorded in `SYMBOL_SOURCE` as `"input"` vs
+#'   `"orgdb"`), and an `ENSEMBL_ID_VERSIONED` column carries the original
+#'   versioned accession when any input ID had a version suffix. Default
+#'   `NULL` (no fallback, no versioned column).
 #' @return Annotated data frame that always carries `ENSEMBL_ID`,
 #'   `ENTREZID`, `SYMBOL`, and `GENENAME` columns regardless of the input
-#'   `id_type`, plus the original DESeq2 result columns.
-#' @details Resolves ambiguous one-to-many mappings (e.g. a Symbol that
-#'   maps to multiple Ensembl IDs) by keeping the first match and emitting
-#'   a `cli::cli_alert_warning`. Pre-checks the input rownames for
+#'   `id_type`, plus the original DESeq2 result columns (and, with
+#'   `gene_meta`, `SYMBOL_SOURCE` / `ENSEMBL_ID_VERSIONED`).
+#' @details One-to-many mappings (one input ID with several OrgDb rows, e.g.
+#'   an Ensembl gene with two Entrez IDs, or a Symbol matching several
+#'   Ensembl genes) are collapsed by keeping the FIRST row `AnnotationDbi`
+#'   returns; a `cli::cli_alert_warning` reports how many. This is a
+#'   deterministic but arbitrary rule and is stated in the report's Methods.
+#'   Pre-checks the input rownames for
 #'   duplicates and emits a `cli::cli_alert_danger` if found (treated as a
 #'   data-quality problem rather than a hard stop, so the pipeline can
 #'   still finish - but the user is alerted). When the input `id_type` is
@@ -58,7 +69,8 @@ annotate_results <- function(results,
                              id_type = get0("id_type", envir = .GlobalEnv,
                                             ifnotfound = "ensembl"),
                              annotation_db = get0("annotation_db",
-                                                  envir = .GlobalEnv)) {
+                                                  envir = .GlobalEnv),
+                             gene_meta = NULL) {
   if (is.null(annotation_db)) {
     stop("annotate_results: `annotation_db` is NULL. Either pass it ",
          "explicitly or set the `annotation_db` global before calling.")
@@ -89,7 +101,7 @@ annotate_results <- function(results,
   if (any(dup_mask)) {
     n_amb <- length(unique(annotations[[keytype]][dup_mask]))
     cli::cli_alert_warning(
-      "annotate_results: {n_amb} input ID{?s} have ambiguous {.val {id_type}} -> ortholog mappings; keeping first match"
+      "annotate_results: {n_amb} input ID{?s} map to more than one annotation row (one-to-many {.val {id_type}} mapping); keeping the first match"
     )
     annotations <- annotations[!dup_mask, ]
   }
@@ -116,6 +128,47 @@ annotate_results <- function(results,
     # volcano / heatmap / enrichment code) require ENSEMBL_ID, SYMBOL, ENTREZID,
     # and GENENAME to always be present regardless of id_type.
     if (is.null(merged[[keytype]])) merged[[keytype]] <- merged[[input_col]]
+  }
+
+  # ---- input gene_name fallback + versioned ID (from read_counts()) ----
+  if (!is.null(gene_meta) && all(c("id", "gene_name") %in% colnames(gene_meta))) {
+    key_col <- if (keytype == "ENSEMBL") "ENSEMBL_ID" else paste0(keytype, "_ID")
+    idx <- match(as.character(merged[[key_col]]), as.character(gene_meta$id))
+    input_name <- as.character(gene_meta$gene_name)[idx]
+    ver_name   <- if ("id_versioned" %in% colnames(gene_meta)) as.character(gene_meta$id_versioned)[idx] else NA_character_
+    # For symbol-keyed input SYMBOL was mirrored from the input IDs above, so
+    # "did the OrgDb know this gene" has to be read off a column the OrgDb
+    # actually filled in.
+    has_orgdb <- if (keytype == "SYMBOL") {
+      (!is.na(merged$ENTREZID) & nzchar(as.character(merged$ENTREZID))) |
+        (!is.na(merged$GENENAME) & nzchar(as.character(merged$GENENAME)))
+    } else {
+      !is.na(merged$SYMBOL) & nzchar(as.character(merged$SYMBOL))
+    }
+    # nf-core writes gene_name = gene_id when the GTF has no name; an
+    # accession is not a name, so it must not become the SYMBOL.
+    has_input  <- !is.na(input_name) & nzchar(input_name) &
+      input_name != as.character(merged[[key_col]]) &
+      (is.na(ver_name) | input_name != ver_name) &
+      !grepl("^ENS[A-Z]*G[0-9]+", input_name)
+    # Symbol-keyed input: the symbol IS the input, so anything the OrgDb did
+    # not recognise is by definition input-sourced.
+    merged$SYMBOL_SOURCE <- if (keytype == "SYMBOL") {
+      ifelse(has_orgdb, "orgdb", "input")
+    } else {
+      ifelse(has_orgdb, "orgdb", ifelse(has_input, "input", NA_character_))
+    }
+    fill <- keytype != "SYMBOL" & !has_orgdb & has_input
+    if (any(fill)) {
+      merged$SYMBOL[fill] <- input_name[fill]
+      cli::cli_alert_info(
+        "annotate_results: {sum(fill)} gene{?s} without an OrgDb symbol named from the input gene_name column (see SYMBOL_SOURCE)"
+      )
+    }
+    if (keytype == "ENSEMBL" &&
+        any(!is.na(ver_name) & ver_name != as.character(merged[[key_col]]))) {
+      merged$ENSEMBL_ID_VERSIONED <- ver_name
+    }
   }
 
   merged

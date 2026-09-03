@@ -56,6 +56,11 @@ keeps every gene that passes thresholds with no row labels;
 \details{
 Restricts the count matrix to the comparison's samples (fixes
 the prior bug where heatmap columns showed every sample in the full
-samplesheet). Z-score normalizes (via \code{t(scale(t(values)))}) and
-renders with a blue-white-red palette via \code{gplots::heatmap.2}.
+samplesheet). Z-scores each gene on the log scale,
+\code{t(scale(t(log2(values + 1))))}: per-row scaling already makes every
+gene scale-free, but on the linear scale one sample at 10x expression
+compresses the gene's other samples to the same colour; the log step
+keeps within-row differences visible. A gene with zero variance across
+the shown samples gets z = 0 rather than \code{NaN}. Renders with a
+blue-white-red palette via \code{gplots::heatmap.2}.
 }

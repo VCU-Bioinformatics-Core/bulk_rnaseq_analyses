@@ -4,7 +4,7 @@
 \alias{create_dotplot}
 \title{Dotplot of GSEA results, split by direction of change}
 \usage{
-create_dotplot(gse, title)
+create_dotplot(gse, title, padj = 0.05)
 }
 \arguments{
 \item{gse}{A GSEA result object (e.g. output of \code{\link[=process_gsea]{process_gsea()}},
@@ -12,12 +12,17 @@ create_dotplot(gse, title)
 \code{\link[=process_msigdb_hallmark]{process_msigdb_hallmark()}}).}
 
 \item{title}{Plot title.}
+
+\item{padj}{Adjusted p-value cutoff for inclusion. Default \code{0.05}.}
 }
 \value{
 A \code{ggplot} object: dot size = gene count, color =
-significance, panels = direction of enrichment.
+significance, panels = direction of enrichment; or \code{NULL} when no gene
+set is significant.
 }
 \description{
 Visualize a GSEA result object as a top-15 dotplot, split
-into activated/suppressed panels by the \code{.sign} column.
+into activated/suppressed panels by the \code{.sign} column. Only gene sets
+with \code{p.adjust < padj} are drawn, so the plot never shows a
+non-significant set as if it were a hit; when none pass, returns \code{NULL}.
 }

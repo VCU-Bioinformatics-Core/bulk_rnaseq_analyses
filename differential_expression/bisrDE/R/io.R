@@ -17,7 +17,14 @@
 #'   column; typically `rsem.merged.gene_counts.tsv`).
 #' @return A `data.frame` of integer-coercible counts with gene IDs as
 #'   rownames and one column per sample. Non-numeric columns from the input
-#'   (e.g. `gene_name`) are dropped.
+#'   (e.g. `gene_name`) are dropped from the matrix but NOT lost: the
+#'   attribute `"gene_meta"` is a data frame with one row per kept gene
+#'   (`id` = the rowname, `id_versioned` = the original first-column value,
+#'   `gene_name` = the input `gene_name`/`gene_symbol`/`symbol` column or
+#'   `NA`), so the annotation step can fall back to the input's gene name
+#'   when the OrgDb has none and can report the versioned ID. Subsetting the
+#'   data frame drops the attribute, so callers read it right after this
+#'   function returns (see [run_pipeline()]).
 #' @details The Ensembl version-suffix strip (`"\\..*"`) is applied ONLY to
 #'   `^ENS` accessions — AnnotationDbi keys carry no version, so `ENSG00000123.4`
 #'   would otherwise fail to map, while gene symbols that legitimately contain
@@ -57,6 +64,15 @@ read_counts <- function(path) {
     "gene_biotype", "biotype", "description"
   )
   sample_cols <- names(raw)[-1][!tolower(names(raw)[-1]) %in% meta_cols]
+  # Keep the input's own gene name (salmon/RSEM `gene_name`, or a
+  # `gene_symbol`/`symbol` column) for the annotation fallback + the
+  # versioned original ID for traceability back to the nf-core row.
+  name_col <- names(raw)[tolower(names(raw)) %in% c("gene_name", "gene_symbol", "symbol")][1]
+  gene_meta <- data.frame(
+    id_versioned = as.character(raw[[1]]),
+    gene_name    = if (!is.na(name_col)) as.character(raw[[name_col]]) else NA_character_,
+    stringsAsFactors = FALSE
+  )
   counts <- as.data.frame(raw[, sample_cols, drop = FALSE])
   counts <- counts[, vapply(counts, is.numeric, logical(1)), drop = FALSE]
   if (ncol(counts) < 1) {
@@ -83,6 +99,7 @@ read_counts <- function(path) {
       "Dropping {sum(par_y)} Ensembl _PAR_Y pseudo-autosomal duplicate{?s}"
     )
     counts <- counts[!par_y, , drop = FALSE]
+    gene_meta <- gene_meta[!par_y, , drop = FALSE]
   }
 
   # Strip Ensembl version suffixes (e.g. "ENSMUSG00000000001.3" -> "...001"),
@@ -93,6 +110,9 @@ read_counts <- function(path) {
   is_ens <- grepl("^ENS", rownames(counts))
   rownames(counts)[is_ens] <-
     stringr::str_remove(rownames(counts)[is_ens], "\\..*")
+  gene_meta <- data.frame(id = rownames(counts), gene_meta,
+                          stringsAsFactors = FALSE)
+  attr(counts, "gene_meta") <- gene_meta
   counts
 }
 

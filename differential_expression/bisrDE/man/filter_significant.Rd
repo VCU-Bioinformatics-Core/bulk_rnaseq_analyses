@@ -25,7 +25,10 @@ the original order.
 Subset a DESeq2 (or annotated) results data frame to rows
 whose adjusted p-value and absolute log2 fold change pass the BISR
 default thresholds. Rows with \code{NA} \code{padj} (e.g. genes filtered out by
-DESeq2's Cook's-cutoff or low-count rules) are dropped.
+DESeq2's Cook's-cutoff or low-count rules) are dropped. The predicate is
+\code{padj < padj_threshold & abs(log2FoldChange) >= lfc_threshold}, the same
+one the volcano, heatmaps, DEG counts and report use, so a gene exactly
+at the padj cutoff is NOT significant anywhere in the pipeline.
 }
 \details{
 Adoption sites for this helper are migrated in later phases:

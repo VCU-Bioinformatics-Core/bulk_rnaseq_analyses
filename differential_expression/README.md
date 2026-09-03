@@ -67,11 +67,11 @@ differential_expression/
 ![Pipeline diagram](assets/dge.png)
 
 1. **Parse contrasts** from the samplesheet (one column per `experiment_vs_control`; `1` = exp, `0` = ctrl, blank = exclude).
-2. **Align + filter** the counts matrix to the samplesheet's `SampleID` order; pre-filter genes with fewer than 3 samples having ≥10 reads.
-3. **Normalize** via edgeR TMM (heatmap + sample-exploration substrate) and DESeq2 (DE testing substrate).
+2. **Align + filter** the counts matrix to the samplesheet's `SampleID` order; round Salmon/RSEM estimates to integers; pre-filter genes with fewer than *k* samples having ≥10 reads, where *k* is the smallest group size (floor 2).
+3. **Normalize** via edgeR TMM (heatmap substrate + CSV export) and DESeq2 (DE testing substrate); sample exploration (PCA, Spearman correlation) uses the blind VST of the filtered counts on all genes.
 4. **DESeq2** per contrast — Wald test + Benjamini-Hochberg FDR correction.
 5. **Annotate** results with Ensembl ID, Entrez ID, gene Symbol, gene name (from `org.Hs.eg.db` / `org.Mm.eg.db`).
-6. **Enrichment** (independent of significance threshold; ranked-list GSEA on log2FC):
+6. **Enrichment** (independent of significance threshold; ranked-list GSEA on the DESeq2 Wald statistic by default, `--gsea-rank log2fc` restores fold-change ranking; exact p-values with `eps = 0`):
    - GO Biological Process / Molecular Function / Cellular Component (`clusterProfiler::gseGO`).
    - KEGG pathways (`clusterProfiler::gseKEGG`).
    - Reactome pathways (`ReactomePA::gsePathway`).
@@ -80,7 +80,7 @@ differential_expression/
 8. **Sample exploration** (across all samples): 2D + 3D PCA (interactive plotly), Spearman correlation heatmap, vst Euclidean distance heatmap, library-size + detected-gene barplots, hierarchical clustering (Ward.D2) + per-sample log-CPM density.
 9. **Quarto report** — single self-contained HTML with all of the above, plus interpretation callouts, a comparisons summary table, manuscript-ready Methods + References, and an IPA upload guide.
 
-**Significance thresholds** (configurable in code; reported in the manuscript text): `padj ≤ 0.05` AND `|log2FC| ≥ 0.58` (≈1.5× fold change).
+**Significance thresholds** (`--padj`, `--fold-change`; reported in the manuscript text): `padj < 0.05` AND `|log2FC| ≥ 0.58` (≈1.5× fold change). The same strict `<` on `padj` is used everywhere (volcano, heatmaps, counts, `filter_significant()`).
 
 ## Environment setup
 
@@ -377,6 +377,9 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--exclude-groups`  |       | no       | (none)         | Comma-separated `GroupID`s to drop from the whole analysis. |
 | `--include-contrasts` |     | no       | (none)         | Comma-separated contrast columns to process **exclusively** (allowlist). |
 | `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
+| `--gsea-rank`       |       | no       | `stat`         | Ranking metric for pre-ranked GSEA: `stat` (DESeq2 Wald statistic) or `log2fc` (pre-v1.7 behaviour). Env: `BISR_GSEA_RANK`. |
+| `--lfc-shrink`      |       | no       | `apeglm`       | Log2 fold-change shrinkage (`apeglm`, `normal`, `none`). Adds `log2FC_shrunken` / `lfcSE_shrunken` to the DE CSV and places volcano points at the shrunken value; DEG calls always use the unshrunken estimate. Falls back to `normal` when apeglm is not installed. Env: `BISR_LFC_SHRINK`. |
+| `--independent-filtering` |  | no      | off            | Enable DESeq2's independent filtering (DESeq2's own default). Off keeps an adjusted p-value for every tested gene. Env: `BISR_INDEPENDENT_FILTERING=yes`. |
 
 **Examples.** Re-run dropping a QC outlier without editing the samplesheet:
 
@@ -420,7 +423,7 @@ bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid fo
 │   │   ├── allsamples_PCA_plot.html              # interactive 2D plotly
 │   │   └── allsamples_PCA_plot3D.html            # interactive 3D plotly
 │   └── qc/
-│       ├── qc_correlation_heatmap.png            # Spearman, DE genes
+│       ├── qc_correlation_heatmap.png            # Spearman, all genes (blind VST)
 │       ├── qc_vst_dist_heatmap.png               # vst Euclidean distance
 │       ├── qc_libsize_detected.png               # library size + detected genes
 │       └── qc_hclust_density.png                 # Ward dendrogram + log-CPM density
@@ -444,6 +447,10 @@ The report HTML is the primary deliverable — it embeds every plot, every resul
 | `stat`           | Wald test statistic.                                                                      |
 | `pvalue`         | Raw Wald p-value.                                                                         |
 | `padj`           | Benjamini-Hochberg adjusted p-value (FDR).                                                |
+| `log2FC_shrunken` | Shrunken log2FC (`--lfc-shrink`, default apeglm). For plots and effect-size reporting only; DEG calls use `log2FoldChange`. |
+| `lfcSE_shrunken` | Standard error of the shrunken estimate.                                                  |
+| `SYMBOL_SOURCE`  | `orgdb` when the symbol came from org.*.eg.db, `input` when it came from the count file's `gene_name` column (OrgDb had none), `NA` when neither. |
+| `ENSEMBL_ID_VERSIONED` | The original versioned accession from the count file (present when the input carried versions). |
 
 ## Nextflow integration
 

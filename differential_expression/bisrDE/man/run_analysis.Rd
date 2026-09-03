@@ -17,7 +17,11 @@ run_analysis(
   deseq_norm_counts = NULL,
   padj = 0.05,
   lfc = 0.58,
-  tick = NULL
+  tick = NULL,
+  independent_filtering = FALSE,
+  lfc_shrink = "none",
+  gsea_rank = "stat",
+  gene_meta = NULL
 )
 }
 \arguments{
@@ -40,11 +44,37 @@ for \code{annotate_results} and \code{setReadable} Symbol mapping.}
 
 \item{id_type}{Identifier type for the count rownames (one of
 \code{"ensembl"}, \code{"entrez"}, \code{"symbol"}). Default \code{"ensembl"}.}
+
+\item{volcano_labels}{Max genes to label on the volcano plot.}
+
+\item{deseq_norm_counts}{Optional DESeq2 median-of-ratios matrix appended
+to the DE spreadsheet.}
+
+\item{padj, lfc}{Significance thresholds (adjusted p, absolute log2FC).}
+
+\item{tick}{Optional progress callback (see \code{\link[=run_pipeline]{run_pipeline()}}).}
+
+\item{independent_filtering}{Passed to \code{\link[=perform_deseq2_analysis]{perform_deseq2_analysis()}}.
+Default \code{FALSE}.}
+
+\item{lfc_shrink}{Passed to \code{\link[=perform_deseq2_analysis]{perform_deseq2_analysis()}}: \code{"none"}
+(default here), \code{"apeglm"} or \code{"normal"}.}
+
+\item{gsea_rank}{Ranking metric for the four GSEA backends, \code{"stat"}
+(default) or \code{"log2fc"}; see \code{\link[=.gsea_rank_vector]{.gsea_rank_vector()}}.}
+
+\item{gene_meta}{Optional \code{"gene_meta"} attribute of \code{\link[=read_counts]{read_counts()}},
+forwarded to \code{\link[=annotate_results]{annotate_results()}} for the input gene-name fallback and
+the versioned-ID column.}
 }
 \value{
-On success, a named list \code{list(deseq, gsea, kegg, reactome, hallmark)} where each enrichment slot is either a \code{setReadable}'d
-GSEA object or \code{NULL} if no enrichment was found. On error, returns
-\code{NULL} and emits \code{cli::cli_alert_danger}.
+On success, a named list \code{list(deseq, gsea, kegg, reactome, hallmark, dds, de_options)}: each enrichment slot is either a
+\code{setReadable}'d GSEA object or \code{NULL} if no enrichment was found; \code{dds}
+is the fitted \code{DESeqDataSet} for this comparison (so the model can be
+audited from the RDS bundle); \code{de_options} records the design, reference
+level, coefficient, independent-filtering flag, shrinkage method used and
+GSEA ranking metric. On error, returns \code{NULL} and emits
+\code{cli::cli_alert_danger}.
 }
 \description{
 Per-comparison driver: DESeq2 contrast, annotation, volcano

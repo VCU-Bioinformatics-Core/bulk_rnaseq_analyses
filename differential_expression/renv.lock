@@ -1439,6 +1439,41 @@
       "Repository": "RSPM",
       "Encoding": "UTF-8"
     },
+    "RcppNumerical": {
+      "Package": "RcppNumerical",
+      "Version": "0.7-0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "'Rcpp' Integration for Numerical Computing Libraries",
+      "Date": "2026-02-27",
+      "Authors@R": "c( person(\"Yixuan\", \"Qiu\", email = \"yixuan.qiu@cos.name\", role = c(\"aut\", \"cre\")), person(\"Ralf\", \"Stubner\", email = \"ralf.stubner@gmail.com\", role = \"ctb\", comment = \"Integration on infinite intervals\"), person(\"Sreekumar\", \"Balan\", role = \"aut\", comment = \"Numerical integration library\"), person(\"Matt\", \"Beall\", role = \"aut\", comment = \"Numerical integration library\"), person(\"Mark\", \"Sauder\", role = \"aut\", comment = \"Numerical integration library\"), person(\"Naoaki\", \"Okazaki\", role = \"aut\", comment = \"The libLBFGS library\"), person(\"Thomas\", \"Hahn\", role = \"aut\", comment = \"The Cuba library\") )",
+      "Maintainer": "Yixuan Qiu <yixuan.qiu@cos.name>",
+      "Description": "A collection of open source libraries for numerical computing (numerical integration, optimization, etc.) and their integration with 'Rcpp'.",
+      "License": "GPL (>= 2)",
+      "Copyright": "See file COPYRIGHTS",
+      "URL": "https://github.com/yixuan/RcppNumerical",
+      "BugReports": "https://github.com/yixuan/RcppNumerical/issues",
+      "Imports": [
+        "Rcpp"
+      ],
+      "LinkingTo": [
+        "Rcpp",
+        "RcppEigen"
+      ],
+      "Suggests": [
+        "knitr",
+        "rmarkdown",
+        "prettydoc",
+        "mvtnorm",
+        "RcppEigen"
+      ],
+      "VignetteBuilder": "knitr, rmarkdown",
+      "RoxygenNote": "7.3.3",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "yes",
+      "Author": "Yixuan Qiu [aut, cre], Ralf Stubner [ctb] (Integration on infinite intervals), Sreekumar Balan [aut] (Numerical integration library), Matt Beall [aut] (Numerical integration library), Mark Sauder [aut] (Numerical integration library), Naoaki Okazaki [aut] (The libLBFGS library), Thomas Hahn [aut] (The Cuba library)",
+      "Repository": "CRAN"
+    },
     "ReactomePA": {
       "Package": "ReactomePA",
       "Version": "1.42.0",
@@ -1785,6 +1820,47 @@
       "Maintainer": "Emmanuel Paradis <Emmanuel.Paradis@ird.fr>",
       "Repository": "RSPM"
     },
+    "apeglm": {
+      "Package": "apeglm",
+      "Version": "1.20.0",
+      "Source": "Bioconductor",
+      "Title": "Approximate posterior estimation for GLM coefficients",
+      "Authors@R": "c( person(\"Anqi\", \"Zhu\", email = \"anqizhu@live.unc.edu\", role = c(\"aut\",\"cre\")), person(\"Joshua\", \"Zitovsky\", role = \"ctb\"), person(\"Joseph\", \"Ibrahim\", role = \"aut\"), person(\"Michael\", \"Love\", role = \"aut\"))",
+      "Maintainer": "Anqi Zhu <anqizhu@live.unc.edu>",
+      "Description": "apeglm provides Bayesian shrinkage estimators for effect sizes for a variety of GLM models, using approximation of the posterior for individual coefficients.",
+      "VignetteBuilder": "knitr, rmarkdown",
+      "Imports": [
+        "emdbook",
+        "SummarizedExperiment",
+        "GenomicRanges",
+        "methods",
+        "stats",
+        "utils",
+        "Rcpp"
+      ],
+      "Suggests": [
+        "DESeq2",
+        "airway",
+        "knitr",
+        "rmarkdown",
+        "testthat"
+      ],
+      "LinkingTo": [
+        "Rcpp",
+        "RcppEigen",
+        "RcppNumerical"
+      ],
+      "License": "GPL-2",
+      "Encoding": "UTF-8",
+      "biocViews": "ImmunoOncology, Sequencing, RNASeq, DifferentialExpression, GeneExpression, Bayesian",
+      "RoxygenNote": "7.1.1",
+      "git_url": "https://git.bioconductor.org/packages/apeglm",
+      "git_branch": "RELEASE_3_16",
+      "git_last_commit": "213e75c",
+      "git_last_commit_date": "2022-11-01",
+      "NeedsCompilation": "yes",
+      "Author": "Anqi Zhu [aut, cre], Joshua Zitovsky [ctb], Joseph Ibrahim [aut], Michael Love [aut]"
+    },
     "aplot": {
       "Package": "aplot",
       "Version": "0.2.8",
@@ -1918,6 +1994,72 @@
       "NeedsCompilation": "yes",
       "Repository": "RSPM",
       "Encoding": "UTF-8"
+    },
+    "bbmle": {
+      "Package": "bbmle",
+      "Version": "1.0.26",
+      "Source": "Repository",
+      "Title": "Tools for General Maximum Likelihood Estimation",
+      "Description": "Methods and functions for fitting maximum likelihood models in R. This package modifies and extends the 'mle' classes in the 'stats4' package.",
+      "Authors@R": "c(person(\"Ben\",\"Bolker\",email=\"bolker@mcmaster.ca\",role=c(\"aut\",\"cre\"), comment=c(ORCID=\"0000-0002-2127-0443\")), person(\"R Development Core Team\",role=c(\"aut\")), person(\"Iago Gin<U+00E9>-V<U+00E1>zquez\", role=c(\"ctb\")) )",
+      "Depends": [
+        "R (>= 3.0.0)",
+        "stats4"
+      ],
+      "Imports": [
+        "stats",
+        "numDeriv",
+        "lattice",
+        "MASS",
+        "methods",
+        "bdsmatrix",
+        "Matrix",
+        "mvtnorm"
+      ],
+      "Suggests": [
+        "emdbook",
+        "rms",
+        "ggplot2",
+        "RUnit",
+        "MuMIn",
+        "AICcmodavg",
+        "Hmisc",
+        "optimx (>= 2013.8.6)",
+        "knitr",
+        "testthat",
+        "tinytest",
+        "minqa"
+      ],
+      "VignetteBuilder": "knitr",
+      "BuildVignettes": "yes",
+      "License": "GPL",
+      "URL": "https://github.com/bbolker/bbmle",
+      "Collate": "'mle2-class.R' 'mle2-methods.R' 'mle.R' 'confint.R' 'predict.R' 'profile.R' 'update.R' 'dists.R' 'IC.R' 'slice.R' 'impsamp.R' 'TMB.R'",
+      "RoxygenNote": "7.3.0",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "no",
+      "Author": "Ben Bolker [aut, cre] (ORCID: <https://orcid.org/0000-0002-2127-0443>), R Development Core Team [aut], Iago Gin<U+00E9>-V<U+00E1>zquez [ctb]",
+      "Maintainer": "Ben Bolker <bolker@mcmaster.ca>",
+      "Repository": "CRAN"
+    },
+    "bdsmatrix": {
+      "Package": "bdsmatrix",
+      "Version": "1.3-7",
+      "Source": "Repository",
+      "Title": "Routines for Block Diagonal Symmetric Matrices",
+      "Maintainer": "Terry Therneau <therneau.terry@mayo.edu>",
+      "Date": "2024-03-01",
+      "Depends": [
+        "methods",
+        "R (>= 2.0.0)"
+      ],
+      "LazyLoad": "Yes",
+      "Author": "Terry Therneau",
+      "Description": "This is a special case of sparse matrices, used by coxme.",
+      "License": "LGPL-2",
+      "Collate": "bdsmatrix.R gchol.R gchol.bdsmatrix.R as.matrix.bdsmatrix.R bdsBlock.R bdsI.R bdsmatrix.ibd.R bdsmatrix.reconcile.R diag.bdsmatrix.R listbdsmatrix.R multiply.bdsmatrix.R solve.bdsmatrix.R solve.gchol.R solve.gchol.bdsmatrix.R backsolve.R",
+      "NeedsCompilation": "yes",
+      "Repository": "CRAN"
     },
     "bit": {
       "Package": "bit",
@@ -2480,6 +2622,26 @@
       "git_last_commit_date": "2023-03-05",
       "NeedsCompilation": "no",
       "Author": "Guangchuang Yu [aut, cre, cph] (<https://orcid.org/0000-0002-6485-8781>), Li-Gen Wang [ctb], Erqiang Hu [ctb], Xiao Luo [ctb], Meijun Chen [ctb], Giovanni Dall'Olio [ctb], Wanqian Wei [ctb], Chun-Hui Gao [ctb] (<https://orcid.org/0000-0002-1445-7939>)"
+    },
+    "coda": {
+      "Package": "coda",
+      "Version": "0.19-4.1",
+      "Source": "Repository",
+      "Date": "2020-09-30",
+      "Title": "Output Analysis and Diagnostics for MCMC",
+      "Authors@R": "c(person(\"Martyn\", \"Plummer\", role=c(\"aut\",\"cre\",\"trl\"), email=\"martyn.plummer@gmail.com\"), person(\"Nicky\", \"Best\", role=\"aut\"), person(\"Kate\", \"Cowles\", role=\"aut\"), person(\"Karen\", \"Vines\", role=\"aut\"), person(\"Deepayan\", \"Sarkar\", role=\"aut\"), person(\"Douglas\", \"Bates\", role=\"aut\"), person(\"Russell\", \"Almond\", role=\"aut\"), person(\"Arni\", \"Magnusson\", role=\"aut\"))",
+      "Depends": [
+        "R (>= 2.14.0)"
+      ],
+      "Imports": [
+        "lattice"
+      ],
+      "Description": "Provides functions for summarizing and plotting the output from Markov Chain Monte Carlo (MCMC) simulations, as well as diagnostic tests of convergence to the equilibrium distribution of the Markov chain.",
+      "License": "GPL (>= 2)",
+      "NeedsCompilation": "no",
+      "Author": "Martyn Plummer [aut, cre, trl], Nicky Best [aut], Kate Cowles [aut], Karen Vines [aut], Deepayan Sarkar [aut], Douglas Bates [aut], Russell Almond [aut], Arni Magnusson [aut]",
+      "Maintainer": "Martyn Plummer <martyn.plummer@gmail.com>",
+      "Repository": "CRAN"
     },
     "codetools": {
       "Package": "codetools",
@@ -3237,6 +3399,37 @@
       "NeedsCompilation": "no",
       "Author": "Hadley Wickham [aut, cre], RStudio [cph]",
       "Maintainer": "Hadley Wickham <hadley@rstudio.com>",
+      "Repository": "CRAN"
+    },
+    "emdbook": {
+      "Package": "emdbook",
+      "Version": "1.3.14",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Support Functions and Data for \"Ecological Models and Data\"",
+      "LazyData": "yes",
+      "Authors@R": "c(person(\"Ben\",\"Bolker\",email=\"bolker@mcmaster.ca\", role=c(\"aut\",\"cre\")), person(\"Sang Woo\",\"Park\",role=\"ctb\"), person(\"James\",\"Vonesh\",role=\"dtc\"), person(\"Jacqueline\",\"Wilson\",role=\"dtc\"), person(\"Russ\",\"Schmitt\",role=\"dtc\"), person(\"Sally\",\"Holbrook\",role=\"dtc\"), person(\"James D.\",\"Thomson\",role=\"dtc\"), person(\"R. Scot\",\"Duncan\",role=\"dtc\") )",
+      "Description": "Auxiliary functions and data sets for \"Ecological Models and Data\", a book presenting maximum likelihood estimation and related topics for ecologists (ISBN 978-0-691-12522-0).",
+      "Suggests": [
+        "R2jags",
+        "ellipse",
+        "SuppDists",
+        "numDeriv",
+        "testthat",
+        "rgl"
+      ],
+      "Imports": [
+        "MASS",
+        "lattice",
+        "plyr",
+        "coda",
+        "bbmle"
+      ],
+      "License": "GPL",
+      "URL": "https://math.mcmaster.ca/bolker/emdbook",
+      "NeedsCompilation": "no",
+      "Author": "Ben Bolker [aut, cre], Sang Woo Park [ctb], James Vonesh [dtc], Jacqueline Wilson [dtc], Russ Schmitt [dtc], Sally Holbrook [dtc], James D. Thomson [dtc], R. Scot Duncan [dtc]",
+      "Maintainer": "Ben Bolker <bolker@mcmaster.ca>",
       "Repository": "CRAN"
     },
     "enrichplot": {
@@ -5686,6 +5879,32 @@
       "Maintainer": "Igor Dolgalev <igor.dolgalev@nyumc.org>",
       "Repository": "CRAN"
     },
+    "mvtnorm": {
+      "Package": "mvtnorm",
+      "Version": "1.4-2",
+      "Source": "Repository",
+      "Title": "Multivariate Normal and t Distributions",
+      "Authors@R": "c(person(\"Alan\", \"Genz\", role = \"aut\"), person(\"Frank\", \"Bretz\", role = \"aut\"), person(\"Tetsuhisa\", \"Miwa\", role = \"aut\"), person(\"Xuefei\", \"Mi\", role = \"aut\"), person(\"Friedrich\", \"Leisch\", role = \"ctb\"), person(\"Fabian\", \"Scheipl\", role = \"ctb\"), person(\"Bjoern\", \"Bornkamp\", role = \"ctb\", comment = c(ORCID = \"0000-0002-6294-8185\")), person(\"Martin\", \"Maechler\", role = \"ctb\", comment = c(ORCID = \"0000-0002-8685-9910\")), person(\"Torsten\", \"Hothorn\", role = c(\"aut\", \"cre\"), email = \"Torsten.Hothorn@R-project.org\", comment = c(ORCID = \"0000-0001-8301-0471\")))",
+      "Description": "Computes multivariate normal and t probabilities, quantiles, random deviates,  and densities. Log-likelihoods for multivariate Gaussian models and Gaussian copulae  parameterised by Cholesky factors of covariance or precision matrices are implemented  for interval-censored and exact data, or a mix thereof. Score functions for these  log-likelihoods are available. A class representing multiple lower triangular matrices  and corresponding methods are part of this package.",
+      "Imports": [
+        "stats",
+        "utils"
+      ],
+      "Depends": [
+        "R(>= 3.5.0)"
+      ],
+      "Suggests": [
+        "qrng",
+        "numDeriv",
+        "bibtex"
+      ],
+      "License": "GPL-2",
+      "URL": "https://codeberg.org/thothorn/mvtnorm",
+      "NeedsCompilation": "yes",
+      "Author": "Alan Genz [aut], Frank Bretz [aut], Tetsuhisa Miwa [aut], Xuefei Mi [aut], Friedrich Leisch [ctb], Fabian Scheipl [ctb], Bjoern Bornkamp [ctb] (ORCID: <https://orcid.org/0000-0002-6294-8185>), Martin Maechler [ctb] (ORCID: <https://orcid.org/0000-0002-8685-9910>), Torsten Hothorn [aut, cre] (ORCID: <https://orcid.org/0000-0001-8301-0471>)",
+      "Maintainer": "Torsten Hothorn <Torsten.Hothorn@R-project.org>",
+      "Repository": "CRAN"
+    },
     "nlme": {
       "Package": "nlme",
       "Version": "3.1-168",
@@ -5719,6 +5938,25 @@
       "Author": "José Pinheiro [aut] (S version), Douglas Bates [aut] (up to 2007), Saikat DebRoy [ctb] (up to 2002), Deepayan Sarkar [ctb] (up to 2005), EISPACK authors [ctb] (src/rs.f), Siem Heisterkamp [ctb] (Author fixed sigma), Bert Van Willigen [ctb] (Programmer fixed sigma), Johannes Ranke [ctb] (varConstProp()), R Core Team [aut, cre] (02zz1nj61)",
       "Maintainer": "R Core Team <R-core@R-project.org>",
       "Repository": "RSPM"
+    },
+    "numDeriv": {
+      "Package": "numDeriv",
+      "Version": "2016.8-1.1",
+      "Source": "Repository",
+      "Title": "Accurate Numerical Derivatives",
+      "Description": "Methods for calculating (usually) accurate numerical first and second order derivatives. Accurate calculations  are done using 'Richardson''s' extrapolation or, when applicable, a complex step derivative is available. A simple difference  method is also provided. Simple difference is (usually) less accurate but is much quicker than 'Richardson''s' extrapolation and provides a  useful cross-check.  Methods are provided for real scalar and vector valued functions.",
+      "Depends": [
+        "R (>= 2.11.1)"
+      ],
+      "LazyLoad": "yes",
+      "ByteCompile": "yes",
+      "License": "GPL-2",
+      "Copyright": "2006-2011, Bank of Canada. 2012-2016, Paul Gilbert",
+      "Author": "Paul Gilbert and Ravi Varadhan",
+      "Maintainer": "Paul Gilbert <pgilbert.ttv9z@ncf.ca>",
+      "URL": "http://optimizer.r-forge.r-project.org/",
+      "NeedsCompilation": "no",
+      "Repository": "CRAN"
     },
     "openssl": {
       "Package": "openssl",

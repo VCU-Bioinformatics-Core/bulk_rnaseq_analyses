@@ -8,13 +8,14 @@ process_msigdb_hallmark(
   annotated_result,
   p = 1,
   annotation = get0("annotation", envir = .GlobalEnv),
-  annotation_db = get0("annotation_db", envir = .GlobalEnv)
+  annotation_db = get0("annotation_db", envir = .GlobalEnv),
+  gsea_rank = "stat"
 )
 }
 \arguments{
 \item{annotated_result}{Annotated DESeq2 results frame (output of
-\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENTREZID}, \code{log2FoldChange},
-\code{baseMean}.}
+\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENTREZID}, \code{stat} (or
+\code{log2FoldChange}), \code{baseMean}.}
 
 \item{p}{Adjusted p-value cutoff. Default \code{1}.}
 
@@ -23,6 +24,8 @@ process_msigdb_hallmark(
 
 \item{annotation_db}{\code{OrgDb} for \code{setReadable} Symbol mapping.
 Defaults to the \code{annotation_db} global.}
+
+\item{gsea_rank}{Ranking metric, \code{"stat"} (default) or \code{"log2fc"}.}
 }
 \value{
 setReadable'd GSEA object, or \code{NULL} if no enriched gene sets

@@ -68,3 +68,33 @@ run_vst <- function(dds, blind = TRUE) {
     }
   )
 }
+
+
+#' Log-scale expression matrix for sample-level QC (PCA, correlation)
+#'
+#' @description The matrix every sample-exploration view should be computed
+#'   on: the blind variance-stabilising transform of the pre-filtered counts
+#'   (`run_vst(dds, blind = TRUE)`, all genes), or, when VST cannot be
+#'   computed (tiny fixtures), `log2(TMM-CPM + 1)`. Never the linear TMM-CPM
+#'   matrix, whose PCA is dominated by a handful of highly expressed genes.
+#'
+#' @param dds A `DESeqDataSet` (post pre-filter, pre-`DESeq()`).
+#' @param tmm TMM-CPM matrix from [run_tmm()] (the fallback input).
+#' @return A numeric Genes x Samples matrix with attribute `"transform"` set
+#'   to `"vst"` or `"log2_tmm_cpm"`.
+#' @export
+qc_matrix <- function(dds, tmm) {
+  vst_obj <- run_vst(dds, blind = TRUE)
+  if (!is.null(vst_obj)) {
+    m <- SummarizedExperiment::assay(vst_obj)
+    attr(m, "transform") <- "vst"
+    return(m)
+  }
+  cli::cli_alert_warning("qc_matrix: VST unavailable; using log2(TMM-CPM + 1) for PCA / correlation")
+  # Same gene universe as the VST branch (the pre-filtered dds genes), so the
+  # two paths are comparable and all-zero rows never enter the correlation.
+  keep <- intersect(rownames(dds), rownames(tmm))
+  m <- log2(as.matrix(tmm)[keep, , drop = FALSE] + 1)
+  attr(m, "transform") <- "log2_tmm_cpm"
+  m
+}

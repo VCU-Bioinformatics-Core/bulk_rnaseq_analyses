@@ -8,7 +8,11 @@
 **Volcano Plot**
 
 ::: {.callout-tip title="How to read this"}
-Each dot is a gene. X-axis = log2 fold change (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks the `padj` = `r padj_cut` cutoff; the **black dashed lines** mark |log2FC| = `r round(lfc_cut, 2)` (≈`r fc_cut`x). Red and blue dots pass both thresholds; grey dots fail at least one.
+```{r shrink-this-comparison, include=FALSE}
+shrink_this <- if (!is.null(results[[i]]) && !is.null(results[[i]]$de_options) &&
+                   !is.null(results[[i]]$de_options$lfc_shrink)) results[[i]]$de_options$lfc_shrink else shrink_used
+```
+Each dot is a gene. X-axis = log2 fold change`r if (shrink_this != "none") sprintf(" (shrunken with lfcShrink type = \"%s\"; the DEG call and the dashed lines use the unshrunken estimate, so a coloured dot inside the lines is a noisy estimate the shrinkage pulled toward zero)", shrink_this) else ""` (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks the `padj` = `r padj_cut` cutoff; the **black dashed lines** mark |log2FC| = `r round(lfc_cut, 2)` (&#8776;`r fc_cut`x). Red and blue dots pass both thresholds; grey dots fail at least one.
 :::
 
 ::: {.callout-note title="What to look for"}
@@ -16,7 +20,7 @@ The strongest hits are in the **top-right** (most-up + most-confident) and **top
 :::
 
 ::: {.callout-warning title="Common pitfalls"}
-**Very few or zero significant genes** can mean low effect size, low replicate count, high biological variability, or a contrast that doesn't capture the biology. **Crowded labels in the top corners** mean a subset of your top hits — don't conclude that the unlabeled significant genes are less interesting. **Genes with huge log2FC but high padj** are often low-expression genes where one sample has 0 counts — interesting but treat with caution. **Genes hugging the y-axis at log2FC ≈ 0** that still hit significance are usually housekeeping with extremely low variance.
+**Very few or zero significant genes** can mean low effect size, low replicate count, high biological variability, or a contrast that doesn't capture the biology. **Crowded labels in the top corners** mean a subset of your top hits — don't conclude that the unlabeled significant genes are less interesting. **Genes with huge log2FC but high padj** are often low-expression genes where one sample has 0 counts — interesting but treat with caution. **Genes hugging the y-axis at log2FC &#8776; 0** that still hit significance are usually housekeeping with extremely low variance.
 :::
 
 ::: {.callout-tip title="Next steps"}
@@ -94,23 +98,26 @@ deg_flags <- c(0, 0)
 top_up <- NULL
 top_down <- NULL
 if (!is.null(results[[i]]) && !is.null(results[[i]]$deseq)) {
+  # Order NUMERICALLY, then take the top 20, then format for display. Sorting
+  # after formatC() ordered the padj strings lexicographically ("1.00e-02"
+  # before "3.20e-35"), so the strongest hits were missing from these tables.
+  .fmt_top <- function(df) {
+    df |>
+      dplyr::arrange(.data$padj) |>
+      head(20) |>
+      dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
+                    pvalue = formatC(.data$pvalue, format = "e", digits = 2),
+                    padj   = formatC(.data$padj,   format = "e", digits = 2))
+  }
   top_up <- results[[i]]$deseq |>
     dplyr::filter(!is.na(.data$padj) & .data$padj < padj_cut &
                     .data$log2FoldChange >= lfc_cut) |>
-    dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
-                  pvalue = formatC(.data$pvalue, format = "e", digits = 2),
-                  padj   = formatC(.data$padj,   format = "e", digits = 2)) |>
-    dplyr::arrange(.data$padj) |>
-    head(20)
+    .fmt_top()
 
   top_down <- results[[i]]$deseq |>
     dplyr::filter(!is.na(.data$padj) & .data$padj < padj_cut &
                     .data$log2FoldChange <= -lfc_cut) |>
-    dplyr::mutate(log2FoldChange = round(.data$log2FoldChange, 2),
-                  pvalue = formatC(.data$pvalue, format = "e", digits = 2),
-                  padj   = formatC(.data$padj,   format = "e", digits = 2)) |>
-    dplyr::arrange(.data$padj) |>
-    head(20)
+    .fmt_top()
 
   if (nrow(top_up)   > 0) deg_flags[1] <- 1
   if (nrow(top_down) > 0) deg_flags[2] <- 1
@@ -161,10 +168,10 @@ if (deg_flags[2] > 0) {
 
 **Pathway / Gene-Set Enrichment**
 
-Four complementary enrichment analyses are run per comparison. Each is independent and uses the same ranked log2FC vector, so disagreement between them often signals a meaningful biological difference (a process specific to one ontology vs. one shared across many).
+Four complementary enrichment analyses are run per comparison. Each is independent and uses the same ranked gene vector (ranked by `r gsea_rank_label`), so disagreement between them often signals a meaningful biological difference (a process specific to one ontology vs. one shared across many). Only gene sets with p.adjust < `r padj_cut` are shown in the dotplots and tables below; the full tables (with a `significant` column) are in the CSV files.
 
 ::: {.callout-tip title="How to read these dotplots"}
-Each dot is a gene set. X-axis = **gene ratio** (fraction of the set's genes that appear in your ranked list). Dot **size** = absolute set size; **colour** = adjusted p-value (deeper red = more significant). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). Top 15 sets by `p.adjust` are shown.
+Each dot is a gene set. X-axis = **gene ratio** (fraction of the set's genes that appear in your ranked list). Dot **size** = absolute set size; **colour** = adjusted p-value (deeper red = more significant). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). The top 15 **significant** sets by `p.adjust` are shown; a missing plot means no set passed p.adjust < `r padj_cut`.
 :::
 
 ::: {.callout-note title="What to look for"}
@@ -193,11 +200,16 @@ if (file.exists(gsea_path)) {
 }
 ```
 
-##### Top Enriched GO Terms (by ascending p.adjust, max 20)
+##### Top Enriched GO Terms (significant at p.adjust < `r padj_cut`, max 20)
 
 ```{r}
+.sig_sets <- function(obj) {
+  df <- as.data.frame(obj)
+  df <- df[!is.na(df$p.adjust) & df$p.adjust < padj_cut, , drop = FALSE]
+  df[order(df$p.adjust, -abs(df$NES)), , drop = FALSE]
+}
 if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
-  gsea_results <- as.data.frame(results[[i]]$gsea) |>
+  gsea_results <- .sig_sets(results[[i]]$gsea) |>
     dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
                   NES             = formatC(.data$NES,             format = "e", digits = 2),
                   p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
@@ -215,7 +227,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
       options  = list(scrollX = TRUE, pageLength = 10)
     )
   } else {
-    cat("No significant enriched GO terms found")
+    cat(sprintf("No GO term reached p.adjust < %s", padj_cut))
   }
 } else {
   cat("No GO enrichment available for this comparison")
@@ -238,11 +250,11 @@ if (file.exists(kegg_path)) {
 }
 ```
 
-##### Top Enriched KEGG Pathways (by ascending p.adjust, max 20)
+##### Top Enriched KEGG Pathways (significant at p.adjust < `r padj_cut`, max 20)
 
 ```{r}
 if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
-  kegg_results <- as.data.frame(results[[i]]$kegg) |>
+  kegg_results <- .sig_sets(results[[i]]$kegg) |>
     dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
                   NES             = formatC(.data$NES,             format = "e", digits = 2),
                   p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
@@ -257,7 +269,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
       options  = list(scrollX = TRUE, pageLength = 10)
     )
   } else {
-    cat("No significant enriched KEGG pathways found")
+    cat(sprintf("No KEGG pathway reached p.adjust < %s", padj_cut))
   }
 } else {
   cat("No KEGG enrichment available for this comparison")
@@ -280,11 +292,11 @@ if (file.exists(reactome_path)) {
 }
 ```
 
-##### Top Enriched Reactome Pathways (by ascending p.adjust, max 20)
+##### Top Enriched Reactome Pathways (significant at p.adjust < `r padj_cut`, max 20)
 
 ```{r}
 if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
-  reactome_results <- as.data.frame(results[[i]]$reactome) |>
+  reactome_results <- .sig_sets(results[[i]]$reactome) |>
     dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
                   NES             = formatC(.data$NES,             format = "e", digits = 2),
                   p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
@@ -299,7 +311,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
       options  = list(scrollX = TRUE, pageLength = 10)
     )
   } else {
-    cat("No significant enriched Reactome pathways found")
+    cat(sprintf("No Reactome pathway reached p.adjust < %s", padj_cut))
   }
 } else {
   cat("No Reactome enrichment available for this comparison")
@@ -322,11 +334,11 @@ if (file.exists(hallmark_path)) {
 }
 ```
 
-##### Top Enriched Hallmark Gene Sets (by ascending p.adjust, max 20)
+##### Top Enriched Hallmark Gene Sets (significant at p.adjust < `r padj_cut`, max 20)
 
 ```{r}
 if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
-  hallmark_results <- as.data.frame(results[[i]]$hallmark) |>
+  hallmark_results <- .sig_sets(results[[i]]$hallmark) |>
     dplyr::mutate(enrichmentScore = formatC(.data$enrichmentScore, format = "e", digits = 2),
                   NES             = formatC(.data$NES,             format = "e", digits = 2),
                   p.adjust        = formatC(.data$p.adjust,        format = "e", digits = 2),
@@ -341,7 +353,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
       options  = list(scrollX = TRUE, pageLength = 10)
     )
   } else {
-    cat("No significant enriched Hallmark gene sets found")
+    cat(sprintf("No Hallmark gene set reached p.adjust < %s", padj_cut))
   }
 } else {
   cat("No Hallmark enrichment available for this comparison")

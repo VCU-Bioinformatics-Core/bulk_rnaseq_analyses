@@ -6,12 +6,15 @@
 # block (de.R lines 1740-1850 in the post-Phase-4 layout). Each plotter
 # does its own prcomp internally so callers don't need to thread state.
 
-#' Compute prcomp on a TMM matrix (internal)
+#' Compute prcomp on an expression matrix (internal)
 #'
 #' @description Drop all-zero rows, transpose so samples are rows, run
 #'   `stats::prcomp` and capture the percent-variance vector.
 #'
-#' @param tmm Genes x Samples numeric matrix (typically [run_tmm()]).
+#' @param tmm Genes x Samples numeric matrix on a log-like scale: the
+#'   pipeline passes [qc_matrix()] (blind VST, all genes; log2(TMM-CPM+1)
+#'   fallback). A linear TMM-CPM matrix still works but its PC1 is driven
+#'   by the handful of most highly expressed genes.
 #' @param rank Optional integer passed to `prcomp(rank. = ...)`. The
 #'   3D plot uses `rank = 3`; the 2D path leaves it `NULL`.
 #' @return List with elements `prcomp` (the `prcomp` object) and
@@ -43,7 +46,8 @@
 #' @description Render a 2D PCA scatter plot via ggplot2. Each point is a
 #'   sample, labeled by its `sample` ID and colored by `condition`.
 #'
-#' @param tmm Genes x Samples numeric matrix (e.g. [run_tmm()] output).
+#' @param tmm Genes x Samples numeric matrix on a log-like scale; the
+#'   pipeline passes [qc_matrix()] (blind VST, all genes).
 #' @param sample_info Data frame with `sample` and `condition` columns.
 #'   Row order must match the column order of `tmm`.
 #' @return A `ggplot` object.
@@ -85,7 +89,8 @@ pca_static <- function(tmm, sample_info) {
 #'   Each point is a sample, colored by `condition`. Hover reveals the
 #'   sample ID.
 #'
-#' @param tmm Genes x Samples numeric matrix (e.g. [run_tmm()] output).
+#' @param tmm Genes x Samples numeric matrix on a log-like scale; the
+#'   pipeline passes [qc_matrix()] (blind VST, all genes).
 #' @param sample_info Data frame with `sample` and `condition` columns.
 #' @return A `plotly` object.
 #'
@@ -153,7 +158,8 @@ pca_plotly <- function(tmm, sample_info) {
 #'   calls). PC2 and PC3 axes are sign-flipped for visualization
 #'   (preserves the parent pipeline's view orientation).
 #'
-#' @param tmm Genes x Samples numeric matrix (e.g. [run_tmm()] output).
+#' @param tmm Genes x Samples numeric matrix on a log-like scale; the
+#'   pipeline passes [qc_matrix()] (blind VST, all genes).
 #' @param sample_info Data frame with `sample` and `condition` columns.
 #' @return A `plotly` object with a title showing total explained
 #'   variance across the three retained components.

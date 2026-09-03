@@ -8,13 +8,14 @@ process_kegg_gsea(
   annotated_result,
   p = 1,
   annotation = get0("annotation", envir = .GlobalEnv),
-  annotation_db = get0("annotation_db", envir = .GlobalEnv)
+  annotation_db = get0("annotation_db", envir = .GlobalEnv),
+  gsea_rank = "stat"
 )
 }
 \arguments{
 \item{annotated_result}{Annotated DESeq2 results frame (output of
-\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENTREZID}, \code{log2FoldChange},
-and \code{baseMean} columns.}
+\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENTREZID}, \code{stat} (or
+\code{log2FoldChange}), and \code{baseMean} columns.}
 
 \item{p}{Adjusted p-value cutoff. Default \code{1}.}
 
@@ -24,17 +25,20 @@ during option parsing.}
 
 \item{annotation_db}{\code{OrgDb} object for \code{setReadable} Symbol mapping.
 Defaults to the \code{annotation_db} global set during option parsing.}
+
+\item{gsea_rank}{Ranking metric, \code{"stat"} (default) or \code{"log2fc"}.}
 }
 \value{
 setReadable'd \code{gseKEGG} object, or \code{NULL} if no enriched
 pathways or any error.
 }
 \description{
-GSEA over KEGG pathways, ranked by \code{log2FoldChange}. Wraps
+GSEA over KEGG pathways, ranked by the DESeq2 Wald statistic
+(or \code{log2FoldChange}, see \code{gsea_rank}), with \code{eps = 0}. Wraps
 \code{clusterProfiler::gseKEGG} with \code{keyType = "ncbi-geneid"} (Entrez).
 Returns a \code{setReadable}'d result with gene Symbols.
 }
 \details{
-Rank-vector construction matches \code{\link[=process_gsea]{process_gsea()}}: filter to
-non-NA Entrez + log2FC, dedupe by first-occurrence, sort descending.
+Rank-vector construction matches \code{\link[=process_gsea]{process_gsea()}} via
+\code{\link[=.gsea_rank_vector]{.gsea_rank_vector()}}, keyed by \code{ENTREZID}.
 }

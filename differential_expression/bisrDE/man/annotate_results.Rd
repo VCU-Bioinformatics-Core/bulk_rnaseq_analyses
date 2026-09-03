@@ -7,7 +7,8 @@
 annotate_results(
   results,
   id_type = get0("id_type", envir = .GlobalEnv, ifnotfound = "ensembl"),
-  annotation_db = get0("annotation_db", envir = .GlobalEnv)
+  annotation_db = get0("annotation_db", envir = .GlobalEnv),
+  gene_meta = NULL
 )
 }
 \arguments{
@@ -23,11 +24,20 @@ pipeline; falls back to \code{"ensembl"} if no global is set. One of
 or \code{org.Mm.eg.db::org.Mm.eg.db}). Defaults to the \code{annotation_db}
 global set during option parsing in the parent pipeline. Errors if
 neither the argument nor the global is supplied.}
+
+\item{gene_meta}{Optional data frame with columns \code{id}, \code{id_versioned},
+\code{gene_name} (the \code{"gene_meta"} attribute of \code{\link[=read_counts]{read_counts()}}). When
+supplied: genes the OrgDb cannot name get their \code{SYMBOL} from the
+input's \code{gene_name} (recorded in \code{SYMBOL_SOURCE} as \code{"input"} vs
+\code{"orgdb"}), and an \code{ENSEMBL_ID_VERSIONED} column carries the original
+versioned accession when any input ID had a version suffix. Default
+\code{NULL} (no fallback, no versioned column).}
 }
 \value{
 Annotated data frame that always carries \code{ENSEMBL_ID},
 \code{ENTREZID}, \code{SYMBOL}, and \code{GENENAME} columns regardless of the input
-\code{id_type}, plus the original DESeq2 result columns.
+\code{id_type}, plus the original DESeq2 result columns (and, with
+\code{gene_meta}, \code{SYMBOL_SOURCE} / \code{ENSEMBL_ID_VERSIONED}).
 }
 \description{
 Join Entrez, Symbol, GENENAME, and Ensembl ID columns onto
@@ -37,9 +47,12 @@ regardless of the input \code{id_type}, so downstream plotting / report
 code that hardcodes \code{ENSEMBL_ID} keeps working.
 }
 \details{
-Resolves ambiguous one-to-many mappings (e.g. a Symbol that
-maps to multiple Ensembl IDs) by keeping the first match and emitting
-a \code{cli::cli_alert_warning}. Pre-checks the input rownames for
+One-to-many mappings (one input ID with several OrgDb rows, e.g.
+an Ensembl gene with two Entrez IDs, or a Symbol matching several
+Ensembl genes) are collapsed by keeping the FIRST row \code{AnnotationDbi}
+returns; a \code{cli::cli_alert_warning} reports how many. This is a
+deterministic but arbitrary rule and is stated in the report's Methods.
+Pre-checks the input rownames for
 duplicates and emits a \code{cli::cli_alert_danger} if found (treated as a
 data-quality problem rather than a hard stop, so the pipeline can
 still finish - but the user is alerted). When the input \code{id_type} is
