@@ -1,6 +1,6 @@
 Package: bisrDE
 Title: Bulk RNA-Seq Differential Expression Pipeline (BISR)
-Version: 1.6.4
+Version: 1.7.0
 Authors@R:
     person("Mikail", "Bala", , "balami@vcu.edu", role = c("aut", "cre"),
            comment = c(affiliation = "VCU Massey BISR"))
