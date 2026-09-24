@@ -215,9 +215,14 @@ Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
 sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
 OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
 
+# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=no)
+sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
+
 squeue -u "$USER"
 tail -f slurm-bisrde-<jobid>.out
 ```
+
+The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
 
 Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
 GSEA backends are memory-bound rather than CPU-bound.
