@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`environment.yml` now includes `bioconductor-apeglm` (1.24.0).** apeglm is
+  an optional dependency in `DESCRIPTION` but the default log2FC shrinkage
+  method since v1.7.0. Without it a conda run does not fail:
+  `perform_deseq2_analysis()` silently falls back to `type = "normal"` while
+  the report's Methods still say apeglm, so results diverge from a renv run for
+  a reason that is hard to spot. Solve-verified against `linux-64`
+  (345 packages).
+- **`submit_slurm.sh` locates the pipeline via `$SLURM_SUBMIT_DIR`.** sbatch
+  copies the batch script into a spool directory, so `dirname "$0"` resolved
+  there and the job died with `run_analysis.sh: No such file or directory`.
+  The script now prefers `$SLURM_SUBMIT_DIR`, accepts an explicit
+  `PIPELINE_DIR`, and exits 3 with an explanatory message if neither yields the
+  repo. It also reuses an environment inherited through `--export=ALL` rather
+  than requiring conda or micromamba on `PATH` in the non-interactive job
+  shell, and exposes the v1.7 method knobs (`GSEA_RANK`, `LFC_SHRINK`,
+  `INDEPENDENT_FILTERING`) plus `PLATFORM_NAME`.
+
 ## [1.7.0] - 2026-09-03
 
 ### Added

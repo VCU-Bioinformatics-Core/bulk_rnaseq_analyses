@@ -50,8 +50,8 @@
 #   false negatives from missing glibc virtual packages.
 #
 # Verified: `micromamba create --dry-run --platform linux-64
-# --override-channels -c conda-forge -c bioconda` resolves this spec to 344
-# packages / 663 MB.
+# --override-channels -c conda-forge -c bioconda` resolves this spec to 345
+# packages / 667 MB.
 
 name: bisrde
 
@@ -74,6 +74,11 @@ dependencies:
   - bioconductor-complexheatmap=2.18.0
   - bioconductor-annotationdbi=1.64.1
   - bioconductor-summarizedexperiment=1.32.0
+  # apeglm is an OPTIONAL dependency in DESCRIPTION but the default log2FC
+  # shrinkage method since v1.7. Without it the pipeline does not fail: it
+  # silently falls back to type = "normal" while the report's Methods still
+  # say apeglm, so results diverge from a renv run for a non-obvious reason.
+  - bioconductor-apeglm=1.24.0
   # Organism annotation databases.
   - bioconductor-org.hs.eg.db=3.18.0
   - bioconductor-org.mm.eg.db=3.18.0
