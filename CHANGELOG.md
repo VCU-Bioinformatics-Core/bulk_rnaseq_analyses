@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The report renders again for runs with two or more comparisons.** The
+  v1.7.0 chunk `shrink-this-comparison` in `_sections/_comparison.qmd` was the
+  only labelled chunk in the per-comparison child. `report.qmd` knits that
+  child once per comparison, and under Quarto a fixed label collides on the
+  second pass with `Duplicate chunk label`, so the analysis completed but no
+  HTML was produced. The chunk is now unlabelled, matching every other chunk in
+  the child, and the file says why. Verified with the three-comparison example:
+  the old child fails under knitr 1.50 and 1.52, the fixed child renders under
+  both with all three comparisons present. v1.7.0 as released cannot render a
+  multi-comparison report.
 - **`environment.yml` now includes `bioconductor-apeglm` (1.24.0).** apeglm is
   an optional dependency in `DESCRIPTION` but the default log2FC shrinkage
   method since v1.7.0. Without it a conda run does not fail:

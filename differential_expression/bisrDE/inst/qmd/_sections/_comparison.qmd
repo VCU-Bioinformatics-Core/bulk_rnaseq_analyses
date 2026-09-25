@@ -8,7 +8,12 @@
 **Volcano Plot**
 
 ::: {.callout-tip title="How to read this"}
-```{r shrink-this-comparison, include=FALSE}
+```{r, include=FALSE}
+# Chunks in this file must stay UNLABELLED. report.qmd knits this child once
+# per comparison, and under Quarto a fixed label collides on the second pass
+# ("Duplicate chunk label 'x', which has been used for the chunk: ..."). This
+# is independent of the knitr version. Unnamed chunks are numbered
+# continuously across children, so they cannot collide.
 shrink_this <- if (!is.null(results[[i]]) && !is.null(results[[i]]$de_options) &&
                    !is.null(results[[i]]$de_options$lfc_shrink)) results[[i]]$de_options$lfc_shrink else shrink_used
 ```
