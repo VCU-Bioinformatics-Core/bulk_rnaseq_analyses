@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compute nodes. Motivated by a run that timed out on zenodo.org because the
   cache had been warmed under a different `R_USER_CACHE_DIR` than the job used.
   The path is read with `Rscript --no-init-file`, since the project `.Rprofile`
-  prints a renv/conda banner to stdout that would otherwise corrupt it.
+  prints a renv/conda banner to stdout that would otherwise corrupt it. The
+  `R:` header line uses the same flag, so the version string no longer has
+  the banner interleaved into it.
 
 ## [1.7.1] - 2026-09-28
 

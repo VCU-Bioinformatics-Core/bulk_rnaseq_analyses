@@ -151,7 +151,7 @@ fi
 echo "host:      $(hostname)"
 echo "job:       ${SLURM_JOB_ID:-<interactive>}"
 echo "env:       ${CONDA_PREFIX:-<none>}"
-echo "R:         $(command -v Rscript) ($(Rscript -e 'cat(R.version.string)' 2>/dev/null))"
+echo "R:         $(command -v Rscript) ($(Rscript --no-init-file -e 'cat(R.version.string)' 2>/dev/null))"
 echo "outdir:    $OUTDIR"
 echo "methods:   gsea-rank=$GSEA_RANK  lfc-shrink=$LFC_SHRINK  independent-filtering=$INDEPENDENT_FILTERING"
 echo "platform:  $BISR_PLATFORM_NAME"
