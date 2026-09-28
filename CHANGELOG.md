@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`submit_slurm.sh` checks for the MSigDB cache before the analysis starts.**
+  The job resolves `tools::R_user_dir("msigdbr", "cache")` with the same
+  `R_USER_CACHE_DIR` the pipeline will see, prints the directory in the job
+  header, and warns in the `.err` log with the exact `warm_msigdb_cache.R`
+  command (including the `export` line when the variable is set) if the
+  directory is missing or empty. The run continues, because Hallmark is the
+  only step that needs the cache and some sites do have outbound internet on
+  compute nodes. Motivated by a run that timed out on zenodo.org because the
+  cache had been warmed under a different `R_USER_CACHE_DIR` than the job used.
+  The path is read with `Rscript --no-init-file`, since the project `.Rprofile`
+  prints a renv/conda banner to stdout that would otherwise corrupt it.
+
 ## [1.7.1] - 2026-09-28
 
 ### Fixed

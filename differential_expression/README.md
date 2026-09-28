@@ -224,6 +224,8 @@ tail -f slurm-bisrde-<jobid>.out
 
 The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
 
+Before the analysis starts, the job resolves the MSigDB cache directory the way R will (`R_USER_CACHE_DIR` included), prints it in the job header as `msigdb:`, and warns in the `.err` log with the exact warm-up command if the directory is missing or empty. The run continues, since Hallmark is the only step that needs the cache; warm it and resubmit if you want Hallmark results.
+
 Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
 GSEA backends are memory-bound rather than CPU-bound.
 
