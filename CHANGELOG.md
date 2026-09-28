@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.1] - 2026-09-28
 
 ### Fixed
 
@@ -717,6 +717,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.7.1   | 2026-09-28 | Report renders again for two or more comparisons (duplicate chunk label in the per-comparison child); `environment.yml` gains `bioconductor-apeglm`; `submit_slurm.sh` finds the pipeline via `$SLURM_SUBMIT_DIR` and reuses an inherited conda env |
 | 1.7.0   | 2026-09-03 | GSEA ranked by the Wald statistic with exact p-values, apeglm shrinkage, `--independent-filtering`; sample QC on blind VST (all genes); run provenance (dds, options, versions, QC summary) in RDS/JSON; report fixes (top-20 order, blank versions, Methods generated from the run, sessionInfo) |
 | 1.6.4   | 2026-08-13 | Fix the HPC install step that renv's autoloader breaks (bake `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` into the conda env) |
 | 1.6.3   | 2026-08-13 | HPC deployment: solve-verified conda `environment.yml` (Bioc 3.18), `compare_runs.R` validation gate, Slurm template, conda-aware launcher |
