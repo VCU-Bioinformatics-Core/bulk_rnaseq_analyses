@@ -9,26 +9,30 @@ qc_correlation_heatmap(
   sample_info,
   sig_genes,
   fig_path,
-  method = "spearman"
+  method = "spearman",
+  gene_label = "genes"
 )
 }
 \arguments{
-\item{normalized_counts}{Genes x Samples numeric matrix (typically
-\code{\link[=run_tmm]{run_tmm()}} output). Column names must match the \code{make.names()}
-form of \code{sample_info$sample}.}
+\item{normalized_counts}{Genes x Samples numeric matrix on a log-like
+scale; the pipeline passes \code{\link[=qc_matrix]{qc_matrix()}} (blind VST, all genes). Column
+names must match the \code{make.names()} form of \code{sample_info$sample}.}
 
 \item{sample_info}{Data frame with \code{sample} (canonical IDs) and
 \code{condition} (group label).}
 
-\item{sig_genes}{Vector of gene IDs (Ensembl) defining the rows used
-for the correlation. Typically the union of all DE genes across
-comparisons; pass \code{rownames(normalized_counts)} for an "all genes"
-variant.}
+\item{sig_genes}{Vector of gene IDs defining the rows used for the
+correlation. The pipeline passes every gene of the QC matrix (see
+\code{\link[=qc_matrix]{qc_matrix()}}): correlating on DE genes only separates the groups by
+construction and says nothing about replicate quality.}
 
 \item{fig_path}{Output PNG path.}
 
 \item{method}{Correlation method. Default \code{"spearman"} (robust to
 outliers and scale; matches DESeq2-vignette convention).}
+
+\item{gene_label}{Noun used in the title after the gene count. Default
+\code{"genes"}.}
 }
 \value{
 Invisibly returns \code{fig_path} on success, or \code{NULL} if the

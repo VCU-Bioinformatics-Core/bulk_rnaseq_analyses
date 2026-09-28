@@ -4,7 +4,13 @@
 \alias{perform_deseq2_analysis}
 \title{Run DESeq2 for one contrast}
 \usage{
-perform_deseq2_analysis(dds, exp, ctrl)
+perform_deseq2_analysis(
+  dds,
+  exp,
+  ctrl,
+  independent_filtering = FALSE,
+  lfc_shrink = c("none", "apeglm", "normal")
+)
 }
 \arguments{
 \item{dds}{A \code{DESeqDataSet} whose \code{condition} factor includes both
@@ -15,18 +21,35 @@ should already be done by the caller.}
 \code{dds$condition}).}
 
 \item{ctrl}{Control group label (must be a level of \code{dds$condition}).}
+
+\item{independent_filtering}{Passed to \code{DESeq2::results(independentFiltering =)}.
+Default \code{FALSE} keeps every tested gene in the table (no padj set to
+\code{NA} by the mean-count filter). \code{TRUE} is DESeq2's default and gains
+power on low-count genes at the cost of \code{NA} padj for the filtered ones.}
+
+\item{lfc_shrink}{One of \code{"apeglm"}, \code{"normal"}, \code{"none"}. When not
+\code{"none"}, \code{DESeq2::lfcShrink()} is run and two columns are appended:
+\code{log2FC_shrunken} and \code{lfcSE_shrunken}. \code{"apeglm"} needs the apeglm
+package; if it is not installed the call falls back to \code{"normal"} with a
+warning. The MLE \code{log2FoldChange} column is never altered, so DEG calls
+are unaffected. Default \code{"none"}.}
 }
 \value{
 A data frame of DESeq2 results (one row per gene) with the
 standard columns: \code{baseMean}, \code{log2FoldChange}, \code{lfcSE}, \code{stat},
-\code{pvalue}, \code{padj}. Rownames are gene IDs from \code{dds}.
+\code{pvalue}, \code{padj} (plus \code{log2FC_shrunken} / \code{lfcSE_shrunken} when
+shrinkage is on). Rownames are gene IDs from \code{dds}. Two attributes carry
+provenance for the caller: \code{"dds"} (the fitted \code{DESeqDataSet}) and
+\code{"de_options"} (a list with \code{independent_filtering}, \code{lfc_shrink} as
+actually used, \code{design}, \code{reference_level}, \code{coef}).
 }
 \description{
 Run \code{DESeq()} and extract \code{results()} for a single
 experimental-vs-control contrast on a pre-built \code{DESeqDataSet}.
 Re-levels \code{dds$condition} so \code{ctrl} is the reference, then queries
-results with \code{cooksCutoff = TRUE} and \code{independentFiltering = FALSE}
-(matches the parent pipeline's behavior).
+results with \code{cooksCutoff = TRUE} and \code{independentFiltering = independent_filtering} (default \code{FALSE}, the historical BISR setting;
+DESeq2's own default is \code{TRUE}). Optionally appends a shrunken
+log2 fold change (\code{DESeq2::lfcShrink}).
 }
 \details{
 Errors loudly via \code{cli::cli_alert_danger} + \code{stop()} if either

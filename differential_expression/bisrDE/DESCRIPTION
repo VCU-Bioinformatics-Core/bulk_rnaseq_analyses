@@ -1,6 +1,6 @@
 Package: bisrDE
 Title: Bulk RNA-Seq Differential Expression Pipeline (BISR)
-Version: 1.6.4
+Version: 1.7.1
 Authors@R:
     person("Mikail", "Bala", , "balami@vcu.edu", role = c("aut", "cre"),
            comment = c(affiliation = "VCU Massey BISR"))
@@ -53,11 +53,13 @@ Imports:
     utils,
     yaml
 Suggests:
+    apeglm,
+    cluster,
+    lintr,
+    optparse,
     org.Hs.eg.db,
     org.Mm.eg.db,
-    optparse,
-    testthat (>= 3.0.0),
-    lintr
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 biocViews:
     DifferentialExpression,

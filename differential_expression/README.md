@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.6.4** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.7.1** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -67,11 +67,11 @@ differential_expression/
 ![Pipeline diagram](assets/dge.png)
 
 1. **Parse contrasts** from the samplesheet (one column per `experiment_vs_control`; `1` = exp, `0` = ctrl, blank = exclude).
-2. **Align + filter** the counts matrix to the samplesheet's `SampleID` order; pre-filter genes with fewer than 3 samples having ≥10 reads.
-3. **Normalize** via edgeR TMM (heatmap + sample-exploration substrate) and DESeq2 (DE testing substrate).
+2. **Align + filter** the counts matrix to the samplesheet's `SampleID` order; round Salmon/RSEM estimates to integers; pre-filter genes with fewer than *k* samples having ≥10 reads, where *k* is the smallest group size (floor 2).
+3. **Normalize** via edgeR TMM (heatmap substrate + CSV export) and DESeq2 (DE testing substrate); sample exploration (PCA, Spearman correlation) uses the blind VST of the filtered counts on all genes.
 4. **DESeq2** per contrast — Wald test + Benjamini-Hochberg FDR correction.
 5. **Annotate** results with Ensembl ID, Entrez ID, gene Symbol, gene name (from `org.Hs.eg.db` / `org.Mm.eg.db`).
-6. **Enrichment** (independent of significance threshold; ranked-list GSEA on log2FC):
+6. **Enrichment** (independent of significance threshold; ranked-list GSEA on the DESeq2 Wald statistic by default, `--gsea-rank log2fc` restores fold-change ranking; exact p-values with `eps = 0`):
    - GO Biological Process / Molecular Function / Cellular Component (`clusterProfiler::gseGO`).
    - KEGG pathways (`clusterProfiler::gseKEGG`).
    - Reactome pathways (`ReactomePA::gsePathway`).
@@ -80,7 +80,7 @@ differential_expression/
 8. **Sample exploration** (across all samples): 2D + 3D PCA (interactive plotly), Spearman correlation heatmap, vst Euclidean distance heatmap, library-size + detected-gene barplots, hierarchical clustering (Ward.D2) + per-sample log-CPM density.
 9. **Quarto report** — single self-contained HTML with all of the above, plus interpretation callouts, a comparisons summary table, manuscript-ready Methods + References, and an IPA upload guide.
 
-**Significance thresholds** (configurable in code; reported in the manuscript text): `padj ≤ 0.05` AND `|log2FC| ≥ 0.58` (≈1.5× fold change).
+**Significance thresholds** (`--padj`, `--fold-change`; reported in the manuscript text): `padj < 0.05` AND `|log2FC| ≥ 0.58` (≈1.5× fold change). The same strict `<` on `padj` is used everywhere (volcano, heatmaps, counts, `filter_significant()`).
 
 ## Environment setup
 
@@ -143,7 +143,45 @@ bash run_analysis.sh --counts assets/example_counts.tsv \
     --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
 ```
 
+```bash
+# 6. ONE-TIME: pre-download the MSigDB gene sets, ON A LOGIN NODE.
+#    msigdbr fetches its archive from Zenodo on first use. Compute nodes
+#    usually have no outbound internet, so without this every run fails with
+#    "MSigDB Hallmark error: Timeout was reached [zenodo.org]" and silently
+#    produces no Hallmark enrichment.
+Rscript warm_msigdb_cache.R
+```
+
+> **If the cluster has no outbound internet at all** (login nodes included —
+> check with `curl -sI https://zenodo.org`), warm the cache on your laptop and
+> copy it across. It is ~85 MB:
+>
+> ```bash
+> # on the machine WITH internet
+> Rscript warm_msigdb_cache.R
+> Rscript -e 'cat(tools::R_user_dir("msigdbr","cache"))'   # prints the source dir
+>
+> # then, from that machine (Linux target path is ~/.cache/R/msigdbr)
+> ssh <cluster> 'mkdir -p ~/.cache/R/msigdbr'
+> rsync -avP "<source dir>/" <cluster>:~/.cache/R/msigdbr/
+> ```
+
 If step 5 produces `rnaseq_analysis_*.html`, the install is good.
+
+> **If `$HOME` is not shared with the compute nodes**, point the cache at a
+> shared filesystem instead — set `R_USER_CACHE_DIR` to the same path when
+> warming the cache *and* in your job script:
+>
+> ```bash
+> export R_USER_CACHE_DIR=/lustre/home/<lab>/rcache
+> Rscript warm_msigdb_cache.R
+> ```
+>
+> Verified: with the cache warm, Hallmark enrichment returns all 50 gene sets
+> with outbound network fully blocked.
+>
+> Everything in this section needs only `R` — `just` is a developer convenience
+> and is not required on the cluster.
 
 > **If you skipped step 3**, any direct `Rscript` call fails with
 > `there is no package called 'remotes'` (or any other conda-installed
@@ -177,9 +215,14 @@ Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
 sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
 OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
 
+# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=no)
+sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
+
 squeue -u "$USER"
 tail -f slurm-bisrde-<jobid>.out
 ```
+
+The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
 
 Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
 GSEA backends are memory-bound rather than CPU-bound.
@@ -274,7 +317,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.6.4) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.7.1) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 
@@ -339,6 +382,9 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--exclude-groups`  |       | no       | (none)         | Comma-separated `GroupID`s to drop from the whole analysis. |
 | `--include-contrasts` |     | no       | (none)         | Comma-separated contrast columns to process **exclusively** (allowlist). |
 | `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
+| `--gsea-rank`       |       | no       | `stat`         | Ranking metric for pre-ranked GSEA: `stat` (DESeq2 Wald statistic) or `log2fc` (pre-v1.7 behaviour). Env: `BISR_GSEA_RANK`. |
+| `--lfc-shrink`      |       | no       | `apeglm`       | Log2 fold-change shrinkage (`apeglm`, `normal`, `none`). Adds `log2FC_shrunken` / `lfcSE_shrunken` to the DE CSV and places volcano points at the shrunken value; DEG calls always use the unshrunken estimate. Falls back to `normal` when apeglm is not installed. Env: `BISR_LFC_SHRINK`. |
+| `--independent-filtering` |  | no      | off            | Enable DESeq2's independent filtering (DESeq2's own default). Off keeps an adjusted p-value for every tested gene. Env: `BISR_INDEPENDENT_FILTERING=yes`. |
 
 **Examples.** Re-run dropping a QC outlier without editing the samplesheet:
 
@@ -382,7 +428,7 @@ bash run_analysis.sh --counts c.tsv --samplesheet ss.csv --outdir out --runid fo
 │   │   ├── allsamples_PCA_plot.html              # interactive 2D plotly
 │   │   └── allsamples_PCA_plot3D.html            # interactive 3D plotly
 │   └── qc/
-│       ├── qc_correlation_heatmap.png            # Spearman, DE genes
+│       ├── qc_correlation_heatmap.png            # Spearman, all genes (blind VST)
 │       ├── qc_vst_dist_heatmap.png               # vst Euclidean distance
 │       ├── qc_libsize_detected.png               # library size + detected genes
 │       └── qc_hclust_density.png                 # Ward dendrogram + log-CPM density
@@ -406,6 +452,10 @@ The report HTML is the primary deliverable — it embeds every plot, every resul
 | `stat`           | Wald test statistic.                                                                      |
 | `pvalue`         | Raw Wald p-value.                                                                         |
 | `padj`           | Benjamini-Hochberg adjusted p-value (FDR).                                                |
+| `log2FC_shrunken` | Shrunken log2FC (`--lfc-shrink`, default apeglm). For plots and effect-size reporting only; DEG calls use `log2FoldChange`. |
+| `lfcSE_shrunken` | Standard error of the shrunken estimate.                                                  |
+| `SYMBOL_SOURCE`  | `orgdb` when the symbol came from org.*.eg.db, `input` when it came from the count file's `gene_name` column (OrgDb had none), `NA` when neither. |
+| `ENSEMBL_ID_VERSIONED` | The original versioned accession from the count file (present when the input carried versions). |
 
 ## Nextflow integration
 

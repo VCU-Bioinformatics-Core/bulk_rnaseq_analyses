@@ -150,6 +150,14 @@ bump version:
 container:
     cd {{de}} && bash build_container.sh
 
+# Pre-download the MSigDB gene sets so Hallmark enrichment works OFFLINE.
+# msigdbr fetches its archive from Zenodo on first use; HPC compute nodes
+# usually have no outbound internet, so run this once on a login node.
+# On the cluster (no `just`), run the script directly:
+#     Rscript warm_msigdb_cache.R
+msigdb-cache:
+    cd {{de}} && {{rscript}} warm_msigdb_cache.R
+
 # Create the conda environment from environment.yml (Bioconductor 3.18 / R 4.3).
 conda-env:
     #!/usr/bin/env bash

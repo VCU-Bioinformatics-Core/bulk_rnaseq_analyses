@@ -9,12 +9,15 @@ generate_report(
   output_dir,
   brs_ticket = "",
   analyst = "Mikail Bala",
-  report_prefix = "rnaseq_analysis"
+  report_prefix = "rnaseq_analysis",
+  platform = .run_platform()
 )
 }
 \arguments{
 \item{rds_path}{Path to the analysis RDS produced by \code{\link[=run_pipeline]{run_pipeline()}}.
-Stores \code{list(results, comparisons, out_dirs, pca_plot, pca_plotly, pca_3d, annotation)}.}
+Stores \code{list(results, comparisons, out_dirs, pca_plot, pca_plotly, pca_3d, annotation, padj, fold_change, qc_summary, run_options)};
+elements 8 to 11 are optional and the template falls back to pre-v1.7
+behaviour when they are absent.}
 
 \item{output_dir}{Directory where the rendered HTML will be written.
 Created if it does not exist.}
@@ -27,6 +30,14 @@ Default \code{"Mikail Bala"}.}
 
 \item{report_prefix}{Prefix for the output HTML filename. Default
 \code{"rnaseq_analysis"}. Combined with a timestamp at render time.}
+
+\item{platform}{Free-text description of where the analysis ran, used in
+the Methods sentence "All computational analyses were performed on ...".
+The template prefers the value recorded at analysis time in the RDS
+(\code{run_options$platform}, see \code{\link[=.run_platform]{.run_platform()}}); this argument is the
+fallback for bundles that predate it. Default \code{.run_platform()}: the
+\code{BISR_PLATFORM_NAME} environment variable when set, a Slurm description
+when \code{SLURM_JOB_ID} is set, else \code{Sys.info()} plus the R version.}
 }
 \value{
 Absolute path to the rendered HTML file.
@@ -46,7 +57,9 @@ tempdir.
 either \code{subtitle: "<brs_ticket>"} (if non-empty) or an empty
 string (no stray YAML field).
 \item Calling \code{quarto::quarto_render} with \code{execute_params} =
-\code{list(rds_path, analyst, brs_ticket, genome_assembly, sections_dir)}.
+\code{list(rds_path, analyst, brs_ticket, genome_assembly, sections_dir, bisrde_version, upstream_versions_path, run_platform)}. The last three are resolved here because the
+render runs in its own R process where, in dev mode, neither
+the package version nor \code{system.file()} resolve.
 \item Moving the rendered HTML to \code{output_dir} with a timestamped
 filename.
 }

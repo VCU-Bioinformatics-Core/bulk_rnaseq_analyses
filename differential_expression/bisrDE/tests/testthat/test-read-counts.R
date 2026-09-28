@@ -108,3 +108,27 @@ test_that("read_counts loads an all-symbol counts matrix without collapsing", {
   expect_equal(nrow(x), 4L)
   expect_setequal(rownames(x), c("H2-M10.1", "H2-M10.2", "H2-M10.3", "Rn4.5s"))
 })
+
+test_that("read_counts carries gene_name and versioned ids in the gene_meta attribute", {
+  tsv <- tempfile(fileext = ".tsv")
+  writeLines(c(
+    "gene_id\tgene_name\tS1\tS2",
+    "ENSG00000000001.3\tGeneA\t10\t20",
+    "ENSG00000000002.15\tGeneB\t5\t6",
+    "ENSG00000002586.20_PAR_Y\tCD99\t5\t6"
+  ), tsv)
+  x <- read_counts(tsv)
+  gm <- attr(x, "gene_meta")
+  expect_equal(nrow(gm), nrow(x))
+  expect_equal(gm$id, rownames(x))
+  expect_equal(gm$id_versioned[gm$id == "ENSG00000000001"], "ENSG00000000001.3")
+  expect_equal(gm$gene_name[gm$id == "ENSG00000000002"], "GeneB")
+  expect_false(any(grepl("_PAR_Y", gm$id_versioned)))
+})
+
+test_that("read_counts gene_meta has NA gene_name when the file has none", {
+  tsv <- tempfile(fileext = ".tsv")
+  writeLines(c("gene_id\tS1\tS2", "ENSG00000000001.3\t10\t20"), tsv)
+  gm <- attr(read_counts(tsv), "gene_meta")
+  expect_true(all(is.na(gm$gene_name)))
+})

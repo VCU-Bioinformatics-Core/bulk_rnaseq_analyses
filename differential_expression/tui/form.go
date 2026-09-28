@@ -43,6 +43,9 @@ func defaultConfig() Config {
 		VolcanoLabels:    envOr("BISR_VOLCANO_LABELS", "10"),
 		FoldChange:       envOr("BISR_FOLD_CHANGE", "1.5"),
 		Padj:             envOr("BISR_PADJ", "0.05"),
+		GseaRank:         envOr("BISR_GSEA_RANK", "stat"),
+		LfcShrink:        envOr("BISR_LFC_SHRINK", "apeglm"),
+		IndepFiltering:   envOr("BISR_INDEPENDENT_FILTERING", "no"),
 		ExcludeSamples:   envList("BISR_EXCLUDE_SAMPLES"),
 		ExcludeGroups:    envList("BISR_EXCLUDE_GROUPS"),
 		IncludeContrasts: envList("BISR_INCLUDE_CONTRASTS"),
@@ -155,6 +158,15 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 			huh.NewInput().Title("Volcano labels (top N genes)").Value(&c.VolcanoLabels),
 			huh.NewInput().Title("Fold-change cutoff (e.g. 2 = 2-fold)").Value(&c.FoldChange),
 			huh.NewInput().Title("Adjusted p-value (FDR) cutoff").Value(&c.Padj),
+			huh.NewSelect[string]().Title("GSEA ranking metric").
+				Options(huh.NewOptions("stat", "log2fc")...).
+				Value(&c.GseaRank),
+			huh.NewSelect[string]().Title("LFC shrinkage (volcano + CSV column)").
+				Options(huh.NewOptions("apeglm", "normal", "none")...).
+				Value(&c.LfcShrink),
+			huh.NewSelect[string]().Title("DESeq2 independent filtering").
+				Options(huh.NewOptions("no", "yes")...).
+				Value(&c.IndepFiltering),
 		),
 	).WithTheme(huh.ThemeCharm())
 	if err := core.Run(); err != nil {

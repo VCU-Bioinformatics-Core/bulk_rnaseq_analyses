@@ -32,8 +32,13 @@
 #'   the active graphics device).
 #' @details Restricts the count matrix to the comparison's samples (fixes
 #'   the prior bug where heatmap columns showed every sample in the full
-#'   samplesheet). Z-score normalizes (via `t(scale(t(values)))`) and
-#'   renders with a blue-white-red palette via `gplots::heatmap.2`.
+#'   samplesheet). Z-scores each gene on the log scale,
+#'   `t(scale(t(log2(values + 1))))`: per-row scaling already makes every
+#'   gene scale-free, but on the linear scale one sample at 10x expression
+#'   compresses the gene's other samples to the same colour; the log step
+#'   keeps within-row differences visible. A gene with zero variance across
+#'   the shown samples gets z = 0 rather than `NaN`. Renders with a
+#'   blue-white-red palette via `gplots::heatmap.2`.
 #'
 #' @importFrom gplots heatmap.2
 #' @importFrom grDevices colorRampPalette
@@ -114,8 +119,8 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
   }
 
   values <- normalized_counts[gene_ids, comparison_samples, drop = FALSE] |>
-    as.matrix() |>
-    jitter(factor = 1, amount = 0.00001)
+    as.matrix()
+  values <- log2(values + 1)
 
   # Relabel sample columns with display names (DisplayName column when
   # present; munged ID otherwise, so default output is unchanged). The
@@ -127,6 +132,7 @@ generate_heatmap <- function(results_df, normalized_counts, sample_info,
   colnames(values) <- new_cols
 
   zscores <- t(scale(t(values)))
+  zscores[is.nan(zscores)] <- 0   # zero-variance rows (instead of jittering the input)
 
   row_labels <- NA
   if (!is.null(top_n) && "SYMBOL" %in% colnames(filtered_data)) {

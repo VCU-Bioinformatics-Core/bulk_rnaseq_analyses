@@ -1,9 +1,9 @@
 # Upstream tool versions used by nf-core/rnaseq, referenced in the
 # manuscript-ready Methods text of the report (Phase 7.2). Single source
-# of truth — bump these here when the upstream pipeline is upgraded;
+# of truth - bump these here when the upstream pipeline is upgraded;
 # the report's Methods text picks them up automatically on next render.
 #
-# R package versions are NOT kept here — those are read via
+# R package versions are NOT kept here - those are read via
 # `packageVersion()` at render time so they always match the lockfile.
 #
 # Schema: each entry has a `version` and a `cite_key`. The `cite_key`

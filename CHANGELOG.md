@@ -5,6 +5,163 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-09-28
+
+### Fixed
+
+- **The report renders again for runs with two or more comparisons.** The
+  v1.7.0 chunk `shrink-this-comparison` in `_sections/_comparison.qmd` was the
+  only labelled chunk in the per-comparison child. `report.qmd` knits that
+  child once per comparison, and under Quarto a fixed label collides on the
+  second pass with `Duplicate chunk label`, so the analysis completed but no
+  HTML was produced. The chunk is now unlabelled, matching every other chunk in
+  the child, and the file says why. Verified with the three-comparison example:
+  the old child fails under knitr 1.50 and 1.52, the fixed child renders under
+  both with all three comparisons present. v1.7.0 as released cannot render a
+  multi-comparison report.
+- **`environment.yml` now includes `bioconductor-apeglm` (1.24.0).** apeglm is
+  an optional dependency in `DESCRIPTION` but the default log2FC shrinkage
+  method since v1.7.0. Without it a conda run does not fail:
+  `perform_deseq2_analysis()` silently falls back to `type = "normal"` while
+  the report's Methods still say apeglm, so results diverge from a renv run for
+  a reason that is hard to spot. Solve-verified against `linux-64`
+  (345 packages).
+- **`submit_slurm.sh` locates the pipeline via `$SLURM_SUBMIT_DIR`.** sbatch
+  copies the batch script into a spool directory, so `dirname "$0"` resolved
+  there and the job died with `run_analysis.sh: No such file or directory`.
+  The script now prefers `$SLURM_SUBMIT_DIR`, accepts an explicit
+  `PIPELINE_DIR`, and exits 3 with an explanatory message if neither yields the
+  repo. It also reuses an environment inherited through `--export=ALL` rather
+  than requiring conda or micromamba on `PATH` in the non-interactive job
+  shell, and exposes the v1.7 method knobs (`GSEA_RANK`, `LFC_SHRINK`,
+  `INDEPENDENT_FILTERING`) plus `PLATFORM_NAME`.
+
+## [1.7.0] - 2026-09-03
+
+### Added
+
+- **Three run options, threaded through `de.R`, `run_interactive.sh`, the Go
+  TUI and `bisrDE::run_pipeline()`** (launcher/TUI `--print-cmd` parity kept):
+  - `--gsea-rank stat|log2fc` (env `BISR_GSEA_RANK`, default `stat`): pre-ranked
+    GSEA now ranks every tested gene by the DESeq2 Wald statistic instead of the
+    unshrunken log2 fold change, so noisy low-count genes with large fold
+    changes no longer dominate the tails. `log2fc` restores the previous
+    behaviour. **Enrichment tables change for every run that keeps the
+    default.**
+  - `--lfc-shrink apeglm|normal|none` (env `BISR_LFC_SHRINK`, default
+    `apeglm`): `DESeq2::lfcShrink()` adds `log2FC_shrunken` / `lfcSE_shrunken`
+    to every DE CSV and places volcano points at the shrunken value; DEG calls,
+    counts and heatmaps still use the unshrunken `log2FoldChange`. Falls back to
+    `normal` with a message when apeglm is not installed. apeglm 1.20.0 added to
+    the renv library and `Suggests`.
+  - `--independent-filtering` (env `BISR_INDEPENDENT_FILTERING=yes`, default
+    off): exposes DESeq2's `independentFiltering`. Off remains the BISR default
+    so existing results are unchanged; the setting is now stated in the Methods
+    and recorded in the run JSON.
+- **QC at a glance.** `qc_at_a_glance()` computes the library-size and
+  detected-gene ranges, PC1/PC2 variance, a between/within group separation
+  ratio (with mean silhouette when `cluster` is available) and outlier flags.
+  Outliers are scored by the distance to the nearest replicate of the same
+  group (median + 3 MAD and at least twice the typical distance), because a
+  centroid rule cannot fire in a 3-vs-3 design: the outlier drags its own
+  centroid. The report prints the verdict above the PCA; the RDS bundle and
+  the run JSON store the numbers.
+- **Provenance in every artifact.** The RDS bundle keeps the fitted
+  `DESeqDataSet`, design formula, reference level and coefficient per
+  comparison, and the run JSON summarises them along with the run options,
+  the platform, and the versions of R, bisrDE, DESeq2, apeglm, edgeR,
+  clusterProfiler, ReactomePA, msigdbr and ComplexHeatmap. The report ends with
+  a version table and a collapsed `sessionInfo()`, and its Methods text reads
+  versions from the run record rather than from the rendering machine.
+- **Input gene names are kept.** `read_counts()` returns a `gene_meta`
+  attribute (versioned ID + input `gene_name`); `annotate_results()` uses it to
+  name genes the OrgDb cannot (`SYMBOL_SOURCE` = `orgdb` / `input`) and adds
+  `ENSEMBL_ID_VERSIONED` so a row can be traced to the nf-core matrix. An input
+  name that is only the accession (nf-core's fallback when the GTF has no name)
+  is not used, so `SYMBOL` stays `NA` for those genes.
+- Tests: 84 new (238 total) covering the threshold predicate, log-scale
+  z-scores, the GSEA ranking vector, group-size derivation, the QC summary
+  including a 3-vs-3 outlier, the DESeq2 options, shrinkage and its failure
+  path, coefficient naming, the QC matrix and its fallback, the volcano's
+  shrunken axis, and the annotation fallback for Ensembl and symbol input. A
+  bats case checks launcher/TUI parity with the three new flags set.
+
+### Changed
+
+- **Sample exploration runs on a log-scale, all-gene matrix.** PCA (static, 2D
+  and 3D) and the Spearman correlation heatmap use the blind VST of the
+  pre-filtered counts (`qc_matrix()`, falling back to `log2(TMM-CPM + 1)` on
+  tiny inputs) instead of linear TMM-CPM; the correlation heatmap uses all
+  genes, not the union of DE genes, which separated the groups by
+  construction. The TMM CSV export is unchanged. Figures change; no DE
+  statistic does.
+- **DE heatmaps z-score `log2(TMM-CPM + 1)`** rather than jittered linear CPM;
+  a zero-variance gene gets z = 0 instead of `NaN`.
+- **Pre-filter group size follows the design**: `>= 10 reads in >= k samples`
+  where `k` is the smallest group size (floor 2), previously a fixed 3.
+- **GSEA p-values are exact** (`eps = 0` in every clusterProfiler / ReactomePA
+  call), removing the 1e-10 floor that tied several Hallmark sets at
+  p.adjust 1e-09. Dotplots, "top" tables and the Executive Summary now include
+  only sets with `p.adjust < --padj`, ties on p.adjust break by |NES|, the
+  summary table reports the number of significant sets per backend instead of
+  Yes/No, and every enrichment CSV carries `significant` and `ranking_metric`
+  columns.
+- **Methods text is generated from the run**, not from a template: the
+  smallest-group-size filter, count rounding, independent-filtering setting,
+  shrinkage method, annotation collapse rule, GSEA metric and parameters, the
+  QC transform and the platform are all read from the RDS bundle. The
+  platform is recorded at analysis time by `.run_platform()`: the
+  `BISR_PLATFORM_NAME` environment variable when set (export it in your job
+  script, e.g. `"VCU's High Performance Research Computing cluster"`), else a
+  Slurm description when `SLURM_JOB_ID` is set, else `Sys.info()` + R. The
+  Pipeline section now says DESeq2 uses its own size factors and TMM is for
+  plots and export.
+- `filter_significant()` uses `padj < cutoff` like every other path (was
+  `<=`), so a gene exactly at the cutoff is treated the same everywhere.
+- `perform_deseq2_analysis()` returns the fitted `dds` and the options used as
+  attributes; `run_analysis()` returns `dds` and `de_options`; `create_dotplot()`
+  returns `NULL` when nothing is significant.
+
+### Fixed
+
+- **"Top 20 by padj" tables were mis-ordered.** They sorted the *formatted*
+  padj string lexicographically, so `1.00e-02` came before `3.20e-35` and the
+  strongest hits (e.g. CCND1, CDKN2A on the GSE72536 demo) were missing from
+  the tables. They now sort numerically, then format.
+- **Blank versions and `bisrDE vdev` in the Methods.** Two causes. (1)
+  `upstream_versions.yml` carried a non-ASCII em dash in a comment; under the
+  C locale of `run_analysis.sh` / Quarto subprocesses `yaml::read_yaml()`
+  failed with "invalid input" and returned `NULL` silently, so every upstream
+  version rendered as a blank (`STAR v [2]`). The file is ASCII-only now and
+  is read as UTF-8 explicitly. (2) The render runs in its own R process where,
+  in dev mode, `packageVersion("bisrDE")` and `system.file()` find nothing, so
+  the package version rendered as `dev`. `generate_report()` now resolves the
+  bisrDE version and the YAML path and passes them as params. A version that
+  is missing renders as "version not recorded", never as a blank.
+- **Hard-coded "performed on VCU's High Performance Research Computing
+  cluster"** was asserted for every run, including laptop runs.
+- Executive Summary no longer names the same comparison as both highest and
+  lowest DEG count on single-contrast runs; the output tree is built from the
+  directories that exist for the run and now lists the KEGG / Reactome /
+  Hallmark / QC outputs.
+- The one-to-many annotation warning said "ortholog"; it now says what it is.
+- Per-comparison child sections are written with `writeLines(useBytes = TRUE)`
+  and the two `≈` in the volcano callouts are HTML entities, so a report
+  rendered under a C locale (Slurm, containers) no longer shows `<U+2248>`.
+
+- **MSigDB Hallmark enrichment now works on offline HPC nodes.** `msigdbr` ≥ 24
+  downloads its gene-set archive from Zenodo on first use, so on a compute node
+  with no outbound internet every run failed with
+  `Timeout was reached [zenodo.org]` and silently produced no Hallmark results.
+  The archive is cached (`tools::R_user_dir("msigdbr", "cache")`) and the
+  download is skipped entirely once present, so warming the cache once on a
+  login node fixes it permanently (verified with outbound network fully
+  blocked: Hallmark returns all 50 gene sets). Adds `just msigdb-cache` to warm
+  it, README instructions (including `R_USER_CACHE_DIR` when `$HOME` is not
+  shared with compute nodes), and, when the failure looks network related, a
+  hint naming the cache path and the command to run instead of an opaque
+  timeout.
+
 ## [1.6.4] - 2026-08-13
 
 ### Fixed
@@ -560,6 +717,8 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.7.1   | 2026-09-28 | Report renders again for two or more comparisons (duplicate chunk label in the per-comparison child); `environment.yml` gains `bioconductor-apeglm`; `submit_slurm.sh` finds the pipeline via `$SLURM_SUBMIT_DIR` and reuses an inherited conda env |
+| 1.7.0   | 2026-09-03 | GSEA ranked by the Wald statistic with exact p-values, apeglm shrinkage, `--independent-filtering`; sample QC on blind VST (all genes); run provenance (dds, options, versions, QC summary) in RDS/JSON; report fixes (top-20 order, blank versions, Methods generated from the run, sessionInfo) |
 | 1.6.4   | 2026-08-13 | Fix the HPC install step that renv's autoloader breaks (bake `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` into the conda env) |
 | 1.6.3   | 2026-08-13 | HPC deployment: solve-verified conda `environment.yml` (Bioc 3.18), `compare_runs.R` validation gate, Slurm template, conda-aware launcher |
 | 1.6.2   | 2026-08-12 | Phase status line under the progress bar; both launchers discover counts/samplesheet files from a project directory instead of requiring typed paths |

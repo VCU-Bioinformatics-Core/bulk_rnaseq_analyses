@@ -238,3 +238,73 @@ export_plotly_to_html <- function(plotly_obj, file_path) {
   )
   invisible(NULL)
 }
+
+
+#' Smallest group size for the low-count pre-filter
+#'
+#' @description The DESeq2-vignette pre-filter keeps genes with >= 10 reads
+#'   in at least `smallest_group_size` samples. Deriving that number from the
+#'   design (the smallest number of samples in any group) instead of a fixed
+#'   3 means a 2-vs-2 run no longer demands three expressing samples and a
+#'   6-vs-6 run no longer keeps genes expressed in only half a group.
+#'
+#' @param sample_info Data frame with a `condition` column.
+#' @param floor Minimum returned value. Default `2`.
+#' @return An integer >= `floor`.
+#' @keywords internal
+.smallest_group_size <- function(sample_info, floor = 2L) {
+  n <- table(as.character(sample_info$condition))
+  if (length(n) == 0) return(as.integer(floor))
+  max(as.integer(floor), as.integer(min(n)))
+}
+
+
+#' Versions of R and the packages that determine the results
+#'
+#' @description One record used by the run JSON, the RDS bundle and the
+#'   report's session section, so every artifact of a run states the same
+#'   versions. Packages that are not installed are reported as `NA`.
+#'
+#' @return A named list of version strings.
+#' @keywords internal
+.software_versions <- function() {
+  v <- function(pkg) tryCatch(as.character(utils::packageVersion(pkg)),
+                              error = function(e) NA_character_)
+  list(
+    R               = paste(R.version$major, R.version$minor, sep = "."),
+    platform        = R.version$platform,
+    bisrDE          = v("bisrDE"),
+    DESeq2          = v("DESeq2"),
+    apeglm          = v("apeglm"),
+    edgeR           = v("edgeR"),
+    clusterProfiler = v("clusterProfiler"),
+    ReactomePA      = v("ReactomePA"),
+    msigdbr         = v("msigdbr"),
+    ComplexHeatmap  = v("ComplexHeatmap"),
+    quarto_r        = v("quarto")
+  )
+}
+
+
+#' Where the analysis is running, for the Methods text
+#'
+#' @description Resolved at analysis time and stored in the run options, so a
+#'   report re-rendered elsewhere still names the machine that produced the
+#'   numbers. Precedence: the `BISR_PLATFORM_NAME` environment variable (set it
+#'   in your job script, e.g. "VCU's High Performance Research Computing
+#'   cluster"), else a Slurm description when `SLURM_JOB_ID` is set, else
+#'   `Sys.info()` plus the R version.
+#'
+#' @return A single string.
+#' @keywords internal
+.run_platform <- function() {
+  env <- Sys.getenv("BISR_PLATFORM_NAME", "")
+  if (nzchar(env)) return(env)
+  si <- Sys.info()
+  rv <- paste(R.version$major, R.version$minor, sep = ".")
+  job <- Sys.getenv("SLURM_JOB_ID", "")
+  if (nzchar(job)) {
+    return(sprintf("a Slurm cluster node (%s, job %s), R %s", si[["nodename"]], job, rv))
+  }
+  sprintf("%s %s (%s), R %s", si[["sysname"]], si[["release"]], si[["machine"]], rv)
+}

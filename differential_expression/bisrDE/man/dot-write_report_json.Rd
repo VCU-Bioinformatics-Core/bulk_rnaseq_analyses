@@ -24,7 +24,10 @@
   rds_path,
   session_log,
   padj = 0.05,
-  lfc = 0.58
+  lfc = 0.58,
+  options = NULL,
+  software = NULL,
+  qc = NULL
 )
 }
 \description{

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_interactive.sh — beautiful interactive front-door for the bisrDE
-# bulk RNA-seq DE pipeline (v1.6.4).
+# bulk RNA-seq DE pipeline (v1.7.1).
 #
 # Uses charmbracelet tools when available and degrades gracefully to plain
 # shell prompts otherwise:
@@ -76,10 +76,10 @@ banner() {
   if have gum; then
     gum style --border double --margin "1 0" --padding "1 4" \
       --border-foreground "$BISR_PRIMARY" --foreground "$BISR_PRIMARY" \
-      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.6.4 · VCU Massey BISR"
+      "Bulk RNA-Seq Differential Expression" "bisrDE · v1.7.1 · VCU Massey BISR"
   else
     echo "======================================================="
-    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.6.4 (VCU Massey)"
+    echo "  Bulk RNA-Seq DE Pipeline — bisrDE v1.7.1 (VCU Massey)"
     echo "======================================================="
   fi
 }
@@ -316,6 +316,10 @@ idtype=$(ask_choose     "Gene ID type"      "${BISR_IDTYPE:-}" ensembl entrez sy
 vlabels=$(ask_input     "Volcano labels — max genes to name (top N)" "10"           "${BISR_VOLCANO_LABELS:-}")
 foldchange=$(ask_input  "Fold-change cutoff (e.g. 2 = 2-fold)"       "1.5"          "${BISR_FOLD_CHANGE:-}")
 padjcut=$(ask_input     "Adjusted p-value (FDR) cutoff"              "0.05"         "${BISR_PADJ:-}")
+# v1.7 — method options (first option = default, also used non-interactively).
+gsearank=$(ask_choose   "GSEA ranking metric"                        "${BISR_GSEA_RANK:-}"   stat log2fc)
+lfcshrink=$(ask_choose  "LFC shrinkage (volcano + DE CSV column)"    "${BISR_LFC_SHRINK:-}"  apeglm normal none)
+indepfilt=$(ask_choose  "DESeq2 independent filtering"               "${BISR_INDEPENDENT_FILTERING:-}" no yes)
 
 # v1.5.0 — interactive sample / group / contrast selection (only when the
 # samplesheet is readable; otherwise these stay empty = no filtering).
@@ -369,7 +373,9 @@ fi
 # ---------------------------------------------------------------------------
 args=(--counts "$counts" --samplesheet "$samplesheet" --outdir "$outdir"
       --runid "$runid" --annotation "$annotation" --id-type "$idtype"
-      --volcano-labels "$vlabels" --fold-change "$foldchange" --padj "$padjcut")
+      --volcano-labels "$vlabels" --fold-change "$foldchange" --padj "$padjcut"
+      --gsea-rank "$gsearank" --lfc-shrink "$lfcshrink")
+[ "$indepfilt" = "yes" ] && args+=(--independent-filtering)
 [ -n "$brs" ]            && args+=(--brs-ticket "$brs")
 [ -n "$excl_samples" ]   && args+=(--exclude-samples "$excl_samples")
 [ -n "$excl_groups" ]    && args+=(--exclude-groups "$excl_groups")
@@ -394,6 +400,9 @@ summary_md=$(cat <<EOF
 | Volcano labels | $vlabels |
 | Fold-change    | $foldchange |
 | Adj p-value    | $padjcut |
+| GSEA ranking   | $gsearank |
+| LFC shrinkage  | $lfcshrink |
+| Indep. filtering | $indepfilt |
 | Exclude groups | ${excl_groups:-—} |
 | Exclude samples| ${excl_samples:-—} |
 | Include contrasts | ${incl_contrasts:-—} |

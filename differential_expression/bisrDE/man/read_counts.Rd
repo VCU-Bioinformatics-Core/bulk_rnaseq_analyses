@@ -13,7 +13,14 @@ column; typically \code{rsem.merged.gene_counts.tsv}).}
 \value{
 A \code{data.frame} of integer-coercible counts with gene IDs as
 rownames and one column per sample. Non-numeric columns from the input
-(e.g. \code{gene_name}) are dropped.
+(e.g. \code{gene_name}) are dropped from the matrix but NOT lost: the
+attribute \code{"gene_meta"} is a data frame with one row per kept gene
+(\code{id} = the rowname, \code{id_versioned} = the original first-column value,
+\code{gene_name} = the input \code{gene_name}/\code{gene_symbol}/\code{symbol} column or
+\code{NA}), so the annotation step can fall back to the input's gene name
+when the OrgDb has none and can report the versioned ID. Subsetting the
+data frame drops the attribute, so callers read it right after this
+function returns (see \code{\link[=run_pipeline]{run_pipeline()}}).
 }
 \description{
 Read an nf-core/rnaseq-style merged gene-counts file into a

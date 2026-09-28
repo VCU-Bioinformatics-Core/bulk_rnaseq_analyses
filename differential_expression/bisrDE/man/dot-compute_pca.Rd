@@ -2,12 +2,15 @@
 % Please edit documentation in R/plots_pca.R
 \name{.compute_pca}
 \alias{.compute_pca}
-\title{Compute prcomp on a TMM matrix (internal)}
+\title{Compute prcomp on an expression matrix (internal)}
 \usage{
 .compute_pca(tmm, rank = NULL)
 }
 \arguments{
-\item{tmm}{Genes x Samples numeric matrix (typically \code{\link[=run_tmm]{run_tmm()}}).}
+\item{tmm}{Genes x Samples numeric matrix on a log-like scale: the
+pipeline passes \code{\link[=qc_matrix]{qc_matrix()}} (blind VST, all genes; log2(TMM-CPM+1)
+fallback). A linear TMM-CPM matrix still works but its PC1 is driven
+by the handful of most highly expressed genes.}
 
 \item{rank}{Optional integer passed to \code{prcomp(rank. = ...)}. The
 3D plot uses \code{rank = 3}; the 2D path leaves it \code{NULL}.}

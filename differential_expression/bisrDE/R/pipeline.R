@@ -79,10 +79,28 @@ setup_directories <- function(base_dir) {
 #'   for `annotate_results` and `setReadable` Symbol mapping.
 #' @param id_type Identifier type for the count rownames (one of
 #'   `"ensembl"`, `"entrez"`, `"symbol"`). Default `"ensembl"`.
+#' @param volcano_labels Max genes to label on the volcano plot.
+#' @param deseq_norm_counts Optional DESeq2 median-of-ratios matrix appended
+#'   to the DE spreadsheet.
+#' @param padj,lfc Significance thresholds (adjusted p, absolute log2FC).
+#' @param tick Optional progress callback (see [run_pipeline()]).
+#' @param independent_filtering Passed to [perform_deseq2_analysis()].
+#'   Default `FALSE`.
+#' @param lfc_shrink Passed to [perform_deseq2_analysis()]: `"none"`
+#'   (default here), `"apeglm"` or `"normal"`.
+#' @param gsea_rank Ranking metric for the four GSEA backends, `"stat"`
+#'   (default) or `"log2fc"`; see [.gsea_rank_vector()].
+#' @param gene_meta Optional `"gene_meta"` attribute of [read_counts()],
+#'   forwarded to [annotate_results()] for the input gene-name fallback and
+#'   the versioned-ID column.
 #' @return On success, a named list `list(deseq, gsea, kegg, reactome,
-#'   hallmark)` where each enrichment slot is either a `setReadable`'d
-#'   GSEA object or `NULL` if no enrichment was found. On error, returns
-#'   `NULL` and emits `cli::cli_alert_danger`.
+#'   hallmark, dds, de_options)`: each enrichment slot is either a
+#'   `setReadable`'d GSEA object or `NULL` if no enrichment was found; `dds`
+#'   is the fitted `DESeqDataSet` for this comparison (so the model can be
+#'   audited from the RDS bundle); `de_options` records the design, reference
+#'   level, coefficient, independent-filtering flag, shrinkage method used and
+#'   GSEA ranking metric. On error, returns `NULL` and emits
+#'   `cli::cli_alert_danger`.
 #'
 #' @importFrom utils write.csv
 #' @importFrom grDevices png dev.off
@@ -92,7 +110,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          id_type = "ensembl", volcano_labels = 10,
                          deseq_norm_counts = NULL,
                          padj = 0.05, lfc = 0.58,
-                         tick = NULL) {
+                         tick = NULL,
+                         independent_filtering = FALSE,
+                         lfc_shrink = "none",
+                         gsea_rank = "stat",
+                         gene_meta = NULL) {
   # Advance the caller's progress bar one sub-step. No-op when called directly
   # (tick = NULL), so this function still works outside run_pipeline().
   .tick <- function(step) if (is.function(tick)) tick(step)
@@ -106,18 +128,27 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       ))
 
       .tick("DESeq2")
-      deseq_results <- perform_deseq2_analysis(dds, comparison$exp, comparison$ctrl)
+      deseq_results <- perform_deseq2_analysis(
+        dds, comparison$exp, comparison$ctrl,
+        independent_filtering = independent_filtering,
+        lfc_shrink            = lfc_shrink
+      )
       if (is.null(deseq_results)) {
         cli::cli_alert_warning("DESeq2 analysis returned NULL; skipping comparison")
         return(NULL)
       }
+      # Provenance travels on attributes; merge() below would drop them.
+      dds_fit    <- attr(deseq_results, "dds")
+      de_options <- attr(deseq_results, "de_options")
+      de_options$gsea_rank <- gsea_rank
 
       .tick("annotate")
       cli::cli_alert_info("Annotating results...")
       annotated_results <- annotate_results(
         deseq_results,
         id_type       = id_type,
-        annotation_db = annotation_db
+        annotation_db = annotation_db,
+        gene_meta     = gene_meta
       )
 
       # DE spreadsheet = annotated results + per-sample normalized counts (TMM +
@@ -180,17 +211,19 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       # ---- Enrichment: GO ----
       .tick("GO")
       cli::cli_alert_info("Enrichment: GO (gseGO)...")
-      gse <- process_gsea(annotated_results, annotation_db = annotation_db)
+      gse <- process_gsea(annotated_results, annotation_db = annotation_db,
+                          gsea_rank = gsea_rank)
       if (!is.null(gse)) {
         utils::write.csv(
-          as.data.frame(gse),
+          .enrichment_table(gse, padj, gsea_rank),
           create_file_path(out_dirs$gsea_data, "GO_Analysis_", comparison$name)
         )
         cli::cli_alert_info("  Generating GO dotplot...")
-        save_plot(
-          create_dotplot(gse, create_comparison_name(comparison$exp,
-                                                     comparison$ctrl, "GSEA-GO ")),
-          create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png")
+        dp <- create_dotplot(gse, create_comparison_name(comparison$exp,
+                                                         comparison$ctrl, "GSEA-GO "),
+                             padj = padj)
+        if (!is.null(dp)) save_plot(
+          dp, create_file_path(out_dirs$gsea, "", comparison$name, "_GSEA.png")
         )
       } else {
         cli::cli_alert_warning("  Skipping GO dotplot - no enrichment results")
@@ -201,17 +234,19 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       cli::cli_alert_info("Enrichment: KEGG (gseKEGG)...")
       kegg_gse <- process_kegg_gsea(annotated_results,
                                     annotation = annotation,
-                                    annotation_db = annotation_db)
+                                    annotation_db = annotation_db,
+                                    gsea_rank = gsea_rank)
       if (!is.null(kegg_gse)) {
         utils::write.csv(
-          as.data.frame(kegg_gse),
+          .enrichment_table(kegg_gse, padj, gsea_rank),
           create_file_path(out_dirs$kegg_data, "KEGG_Analysis_", comparison$name)
         )
         cli::cli_alert_info("  Generating KEGG dotplot...")
-        save_plot(
-          create_dotplot(kegg_gse, create_comparison_name(comparison$exp,
-                                                          comparison$ctrl, "KEGG ")),
-          create_file_path(out_dirs$kegg, "", comparison$name, "_KEGG.png")
+        dp <- create_dotplot(kegg_gse, create_comparison_name(comparison$exp,
+                                                              comparison$ctrl, "KEGG "),
+                             padj = padj)
+        if (!is.null(dp)) save_plot(
+          dp, create_file_path(out_dirs$kegg, "", comparison$name, "_KEGG.png")
         )
       } else {
         cli::cli_alert_warning("  Skipping KEGG dotplot - no enrichment results")
@@ -222,19 +257,21 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       cli::cli_alert_info("Enrichment: Reactome (gsePathway)...")
       reactome_gse <- process_reactome_gsea(annotated_results,
                                             annotation = annotation,
-                                            annotation_db = annotation_db)
+                                            annotation_db = annotation_db,
+                                            gsea_rank = gsea_rank)
       if (!is.null(reactome_gse)) {
         utils::write.csv(
-          as.data.frame(reactome_gse),
+          .enrichment_table(reactome_gse, padj, gsea_rank),
           create_file_path(out_dirs$reactome_data, "Reactome_Analysis_",
                            comparison$name)
         )
         cli::cli_alert_info("  Generating Reactome dotplot...")
-        save_plot(
-          create_dotplot(reactome_gse,
-                         create_comparison_name(comparison$exp, comparison$ctrl,
-                                                "Reactome ")),
-          create_file_path(out_dirs$reactome, "", comparison$name, "_Reactome.png")
+        dp <- create_dotplot(reactome_gse,
+                             create_comparison_name(comparison$exp, comparison$ctrl,
+                                                    "Reactome "),
+                             padj = padj)
+        if (!is.null(dp)) save_plot(
+          dp, create_file_path(out_dirs$reactome, "", comparison$name, "_Reactome.png")
         )
       } else {
         cli::cli_alert_warning("  Skipping Reactome dotplot - no enrichment results")
@@ -245,19 +282,21 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       cli::cli_alert_info("Enrichment: MSigDB Hallmark...")
       hallmark_gse <- process_msigdb_hallmark(annotated_results,
                                               annotation = annotation,
-                                              annotation_db = annotation_db)
+                                              annotation_db = annotation_db,
+                                              gsea_rank = gsea_rank)
       if (!is.null(hallmark_gse)) {
         utils::write.csv(
-          as.data.frame(hallmark_gse),
+          .enrichment_table(hallmark_gse, padj, gsea_rank),
           create_file_path(out_dirs$hallmark_data, "Hallmark_Analysis_",
                            comparison$name)
         )
         cli::cli_alert_info("  Generating Hallmark dotplot...")
-        save_plot(
-          create_dotplot(hallmark_gse,
-                         create_comparison_name(comparison$exp, comparison$ctrl,
-                                                "Hallmark ")),
-          create_file_path(out_dirs$hallmark, "", comparison$name, "_Hallmark.png")
+        dp <- create_dotplot(hallmark_gse,
+                             create_comparison_name(comparison$exp, comparison$ctrl,
+                                                    "Hallmark "),
+                             padj = padj)
+        if (!is.null(dp)) save_plot(
+          dp, create_file_path(out_dirs$hallmark, "", comparison$name, "_Hallmark.png")
         )
       } else {
         cli::cli_alert_warning("  Skipping Hallmark dotplot - no enrichment results")
@@ -265,11 +304,13 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 
       cli::cli_alert_success("Comparison {.strong {comparison$name}} complete")
       list(
-        deseq    = annotated_results,
-        gsea     = gse,
-        kegg     = kegg_gse,
-        reactome = reactome_gse,
-        hallmark = hallmark_gse
+        deseq      = annotated_results,
+        gsea       = gse,
+        kegg       = kegg_gse,
+        reactome   = reactome_gse,
+        hallmark   = hallmark_gse,
+        dds        = dds_fit,
+        de_options = de_options
       )
     },
     error = function(e) {
@@ -324,6 +365,16 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
 #'   the analysis and the report render) and does NOT close it — the caller
 #'   owns the lifecycle. When `NULL` (default) the pipeline opens and closes
 #'   its own log, as before. Default `NULL`.
+#' @param independent_filtering DESeq2 `results(independentFiltering =)`.
+#'   Default `FALSE` (the historical BISR setting; DESeq2's default is
+#'   `TRUE`). Recorded in the run JSON and stated in the report Methods.
+#' @param gsea_rank Ranking metric for pre-ranked GSEA: `"stat"` (default,
+#'   the DESeq2 Wald statistic) or `"log2fc"` (pre-v1.7 behaviour).
+#' @param lfc_shrink Log2 fold-change shrinkage: `"apeglm"` (default; falls
+#'   back to `"normal"` with a message when apeglm is not installed),
+#'   `"normal"`, or `"none"`. Adds `log2FC_shrunken` / `lfcSE_shrunken` to
+#'   the DE tables and places volcano points at the shrunken value; DEG
+#'   calls always use the MLE `log2FoldChange`.
 #' @return Invisibly, a named list of pipeline artifacts:
 #'   `results`, `comparisons`, `out_dirs`, `pca_plot` (ggplot),
 #'   `pca_plotly` (plotly 2D), `pca_plotly_3d` (plotly 3D),
@@ -355,9 +406,15 @@ run_pipeline <- function(counts_path,
                          volcano_labels    = 10,
                          padj              = 0.05,
                          fold_change       = 1.5,
-                         session_log       = NULL) {
+                         session_log       = NULL,
+                         independent_filtering = FALSE,
+                         gsea_rank         = c("stat", "log2fc"),
+                         lfc_shrink        = c("apeglm", "normal", "none")) {
   annotation <- match.arg(annotation, c("human", "mouse"))
   id_type    <- match.arg(id_type, c("ensembl", "entrez", "symbol"))
+  gsea_rank  <- match.arg(gsea_rank)
+  lfc_shrink <- match.arg(lfc_shrink)
+  independent_filtering <- isTRUE(independent_filtering)
   run_started <- Sys.time()
   # Significance thresholds: `fold_change` is the linear cutoff (user-facing,
   # e.g. 2 for 2-fold); `lfc` is its log2 form used by the plots/filters.
@@ -388,6 +445,9 @@ run_pipeline <- function(counts_path,
     "Output dir:    {.path {outdir}}",
     "Annotation:    {.val {annotation}}",
     "ID type:       {.val {id_type}}",
+    "GSEA ranking:  {.val {gsea_rank}}",
+    "LFC shrinkage: {.val {lfc_shrink}}",
+    "Indep. filter: {.val {independent_filtering}}",
     if (nzchar(brs_ticket)) "BRS ticket:    {.val {brs_ticket}}" else NULL
   ))
   cli::cli_alert_info("Session log: {.path {session_log$path}}")
@@ -411,6 +471,8 @@ run_pipeline <- function(counts_path,
   .emit_event("phase", name = "loading data")
   cli::cli_h1("Loading data")
   counts <- read_counts(counts_path)
+  # Input gene names + versioned IDs; the attribute dies at the first subset.
+  gene_meta <- attr(counts, "gene_meta")
   samplesheet <- read_samplesheet(samplesheet_path)
   cli::cli_alert_success(
     "Loaded {nrow(counts)} genes x {ncol(counts)} samples; {nrow(samplesheet)} samplesheet rows"
@@ -525,11 +587,11 @@ run_pipeline <- function(counts_path,
     design    = ~condition
   )
 
-  smallest_group_size <- 3
+  smallest_group_size <- .smallest_group_size(sample_info)
   keep <- rowSums(countsdf >= 10) >= smallest_group_size
   dds <- dds[keep, ]
   cli::cli_inform(c(
-    "Pre-filter: kept {sum(keep)} / {length(keep)} genes (>= 10 reads in >= {smallest_group_size} samples)",
+    "Pre-filter: kept {sum(keep)} / {length(keep)} genes (>= 10 reads in >= {smallest_group_size} samples; smallest group size)",
     "Condition levels: {.val {levels(dds$condition)}}"
   ))
 
@@ -606,7 +668,11 @@ run_pipeline <- function(counts_path,
       deseq_norm_counts = deseq_norm_counts,
       padj              = padj,
       lfc               = lfc,
-      tick              = tick
+      tick              = tick,
+      independent_filtering = independent_filtering,
+      lfc_shrink        = lfc_shrink,
+      gsea_rank         = gsea_rank,
+      gene_meta         = gene_meta
     )
     # Re-sync: a comparison that bailed early (e.g. DESeq2 returned NULL) will
     # have ticked fewer than .STEPS_PER_COMPARISON times, so pin the bar to the
@@ -642,33 +708,21 @@ run_pipeline <- function(counts_path,
   .emit_event("phase", name = "generating QC plots")
   cli::cli_h1("Sample Exploration QC plots")
 
-  # These are intersected against rownames(tmm) — the INPUT gene IDs — so match
-  # on whichever DE ID column overlaps the count matrix (ensembl / symbol /
-  # entrez per --id-type). A hardcoded ENSEMBL_ID never matches a symbol/entrez
-  # count matrix, which silently skipped the correlation heatmap.
-  sig_genes_union <- unique(unlist(lapply(results, function(r) {
-    if (is.null(r) || is.null(r$deseq)) return(character(0))
-    d <- r$deseq
-    ok <- !is.na(d$padj) & d$padj < padj & abs(d$log2FoldChange) >= lfc
-    if (!any(ok)) return(character(0))
-    key_col <- .match_id_column(d, rownames(tmm))
-    if (!is.null(key_col)) as.character(d[[key_col]][ok]) else rownames(d)[ok]
-  })))
-  if (length(sig_genes_union) < 2) {
-    cli::cli_alert_info(
-      "No significant genes union - using all genes in TMM matrix for correlation heatmap"
-    )
-    sig_genes_union <- rownames(tmm)
-  }
+  # Sample-level QC runs on a log-scale, all-gene matrix (blind VST; log2
+  # TMM-CPM fallback). Correlating on DE genes only would separate the groups
+  # by construction, and PCA on linear CPM is driven by a few abundant genes.
+  qc_mat <- qc_matrix(dds, tmm)
+  qc_transform <- attr(qc_mat, "transform")
   cli::cli_alert_info(
-    "Correlation heatmap will use {length(sig_genes_union)} gene{?s}"
+    "QC matrix: {qc_transform}, {nrow(qc_mat)} gene{?s} x {ncol(qc_mat)} sample{?s}"
   )
 
   qc_correlation_heatmap(
-    normalized_counts = tmm,
+    normalized_counts = qc_mat,
     sample_info       = sample_info,
-    sig_genes         = sig_genes_union,
-    fig_path          = file.path(out_dirs$qc, "qc_correlation_heatmap.png")
+    sig_genes         = rownames(qc_mat),
+    fig_path          = file.path(out_dirs$qc, "qc_correlation_heatmap.png"),
+    gene_label        = if (qc_transform == "vst") "genes, VST" else "genes, log2 TMM-CPM"
   )
   cli::cli_alert_success("QC: correlation heatmap saved")
 
@@ -696,30 +750,55 @@ run_pipeline <- function(counts_path,
   # ---- 10. PCA ----
   .emit_event("phase", name = "generating PCA plots")
   cli::cli_h1("PCA")
-  pca_plot <- pca_static(tmm, sample_info)
+  pca_plot <- pca_static(qc_mat, sample_info)
   save_plot(pca_plot, file.path(out_dirs$pca, "PCA_plot.png"))
   cli::cli_alert_success("Static 2D PCA saved")
 
-  pca_plotly_2d_obj <- pca_plotly(tmm, sample_info)
+  pca_plotly_2d_obj <- pca_plotly(qc_mat, sample_info)
   pca_plotly_2d_path <- file.path(out_dirs$pca, "allsamples_PCA_plot.html")
   export_plotly_to_html(pca_plotly_2d_obj, pca_plotly_2d_path)
   cli::cli_alert_success(
     "Interactive 2D PCA saved: {.path {pca_plotly_2d_path}}"
   )
 
-  pca_plotly_3d_obj <- pca_plotly_3d(tmm, sample_info)
+  pca_plotly_3d_obj <- pca_plotly_3d(qc_mat, sample_info)
   pca_plotly_3d_path <- file.path(out_dirs$pca, "allsamples_PCA_plot3D.html")
   export_plotly_to_html(pca_plotly_3d_obj, pca_plotly_3d_path)
   cli::cli_alert_success(
     "Interactive 3D PCA saved: {.path {pca_plotly_3d_path}}"
   )
 
+  # ---- 10b. QC at a glance (numbers behind the figures) ----
+  qc_summary <- tryCatch(
+    qc_at_a_glance(countsdf, qc_mat, sample_info, transform = qc_transform),
+    error = function(e) {
+      cli::cli_alert_warning("QC summary could not be computed: {conditionMessage(e)}")
+      NULL
+    }
+  )
+  if (!is.null(qc_summary)) cli::cli_alert_info(qc_summary$text)
+
   # ---- 11. Save RDS ----
   .emit_event("phase", name = "saving results")
   cli::cli_h1("Saving session")
+  shrink_used <- unique(unlist(lapply(results, function(r)
+    if (!is.null(r) && !is.null(r$de_options)) r$de_options$lfc_shrink else NULL)))
+  software <- .software_versions()
+  run_options <- list(
+    independent_filtering = independent_filtering,
+    gsea_rank             = gsea_rank,
+    lfc_shrink            = lfc_shrink,
+    lfc_shrink_used       = if (length(shrink_used) == 0) "none"
+                            else if (length(shrink_used) == 1) shrink_used
+                            else paste(shrink_used, collapse = "/"),
+    qc_transform          = qc_transform,
+    smallest_group_size   = smallest_group_size,
+    platform              = .run_platform(),
+    software              = software
+  )
   rds <- list(results, comparisons, out_dirs, pca_plot,
               pca_plotly_2d_obj, pca_plotly_3d_obj, annotation,
-              padj, fold_change)
+              padj, fold_change, qc_summary, run_options)
   ts <- format(Sys.time(), "%Y%m%d_%H%M%S")
   rds_name <- paste0("analysis_results_", ts, ".rds")
   rds_path <- file.path(outdir, rds_name)
@@ -739,7 +818,10 @@ run_pipeline <- function(counts_path,
     n_samples        = ncol(countsdf), n_samplesheet_rows = nrow(samplesheet),
     comparisons      = comparisons,    results          = results,
     rds_path         = rds_path,
-    session_log      = if (!is.null(session_log)) session_log$path else NA_character_
+    session_log      = if (!is.null(session_log)) session_log$path else NA_character_,
+    options          = run_options[setdiff(names(run_options), "software")],
+    software         = software,
+    qc               = qc_summary
   )
 
   .emit_event("done", ok = TRUE)

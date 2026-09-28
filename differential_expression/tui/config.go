@@ -17,6 +17,9 @@ type Config struct {
 	VolcanoLabels    string
 	FoldChange       string
 	Padj             string
+	GseaRank         string // stat | log2fc
+	LfcShrink        string // apeglm | normal | none
+	IndepFiltering   string // yes | no
 	ExcludeSamples   []string
 	ExcludeGroups    []string
 	IncludeContrasts []string
@@ -37,6 +40,12 @@ func (c Config) ToArgs() []string {
 		"--volcano-labels", c.VolcanoLabels,
 		"--fold-change", c.FoldChange,
 		"--padj", c.Padj,
+		"--gsea-rank", c.GseaRank,
+		"--lfc-shrink", c.LfcShrink,
+	}
+	// Exact "yes" to stay byte-identical with run_interactive.sh's test.
+	if strings.TrimSpace(c.IndepFiltering) == "yes" {
+		args = append(args, "--independent-filtering")
 	}
 	if strings.TrimSpace(c.BRS) != "" {
 		args = append(args, "--brs-ticket", c.BRS)
@@ -88,6 +97,9 @@ func (c Config) Summary() string {
 		{"Volcano labels", c.VolcanoLabels},
 		{"Fold-change", c.FoldChange},
 		{"Adj p-value", c.Padj},
+		{"GSEA ranking", c.GseaRank},
+		{"LFC shrinkage", c.LfcShrink},
+		{"Indep. filtering", c.IndepFiltering},
 		{"Exclude groups", dashList(c.ExcludeGroups)},
 		{"Exclude samples", dashList(c.ExcludeSamples)},
 		{"Include contrasts", dashList(c.IncludeContrasts)},

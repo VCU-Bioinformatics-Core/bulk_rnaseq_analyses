@@ -1,8 +1,9 @@
 # Sample-level QC plots: correlation heatmap, vst distance heatmap,
 # library-size + detected-genes barplot, hclust dendrogram + log-CPM
-# density. These act on the full TMM-normalized count matrix + the
-# samplesheet (NOT per-comparison subsets) and are intended for the
-# report's "Sample Exploration" section.
+# density. They act on the whole experiment (NOT per-comparison subsets):
+# the correlation heatmap takes the log-scale QC matrix from qc_matrix()
+# (blind VST, all genes), the barplot raw counts, the dendrogram/density the
+# TMM-CPM matrix. Intended for the report's "Sample Exploration" section.
 #
 # Source-of-truth during Phase 5.2-5.7 is still the parent's de.R; this
 # package copy is a snapshot per the Phase 5.4 spec. Notable refactor:
@@ -16,25 +17,28 @@
 #'   Samples that correlate poorly with their group are immediately
 #'   visible.
 #'
-#' @param normalized_counts Genes x Samples numeric matrix (typically
-#'   [run_tmm()] output). Column names must match the `make.names()`
-#'   form of `sample_info$sample`.
+#' @param normalized_counts Genes x Samples numeric matrix on a log-like
+#'   scale; the pipeline passes [qc_matrix()] (blind VST, all genes). Column
+#'   names must match the `make.names()` form of `sample_info$sample`.
 #' @param sample_info Data frame with `sample` (canonical IDs) and
 #'   `condition` (group label).
-#' @param sig_genes Vector of gene IDs (Ensembl) defining the rows used
-#'   for the correlation. Typically the union of all DE genes across
-#'   comparisons; pass `rownames(normalized_counts)` for an "all genes"
-#'   variant.
+#' @param sig_genes Vector of gene IDs defining the rows used for the
+#'   correlation. The pipeline passes every gene of the QC matrix (see
+#'   [qc_matrix()]): correlating on DE genes only separates the groups by
+#'   construction and says nothing about replicate quality.
 #' @param fig_path Output PNG path.
 #' @param method Correlation method. Default `"spearman"` (robust to
 #'   outliers and scale; matches DESeq2-vignette convention).
+#' @param gene_label Noun used in the title after the gene count. Default
+#'   `"genes"`.
 #' @return Invisibly returns `fig_path` on success, or `NULL` if the
 #'   inputs are too small to produce a useful heatmap.
 #'
 #' @importFrom grDevices png dev.off hcl.colors
 #' @export
 qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
-                                   fig_path, method = "spearman") {
+                                   fig_path, method = "spearman",
+                                   gene_label = "genes") {
   if (is.null(sig_genes) || length(sig_genes) < 2) {
     cli::cli_alert_warning("qc_correlation_heatmap: <2 input genes; skipping")
     return(invisible(NULL))
@@ -94,8 +98,8 @@ qc_correlation_heatmap <- function(normalized_counts, sample_info, sig_genes,
     row_names_gp         = grid::gpar(fontsize = 10),
     column_names_gp      = grid::gpar(fontsize = 10),
     column_title         = sprintf(
-      "Sample x Sample %s correlation (%d DE genes)",
-      method, length(sig_genes)
+      "Sample x Sample %s correlation (%d %s)",
+      method, length(sig_genes), gene_label
     ),
     column_title_gp      = grid::gpar(fontsize = 11, fontface = "bold"),
     heatmap_legend_param = list(direction = "vertical")

@@ -23,6 +23,13 @@
 #'   `n_labels` most-significant genes (by ascending `sig`) that pass both
 #'   thresholds. Default `10` — keeps the plot readable when many genes are
 #'   significant. Configurable via the `--volcano-labels` CLI flag.
+#' @param use_shrunken When `TRUE` (default) and `data` carries a
+#'   `log2FC_shrunken` column (see [perform_deseq2_analysis()] with
+#'   `lfc_shrink`), points are placed at the shrunken log2 fold change. The
+#'   colour (the DEG call) and the dashed threshold lines still use the MLE
+#'   `log2FoldChange`, so a significant gene can sit inside the lines: that
+#'   is the shrinkage showing a noisy estimate. `FALSE` or no such column:
+#'   the x axis is the MLE.
 #' @return A `ggplot` object.
 #' @details The top `n_labels` most-significant genes (by ascending `sig`) are
 #'   labeled with their `SYMBOL`. Color tags (colorblind-safe): "Over expressed"
@@ -35,7 +42,12 @@
 #' @importFrom ggrepel geom_label_repel
 #' @export
 generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
-                             sig = "padj", n_labels = 10) {
+                             sig = "padj", n_labels = 10, use_shrunken = TRUE) {
+  x_col <- if (isTRUE(use_shrunken) && "log2FC_shrunken" %in% colnames(data)) {
+    "log2FC_shrunken"
+  } else {
+    "log2FoldChange"
+  }
   labeled_dat <- data |>
     dplyr::mutate(
       color_tag = dplyr::case_when(
@@ -65,7 +77,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
 
   labeled_dat |>
     ggplot(aes(
-      x = .data$log2FoldChange,
+      x = .data[[x_col]],
       y = -log10(.data[[sig]]),
       color = .data$color_tag
     )) +
@@ -85,7 +97,7 @@ generate_volcano <- function(data, exp_name, ctrl_name, p = 0.05, lfc = 0.58,
     geom_vline(xintercept = c(-lfc, lfc), col = "black", linetype = 2) +
     theme(legend.title = element_blank()) +
     labs(
-      x = "Log2 Fold-Change (FC)",
+      x = if (x_col == "log2FC_shrunken") "Log2 Fold-Change (shrunken)" else "Log2 Fold-Change (FC)",
       y = paste0("-log10( ", sig, " )"),
       title = paste0("Differentially expressed genes - ",
                      exp_name, " vs. ", ctrl_name)

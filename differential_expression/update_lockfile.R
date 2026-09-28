@@ -59,7 +59,7 @@ packages <- c(
     "purrr", "plotly", "optparse", "htmlwidgets", "rmarkdown", "knitr",
 
     # Bioconductor packages
-    "BiocManager", "DESeq2", "edgeR", "AnnotationDbi",
+    "BiocManager", "DESeq2", "apeglm", "edgeR", "AnnotationDbi",
     "clusterProfiler", "enrichplot", "org.Mm.eg.db", "org.Hs.eg.db"
 )
 
@@ -68,7 +68,7 @@ for (pkg in packages) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
         cat("Installing", pkg, "...\n")
         if (pkg %in% c(
-            "DESeq2", "edgeR", "AnnotationDbi", "clusterProfiler",
+            "DESeq2", "apeglm", "edgeR", "AnnotationDbi", "clusterProfiler",
             "enrichplot", "org.Mm.eg.db", "org.Hs.eg.db"
         )) {
             BiocManager::install(pkg, ask = FALSE, update = FALSE)

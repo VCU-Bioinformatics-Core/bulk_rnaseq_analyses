@@ -128,6 +128,18 @@ option_list <- list(
   make_option("--padj",
     type = "double", default = 0.05,
     help = "Adjusted p-value (FDR) cutoff for calling DEGs [default %default]."
+  ),
+  make_option("--gsea-rank",
+    type = "character", default = "stat",
+    help = "Ranking metric for pre-ranked GSEA: 'stat' (DESeq2 Wald statistic, default) or 'log2fc' (pre-v1.7 behaviour)."
+  ),
+  make_option("--lfc-shrink",
+    type = "character", default = "apeglm",
+    help = "Log2 fold-change shrinkage for volcano plots and the DE CSV (log2FC_shrunken column): 'apeglm' (default; falls back to 'normal' if apeglm is not installed), 'normal', or 'none'. DEG calls always use the unshrunken estimate."
+  ),
+  make_option("--independent-filtering",
+    action = "store_true", default = FALSE,
+    help = "Enable DESeq2's independent filtering (DESeq2's own default). Off by default: every tested gene keeps an adjusted p-value."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -185,7 +197,10 @@ tryCatch({
     volcano_labels    = opt[["volcano-labels"]],
     padj              = opt[["padj"]],
     fold_change       = opt[["fold-change"]],
-    session_log       = slog
+    session_log       = slog,
+    independent_filtering = isTRUE(opt[["independent-filtering"]]),
+    gsea_rank         = opt[["gsea-rank"]],
+    lfc_shrink        = opt[["lfc-shrink"]]
   )
 
   bisrDE::generate_report(

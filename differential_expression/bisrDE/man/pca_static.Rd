@@ -7,7 +7,8 @@
 pca_static(tmm, sample_info)
 }
 \arguments{
-\item{tmm}{Genes x Samples numeric matrix (e.g. \code{\link[=run_tmm]{run_tmm()}} output).}
+\item{tmm}{Genes x Samples numeric matrix on a log-like scale; the
+pipeline passes \code{\link[=qc_matrix]{qc_matrix()}} (blind VST, all genes).}
 
 \item{sample_info}{Data frame with \code{sample} and \code{condition} columns.
 Row order must match the column order of \code{tmm}.}

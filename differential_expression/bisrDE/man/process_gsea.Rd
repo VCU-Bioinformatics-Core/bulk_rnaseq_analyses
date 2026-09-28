@@ -7,13 +7,14 @@
 process_gsea(
   annotated_result,
   p = 1,
-  annotation_db = get0("annotation_db", envir = .GlobalEnv)
+  annotation_db = get0("annotation_db", envir = .GlobalEnv),
+  gsea_rank = "stat"
 )
 }
 \arguments{
 \item{annotated_result}{Annotated DESeq2 results frame (output of
-\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENSEMBL_ID}, \code{log2FoldChange},
-and \code{baseMean} columns.}
+\code{\link[=annotate_results]{annotate_results()}}). Must contain \code{ENSEMBL_ID}, \code{stat} (or
+\code{log2FoldChange}), and \code{baseMean} columns.}
 
 \item{p}{Adjusted p-value cutoff. Default \code{1} keeps every result; the
 report-side filter applies the user-facing threshold.}
@@ -21,20 +22,24 @@ report-side filter applies the user-facing threshold.}
 \item{annotation_db}{\code{OrgDb} object. Defaults to the \code{annotation_db}
 global set during option parsing in the parent pipeline; errors if
 neither the arg nor the global is supplied.}
+
+\item{gsea_rank}{Ranking metric, \code{"stat"} (default) or \code{"log2fc"}. See
+\code{\link[=.gsea_rank_vector]{.gsea_rank_vector()}}.}
 }
 \value{
 setReadable'd \code{gseGO} object, or \code{NULL} if no enriched GO
 terms (or any error during enrichment).
 }
 \description{
-GSEA over GO BP/MF/CC, ranked by \code{log2FoldChange}. Wraps
-\code{clusterProfiler::gseGO} with \code{keyType = "ENSEMBL"}. Returns a
-\code{setReadable}'d result so downstream tables/dotplots show gene
-symbols rather than raw Ensembl IDs.
+GSEA over GO BP/MF/CC, ranked by the DESeq2 Wald statistic
+(or \code{log2FoldChange}, see \code{gsea_rank}). Wraps \code{clusterProfiler::gseGO}
+with \code{keyType = "ENSEMBL"} and \code{eps = 0} (exact p-values, no 1e-10
+floor). Returns a \code{setReadable}'d result so downstream tables/dotplots
+show gene symbols rather than raw Ensembl IDs.
 }
 \details{
-Filters input to genes with \code{baseMean > 0}, non-empty
-\code{ENSEMBL_ID}, and non-NA \code{log2FoldChange} before ranking. Duplicate
-Ensembl IDs in the rank vector are resolved by first-occurrence to
-keep ordering stable.
+The ranked vector comes from \code{\link[=.gsea_rank_vector]{.gsea_rank_vector()}}: genes with
+\code{baseMean > 0}, a non-empty \code{ENSEMBL_ID} and a non-NA ranking metric
+(\code{stat}, or \code{log2FoldChange} when \code{gsea_rank = "log2fc"}); duplicate IDs
+keep their first occurrence and ties are ordered by ID.
 }

@@ -163,3 +163,12 @@ CSV
     [ "$status" -eq 0 ]
     [[ "$output" == *"1"* ]]
 }
+
+@test "bash and Go TUI stay byte-identical with the v1.7 method flags set" {
+  export BISR_GSEA_RANK=log2fc BISR_LFC_SHRINK=none BISR_INDEPENDENT_FILTERING=yes
+    b="$(bash_cmd)"
+    t="$(tui_cmd)"
+    [ -n "$b" ]
+    [ "$b" = "$t" ]
+  [[ "$b" == *"--gsea-rank log2fc --lfc-shrink none --independent-filtering"* ]]
+}
