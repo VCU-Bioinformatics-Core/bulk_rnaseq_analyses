@@ -46,6 +46,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this recipe and prints the `gh release create` command with `--target`,
   without which gh tags the default branch instead of the release commit.
 
+### Changed
+
+- **Each explanation in the report sits under the plot it explains.** The
+  "How to read this", "What to look for", "Common pitfalls" and "Next steps"
+  callouts used to open each section, ahead of the figures. They now follow
+  the figure they describe: the PCA, each of the four sample QC plots, the
+  volcano, the heatmaps and the enrichment dotplots. The block shared by the
+  four QC plots is split so each plot carries its own sentences, and the
+  advice that spans several plots closes the section. The wording is
+  unchanged apart from one positional phrase and one redundant sentence
+  fragment that was dropped.
+- **An enrichment dotplot is explained only where there is one.** The full
+  explanation appears under the first dotplot a comparison has and a one-line
+  pointer under the others. A backend with no enriched set shows its
+  "not available" line and no explanation of a plot that is absent.
+- **The report no longer prints absolute paths for the standalone PCA
+  files.** The two lines under the interactive PCA plots showed the output
+  directory as it was on the machine that ran the analysis. They now give the
+  location inside the output directory, `figures/pca/`.
+
 ### Fixed
 
 - **`just test-r` fails when a test fails.** `devtools::test()` reports

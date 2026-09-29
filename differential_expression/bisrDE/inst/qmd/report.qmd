@@ -321,6 +321,14 @@ if (!is.null(qc_summary) && !is.null(qc_summary$text)) {
 }
 ```
 
+### Static PCA (2D)
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+print(pca_plot)
+```
+
 ::: {.callout-tip title="How to read this"}
 Each dot is a sample, projected onto the two (or three) axes (PC1, PC2, PC3) that capture the largest sources of variation across all genes. PCA is computed on `r qc_transform_label`, so library-size differences are already accounted for`r if (!legacy_bundle) " and a handful of very abundant genes cannot dominate the axes" else ""`. The percent-variance label on each axis tells you how much of the total spread that PC explains.
 :::
@@ -333,58 +341,34 @@ Replicates of the same `condition` should cluster together. PC1 typically captur
 A sample that is a clear outlier on **only PC1** could just be deeper-sequenced — cross-check with the library-size barplot in the QC section before flagging it. **No separation** between conditions can mean low effect size, too few replicates, or batch confounding (samples from one prep batch dominate one PC). **Tight clustering of all samples** sometimes means the biology is subtle relative to between-replicate noise — check the per-sample log-CPM density curves for distribution mismatches.
 :::
 
-::: {.callout-tip title="Next steps"}
-If a sample is an outlier across all three PCs, investigate (a) the samplesheet for sample swaps; (b) the lab notebook for failed library prep or contamination; (c) the correlation heatmap to see which other sample(s) it should look like. If conditions don't separate, consider whether your design captures the biology — time-course or dose-response studies often need more contrasts than the simple A vs B you are running here.
-:::
-
-### Static PCA (2D)
-
-```{r}
-#| fig-width: 6
-#| fig-height: 4
-print(pca_plot)
-```
-
 ### Interactive PCA (2D)
-
-*Hover a point for sample ID; drag to zoom; double-click to reset.*
 
 ```{r}
 pca_plotly
 ```
 
-### Interactive PCA (3D)
+*Hover a point for sample ID; drag to zoom; double-click to reset.*
 
-*Drag to rotate; scroll to zoom.*
+### Interactive PCA (3D)
 
 ```{r}
 pca_3d
 ```
 
-Standalone interactive PCA files are also produced for sharing or embedding elsewhere:
+*Drag to rotate; scroll to zoom.*
 
-- 2D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot.html")`
-- 3D PCA: `r file.path(out_dirs$pca, "allsamples_PCA_plot3D.html")`
+::: {.callout-tip title="Next steps"}
+If a sample is an outlier across all three PCs, investigate (a) the samplesheet for sample swaps; (b) the lab notebook for failed library prep or contamination; (c) the correlation heatmap to see which other sample(s) it should look like. If conditions don't separate, consider whether your design captures the biology — time-course or dose-response studies often need more contrasts than the simple A vs B you are running here.
+:::
+
+Standalone interactive PCA files are also produced for sharing or embedding elsewhere, in the output directory of this run:
+
+- 2D PCA: `figures/pca/allsamples_PCA_plot.html`
+- 3D PCA: `figures/pca/allsamples_PCA_plot3D.html`
 
 ### Sample-level QC plots
 
 These four sample-level QC plots complement the PCA above. Use them to spot outlier samples (poor depth, atypical distributions, mis-clustered replicates) before drawing conclusions from the differential-expression results.
-
-::: {.callout-tip title="How to read these"}
-Four complementary views of sample-level quality. The **correlation heatmap** asks "do replicates correlate?" using Spearman correlation on `r if (legacy_bundle) "the union of DE genes (TMM-normalized counts)" else paste0("**all genes** (", qc_transform_label, "); restricting it to DE genes would separate the groups by construction")`. The **vst distance heatmap** asks "do samples cluster by group?" using Euclidean distance on variance-stabilized counts. The **library-size barplot** asks "is sequencing depth uneven?" by summing raw counts per sample (top panel) and counting expressed genes per sample (bottom panel). The **hclust + density** asks "do all samples have similar expression distributions?" via a Ward dendrogram (left) and per-sample log-CPM density curves (right).
-:::
-
-::: {.callout-note title="What to look for"}
-On the correlation heatmap, **dark red within-group blocks** (high Spearman ρ, ~0.95+) are healthy; cross-group ρ should be lower than within-group ρ. On the vst distance heatmap, **dark blue within-group blocks** are healthy (small distance = similar). The library-size barplot should show all samples within ~2-fold of each other and similar detected-gene counts. The hclust dendrogram should mostly cluster replicates; the density curves should overlap closely on the same axes.
-:::
-
-::: {.callout-warning title="Common pitfalls"}
-**One discordant sample across multiple panels** is a strong outlier signal — much more reliable than a single panel disagreeing. **Library size differences > 3x** can drive PCA / clustering artefactually; consider down-sampling the deepest libraries before re-running. **Bimodal density curves** (two humps in log-CPM) often indicate failed rRNA depletion or 3'-bias. **Replicates in separate dendrogram clades** is the most concerning signal — confirm via the correlation heatmap before discussing with the wet lab.
-:::
-
-::: {.callout-tip title="Next steps"}
-If you spot a clear outlier, the canonical workflow is: (1) drop it from the samplesheet, (2) re-run the pipeline, (3) compare DE results to confirm the outlier was suppressing real signal (or was a benign noise source). Don't drop more than one sample per group without consulting the experimental statistician — small N is the more common failure mode than outlier contamination. If everything looks healthy here, you can read the per-comparison DE results below with high confidence.
-:::
 
 **Sample × Sample correlation heatmap (Spearman, `r if (legacy_bundle) "DE genes" else "all genes"`)**
 
@@ -399,6 +383,14 @@ if (file.exists(qc_corr_path)) {
 }
 ```
 
+::: {.callout-tip title="How to read this"}
+The **correlation heatmap** asks "do replicates correlate?" using Spearman correlation on `r if (legacy_bundle) "the union of DE genes (TMM-normalized counts)" else paste0("**all genes** (", qc_transform_label, "); restricting it to DE genes would separate the groups by construction")`.
+:::
+
+::: {.callout-note title="What to look for"}
+On the correlation heatmap, **dark red within-group blocks** (high Spearman ρ, ~0.95+) are healthy; cross-group ρ should be lower than within-group ρ.
+:::
+
 **Sample × Sample Euclidean distance (vst-transformed counts)**
 
 ```{r}
@@ -411,6 +403,14 @@ if (file.exists(qc_vst_path)) {
   cat("vst distance heatmap not available.")
 }
 ```
+
+::: {.callout-tip title="How to read this"}
+The **vst distance heatmap** asks "do samples cluster by group?" using Euclidean distance on variance-stabilized counts.
+:::
+
+::: {.callout-note title="What to look for"}
+On the vst distance heatmap, **dark blue within-group blocks** are healthy (small distance = similar).
+:::
 
 **Library size + detected genes per sample**
 
@@ -425,6 +425,18 @@ if (file.exists(qc_lib_path)) {
 }
 ```
 
+::: {.callout-tip title="How to read this"}
+The **library-size barplot** asks "is sequencing depth uneven?" by summing raw counts per sample (top panel) and counting expressed genes per sample (bottom panel).
+:::
+
+::: {.callout-note title="What to look for"}
+The library-size barplot should show all samples within ~2-fold of each other and similar detected-gene counts.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**Library size differences > 3x** can drive PCA / clustering artefactually; consider down-sampling the deepest libraries before re-running.
+:::
+
 **Hierarchical clustering (Ward.D2) + per-sample log-CPM density**
 
 ```{r}
@@ -437,6 +449,28 @@ if (file.exists(qc_hcd_path)) {
   cat("Hierarchical clustering plot not available.")
 }
 ```
+
+::: {.callout-tip title="How to read this"}
+The **hclust + density** asks "do all samples have similar expression distributions?" via a Ward dendrogram (left) and per-sample log-CPM density curves (right).
+:::
+
+::: {.callout-note title="What to look for"}
+The hclust dendrogram should mostly cluster replicates; the density curves should overlap closely on the same axes.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**Bimodal density curves** (two humps in log-CPM) often indicate failed rRNA depletion or 3'-bias. **Replicates in separate dendrogram clades** is the most concerning signal — confirm via the correlation heatmap before discussing with the wet lab.
+:::
+
+**Reading the four QC plots together**
+
+::: {.callout-warning title="Common pitfalls"}
+**One discordant sample across multiple panels** is a strong outlier signal — much more reliable than a single panel disagreeing.
+:::
+
+::: {.callout-tip title="Next steps"}
+If you spot a clear outlier, the canonical workflow is: (1) drop it from the samplesheet, (2) re-run the pipeline, (3) compare DE results to confirm the outlier was suppressing real signal (or was a benign noise source). Don't drop more than one sample per group without consulting the experimental statistician — small N is the more common failure mode than outlier contamination. If everything looks healthy here, you can read the per-comparison DE results below with high confidence.
+:::
 
 ```{r results-summary}
 summary_table <- data.frame(
