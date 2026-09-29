@@ -22,6 +22,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prints a renv/conda banner to stdout that would otherwise corrupt it. The
   `R:` header line uses the same flag, so the version string no longer has
   the banner interleaved into it.
+- **The report template is now tested.** `test-report-render.R` adds two
+  guards against the failure that v1.7.0 shipped with. A structural test,
+  always on, fails when a child under `inst/qmd/_sections/` labels a chunk,
+  in the header or in the option comments beneath it; the message names the
+  file, the label and the consequence. The header rules follow knitr's
+  (any unnamed option is the label, wherever it sits) and were checked
+  against knitr 1.50 on 32 header forms; option comments are read with
+  `knitr::partition_chunk()`. An opt-in render test (`BISR_TEST_RENDER=1`, or
+  `just test-render`) runs the pipeline on the bundled three-comparison
+  example, renders the report, and requires a DE result and a section
+  heading for every comparison. It is opt-in because it takes one to two
+  minutes and fetches KEGG over the network, and it skips outside a source
+  checkout. With the v1.7.0 label restored, the structural test fails and
+  the render test fails with `Duplicate chunk label 'shrink-this-comparison'`.
+- **`just release-check` is the gate to pass before tagging.** It runs
+  `just test` (the R, Go and shell suites), then `run_analysis.sh` end to end
+  on the bundled example. The run must load `bisrDE` from the source tree
+  rather than an installed copy or a container image, analyse every
+  comparison listed in the run summary, write a DE table for each, and
+  produce exactly one report with a section heading for each. On failure it
+  keeps the output directory and prints its path. `just bump` now points at
+  this recipe and prints the `gh release create` command with `--target`,
+  without which gh tags the default branch instead of the release commit.
+
+### Fixed
+
+- **`just test-r` fails when a test fails.** `devtools::test()` reports
+  failures and still exits 0 unless `stop_on_failure = TRUE`, so `just test`
+  passed with a failing R test. The recipe now sets it.
 
 ## [1.7.1] - 2026-09-28
 

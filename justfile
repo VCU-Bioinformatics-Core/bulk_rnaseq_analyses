@@ -3,6 +3,7 @@
 #   just            list every recipe
 #   just demo       end-to-end smoke run on the bundled example data
 #   just test       R + Go + shell test suites
+#   just release-check   the gate to pass before tagging a release
 #
 # External tools are optional: every recipe that needs one checks first and
 # tells you how to install it instead of failing obscurely. Nothing here is
@@ -63,9 +64,19 @@ demo:
 # Everything: R package, Go TUI, shell launchers.
 test: test-r test-go test-sh
 
+# stop_on_failure makes a failing test fail the recipe; without it
+# devtools::test() reports the failure and still exits 0.
+#
 # bisrDE testthat suite.
 test-r:
-    cd {{de}} && {{rscript}} -e 'devtools::test("bisrDE")'
+    cd {{de}} && {{rscript}} -e 'devtools::test("bisrDE", stop_on_failure = TRUE)'
+
+# Runs the whole pipeline on the bundled example and renders the report, so
+# it takes 1-2 min, needs the Quarto CLI and fetches KEGG over the network.
+#
+# Opt-in render test: a multi-comparison report must render.
+test-render: (_need "quarto" "brew install --cask quarto  # or https://quarto.org/docs/get-started/")
+    cd {{de}} && BISR_TEST_RENDER=1 {{rscript}} -e 'devtools::test("bisrDE", filter = "report-render", stop_on_failure = TRUE)'
 
 # Go TUI unit tests.
 test-go:
@@ -142,7 +153,61 @@ bump version:
     sed -i '' "s/^Version: .*/Version: {{version}}/" bisrDE/DESCRIPTION
     sed -i '' "s/v$cur/v{{version}}/g" README.md run_interactive.sh tui/main.go
     grep -rn "{{version}}" bisrDE/DESCRIPTION README.md run_interactive.sh tui/main.go | head
-    echo "now update CHANGELOG.md, then: just test && git commit && git tag v{{version}}"
+    echo "now update CHANGELOG.md (section + Version History row), then:"
+    echo "  just release-check"
+    echo "  git commit, then git push"
+    echo '  gh release create v{{version}} --target "$(git branch --show-current)" --notes-file <notes.md>'
+    echo "without --target, gh tags the default branch instead of the release commit;"
+    echo "a pushed tag alone is not a GitHub Release"
+
+# `just test` (the R, Go and shell suites), then the real entry point end to
+# end on the bundled example. The run must use THIS source tree, analyse
+# every comparison, and produce one report with a section for each of them.
+# v1.7.0 shipped with a template that could not render a second comparison
+# because nothing rendered a report before the tag.
+#
+# Release gate: run before tagging.
+release-check: (_need "quarto" "brew install --cask quarto  # or https://quarto.org/docs/get-started/") test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    tmp="${TMPDIR:-/tmp}"
+    out=$(mktemp -d "${tmp%/}/bisrde_release_check.XXXXXX")
+    log="$out/release_check.log"
+    fail() { printf '\033[31m✗\033[0m %s\n  output kept in: %s\n' "$1" "$out"; exit 1; }
+    bash run_analysis.sh \
+        --counts assets/example_counts.tsv \
+        --samplesheet assets/example_samplesheet.csv \
+        --outdir "$out" --runid release_check \
+        --annotation mouse --id-type ensembl 2>&1 | tee "$log" \
+        || fail "the pipeline exited with status $?"
+
+    # de.R prefers an installed bisrDE, and run_analysis.sh prefers a container
+    # image when one exists. Either would test a copy that may predate the tree.
+    grep -Fq "[de.R] Dev mode: devtools::load_all" "$log" \
+        || fail "the run did not load bisrDE from this source tree (an installed copy or dge_analysis.sif took precedence), so it says nothing about the code being released"
+
+    # Expectations come from the run summary, which lists every comparison
+    # the samplesheet defines whether or not its analysis succeeded.
+    shopt -s nullglob
+    summaries=("$out"/logs/*_report.json)
+    [ "${#summaries[@]}" -eq 1 ] || fail "expected one run summary in logs/, found ${#summaries[@]}"
+    names=$(grep -m1 '"contrasts"' "${summaries[0]}" | grep -o '"[^"]*"' | tail -n +2 | tr -d '"')
+    n=$(printf '%s\n' "$names" | grep -c . || true)
+    [ "$n" -ge 2 ] || fail "the example must define two or more comparisons, found $n"
+    if grep -q '"ok": false' "${summaries[0]}"; then
+        fail "at least one comparison produced no DE result (see \"ok\": false in ${summaries[0]})"
+    fi
+
+    reports=("$out"/rnaseq_analysis_*.html)
+    [ "${#reports[@]}" -eq 1 ] || fail "expected one report, found ${#reports[@]}"
+    for name in $names; do
+        [ -s "$out/data/de_data/DESeq2_$name.csv" ] || fail "no DE table for comparison $name"
+        grep -Fq ">$name</h3>" "${reports[0]}" || fail "the report has no section for comparison $name"
+    done
+
+    rm -rf "$out"
+    printf '\033[32m✓\033[0m release gate passed: tests green, %d comparisons analysed and rendered from this tree\n' "$n"
 
 # ---------------------------------------------------------- container --------
 
