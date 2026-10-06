@@ -71,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`just test-r` fails when a test fails.** `devtools::test()` reports
   failures and still exits 0 unless `stop_on_failure = TRUE`, so `just test`
   passed with a failing R test. The recipe now sets it.
+- **The interactive 3D PCA title read "Total Explained Variance = 100".** The
+  title summed the variance of every component, which is always 100 give or
+  take rounding, instead of the three components on the axes. It now reads
+  "Variance explained by PC1 + PC2 + PC3 = x%" (88.8% for the bundled example).
+  A unit test on synthetic data fails on the old code and passes on the new.
 
 ## [1.7.1] - 2026-09-28
 
