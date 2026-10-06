@@ -41,6 +41,7 @@ RUNID="${RUNID:-run_$(date +%Y%m%d_%H%M%S)}"
 ANNOTATION="${ANNOTATION:-human}"          # human | mouse
 IDTYPE="${IDTYPE:-ensembl}"                # ensembl | entrez | symbol
 BRS_TICKET="${BRS_TICKET:-}"               # e.g. BRS-1234 (optional)
+ANALYST="${ANALYST:-}"                     # name shown in the report header (optional, default Mikail Bala)
 FOLD_CHANGE="${FOLD_CHANGE:-1.5}"
 PADJ="${PADJ:-0.05}"
 GSEA_RANK="${GSEA_RANK:-stat}"                       # stat | log2fc
@@ -118,13 +119,44 @@ else
     exit 127
 fi
 
+# --------------------------------------------------------------------------
+# Preflight: MSigDB cache
+# --------------------------------------------------------------------------
+# msigdbr downloads its gene-set archive from Zenodo on first use and reuses
+# the cached copy afterwards. Compute nodes usually have no outbound internet,
+# and a missing cache does not stop the pipeline: Hallmark enrichment times
+# out later in the run and the report ends up without it. Check before
+# spending the allocation. Resolve the directory exactly as R will
+# (tools::R_user_dir honours R_USER_CACHE_DIR); --no-init-file skips the
+# project .Rprofile, whose renv/conda banner would otherwise leak into the
+# captured path.
+MSIGDB_CACHE="$(Rscript --no-init-file -e 'cat(tools::R_user_dir("msigdbr", "cache"))' 2>/dev/null || true)"
+if [ -n "$MSIGDB_CACHE" ] && [ -n "$(ls -A "$MSIGDB_CACHE" 2>/dev/null)" ]; then
+    MSIGDB_STATUS="$MSIGDB_CACHE"
+else
+    MSIGDB_STATUS="${MSIGDB_CACHE:-<unresolved>}  (MISSING: Hallmark will fail offline, see the .err log)"
+    {
+        echo "WARNING: MSigDB cache is missing or empty: ${MSIGDB_CACHE:-<unresolved>}"
+        echo "  Compute nodes usually cannot reach zenodo.org, so Hallmark enrichment"
+        echo "  will fail with 'Timeout was reached [zenodo.org]' and the report will"
+        echo "  have no Hallmark results. Everything else still runs."
+        echo "  Warm the cache ONCE on a login node, with the same cache location this"
+        echo "  job resolved:"
+        [ -z "${R_USER_CACHE_DIR:-}" ] || echo "    export R_USER_CACHE_DIR=$R_USER_CACHE_DIR"
+        echo "    cd $PIPELINE_DIR && Rscript warm_msigdb_cache.R"
+        echo "  then resubmit."
+        echo
+    } >&2
+fi
+
 echo "host:      $(hostname)"
 echo "job:       ${SLURM_JOB_ID:-<interactive>}"
 echo "env:       ${CONDA_PREFIX:-<none>}"
-echo "R:         $(command -v Rscript) ($(Rscript -e 'cat(R.version.string)' 2>/dev/null))"
+echo "R:         $(command -v Rscript) ($(Rscript --no-init-file -e 'cat(R.version.string)' 2>/dev/null))"
 echo "outdir:    $OUTDIR"
 echo "methods:   gsea-rank=$GSEA_RANK  lfc-shrink=$LFC_SHRINK  independent-filtering=$INDEPENDENT_FILTERING"
 echo "platform:  $BISR_PLATFORM_NAME"
+echo "msigdb:    $MSIGDB_STATUS"
 echo
 
 # --------------------------------------------------------------------------
@@ -137,6 +169,7 @@ args=(--counts "$COUNTS" --samplesheet "$SAMPLESHEET"
       --gsea-rank "$GSEA_RANK" --lfc-shrink "$LFC_SHRINK")
 [ "$INDEPENDENT_FILTERING" = "yes" ] && args+=(--independent-filtering)
 [ -n "$BRS_TICKET" ] && args+=(--brs-ticket "$BRS_TICKET")
+[ -n "${ANALYST//[[:space:]]/}" ] && args+=(--analyst "$ANALYST")
 
 bash run_analysis.sh "${args[@]}"
 

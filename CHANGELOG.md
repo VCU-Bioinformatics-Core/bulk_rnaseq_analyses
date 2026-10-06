@@ -5,6 +5,141 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-10-06
+
+### Added
+
+- **`submit_slurm.sh` checks for the MSigDB cache before the analysis starts.**
+  The job resolves `tools::R_user_dir("msigdbr", "cache")` with the same
+  `R_USER_CACHE_DIR` the pipeline will see, prints the directory in the job
+  header, and warns in the `.err` log with the exact `warm_msigdb_cache.R`
+  command (including the `export` line when the variable is set) if the
+  directory is missing or empty. The run continues, because Hallmark is the
+  only step that needs the cache and some sites do have outbound internet on
+  compute nodes. Motivated by a run that timed out on zenodo.org because the
+  cache had been warmed under a different `R_USER_CACHE_DIR` than the job used.
+  The path is read with `Rscript --no-init-file`, since the project `.Rprofile`
+  prints a renv/conda banner to stdout that would otherwise corrupt it. The
+  `R:` header line uses the same flag, so the version string no longer has
+  the banner interleaved into it.
+- **The report template is now tested.** `test-report-render.R` adds two
+  guards against the failure that v1.7.0 shipped with. A structural test,
+  always on, fails when a child under `inst/qmd/_sections/` labels a chunk,
+  in the header or in the option comments beneath it; the message names the
+  file, the label and the consequence. The header rules follow knitr's
+  (any unnamed option is the label, wherever it sits) and were checked
+  against knitr 1.50 on 32 header forms; option comments are read with
+  `knitr::partition_chunk()`. An opt-in render test (`BISR_TEST_RENDER=1`, or
+  `just test-render`) runs the pipeline on the bundled three-comparison
+  example, renders the report, and requires a DE result and a section
+  heading for every comparison. It is opt-in because it takes one to two
+  minutes and fetches KEGG over the network, and it skips outside a source
+  checkout. With the v1.7.0 label restored, the structural test fails and
+  the render test fails with `Duplicate chunk label 'shrink-this-comparison'`.
+- **`just release-check` is the gate to pass before tagging.** It runs
+  `just test` (the R, Go and shell suites), then `run_analysis.sh` end to end
+  on the bundled example. The run must load `bisrDE` from the source tree
+  rather than an installed copy or a container image, analyse every
+  comparison listed in the run summary, write a DE table for each, and
+  produce exactly one report with a section heading for each. On failure it
+  keeps the output directory and prints its path. `just bump` now points at
+  this recipe and prints the `gh release create` command with `--target`,
+  without which gh tags the default branch instead of the release commit.
+- **`--analyst` sets the name printed in the report header.** Every report
+  named the same analyst because the template default was the only source and
+  nothing overrode it. The flag is forwarded to `generate_report()`; the bash
+  launcher and the Go TUI ask for it and read `BISR_ANALYST`, and
+  `submit_slurm.sh` reads `ANALYST`. Without the flag the report reads exactly
+  as before. The parity test covers a name with a space and a blank value,
+  which both launchers drop.
+- **A structural test keeps the per-comparison child ASCII only.** It fails,
+  naming the file and line, when a byte above 0x7F appears in any template
+  under `inst/qmd/_sections/`, because such characters reach the report as
+  byte escapes (see Fixed below). Checked against an em dash inserted in the
+  child: the test names the line; with the child restored it passes.
+
+### Changed
+
+- **Each explanation in the report sits under the plot it explains.** The
+  "How to read this", "What to look for", "Common pitfalls" and "Next steps"
+  callouts used to open each section, ahead of the figures. They now follow
+  the figure they describe: the PCA, each of the four sample QC plots, the
+  volcano, the heatmaps and the enrichment dotplots. The block shared by the
+  four QC plots is split so each plot carries its own sentences, and the
+  advice that spans several plots closes the section. The wording is
+  unchanged apart from one positional phrase and one redundant sentence
+  fragment that was dropped.
+- **An enrichment dotplot is explained only where there is one.** The full
+  explanation appears under the first dotplot a comparison has and a one-line
+  pointer under the others. A backend with no enriched set shows its
+  "not available" line and no explanation of a plot that is absent.
+- **The report no longer prints absolute paths for the standalone PCA
+  files.** The two lines under the interactive PCA plots showed the output
+  directory as it was on the machine that ran the analysis. They now give the
+  location inside the output directory, `figures/pca/`.
+- **The report's explanatory text was checked statement by statement against
+  the code and corrected.** 494 statements in the two templates were compared
+  with the plotting and enrichment code, the library sources and the figures of
+  a run on the bundled example. 86 were wrong, inconsistent or misleading and
+  are now fixed. The ones that changed what a reader would conclude: the
+  volcano guidance counted every dot above the padj line as a DEG and called
+  the up-regulated dots red (they are orange, and grey dots above the line fail
+  the fold-change cutoff); the per-comparison CSV was called the DEG list (it
+  holds every tested gene); the heatmap text described one red side and one
+  blue side and a "light grey" row (z-scores are per gene, so a clean result
+  shows four colour blocks and no row can be uniformly pale); the dotplot
+  callout defined gene ratio, dot size and colour differently from the code
+  (gene ratio is the leading-edge count over `setSize`, size is the
+  leading-edge count, and the palette runs from yellow for the most
+  significant set to dark purple); the density-curve pitfall called two humps
+  a sign of failed rRNA depletion (they are the normal shape, because
+  unexpressed genes pile up at zero); the correlation heatmap text promised
+  dark red within-group blocks (white is pinned to the run's median, so only
+  the diagonal saturates); the Executive Summary skipped enrichment for a
+  comparison with no DEGs and reported "no gene set reached p.adjust" when a
+  backend had returned nothing. The glossary, the Pipeline section and the
+  Methods paragraph now share one definition each for gene ratio, the
+  fold-change cutoff (|log2FC| at or above log2(FC), 0.585 for 1.5-fold rather
+  than 0.58), the QC matrix ("all genes that passed the low-count filter") and
+  which transform feeds each sample-level plot. A backend that produced no
+  result object shows `no result` in the summary table instead of `not run`,
+  and every sentence about it follows. The Methods text names Salmon or RSEM
+  with a citation for each, cites the DESeq2 vignette rather than Love 2014 for
+  the count pre-filter, states the shrinkage method from what each comparison
+  recorded, and tells the reader to confirm the assembly and the quantifier
+  against the nf-core run record instead of pasting the section verbatim.
+- **The Methods paragraph names the upstream nf-core/rnaseq tools without
+  version numbers.** The numbers came from a hand-maintained file inside the
+  package, not from the nf-core run that produced the counts, so they could be
+  wrong for any given project. FastQC, Trim Galore!, STAR, Salmon, RSEM and
+  MultiQC are cited by name. `inst/extdata/upstream_versions.yml`, the helper
+  that read it and the `yaml` import are gone; R package versions are still
+  read from the analysis record.
+
+### Fixed
+
+- **`just test-r` fails when a test fails.** `devtools::test()` reports
+  failures and still exits 0 unless `stop_on_failure = TRUE`, so `just test`
+  passed with a failing R test. The recipe now sets it.
+- **The interactive 3D PCA title read "Total Explained Variance = 100".** The
+  title summed the variance of every component, which is always 100 give or
+  take rounding, instead of the three components on the axes. It now reads
+  "Variance explained by PC1 + PC2 + PC3 = x%" (88.8% for the bundled example).
+  A unit test on synthetic data fails on the old code and passes on the new.
+- **Per-comparison sections rendered non-ASCII characters as byte escapes.**
+  The per-comparison child is knitted once per comparison and its output
+  written with `useBytes = TRUE` (since v1.7.0), so every em dash and similar
+  character in the child's prose appeared as `<80><94>` in the report: 54
+  occurrences in a three-comparison render of the bundled example. The child
+  is now ASCII only, with HTML entities where a symbol is needed, and the
+  render has none.
+- **A comparison with DESeq2 results but no significant gene said "No
+  differential expression results available".** It now says that no gene
+  passed the thresholds and names the CSV that holds every tested gene; the
+  old message appears only when the comparison has no DESeq2 result. The
+  fallback under each dotplot makes the same distinction (no significant set,
+  or no result object).
+
 ## [1.7.1] - 2026-09-28
 
 ### Fixed
@@ -717,6 +852,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.8.0   | 2026-10-06 | Report text audited against the code and corrected (86 statements); `--analyst` flag with launcher/TUI parity; 3D PCA title reports the three plotted components; Methods names upstream tools without versions; per-comparison child rendered non-ASCII as byte escapes since v1.7.0; MSigDB cache preflight in `submit_slurm.sh`; report render tests and `just release-check` gate |
 | 1.7.1   | 2026-09-28 | Report renders again for two or more comparisons (duplicate chunk label in the per-comparison child); `environment.yml` gains `bioconductor-apeglm`; `submit_slurm.sh` finds the pipeline via `$SLURM_SUBMIT_DIR` and reuses an inherited conda env |
 | 1.7.0   | 2026-09-03 | GSEA ranked by the Wald statistic with exact p-values, apeglm shrinkage, `--independent-filtering`; sample QC on blind VST (all genes); run provenance (dds, options, versions, QC summary) in RDS/JSON; report fixes (top-20 order, blank versions, Methods generated from the run, sessionInfo) |
 | 1.6.4   | 2026-08-13 | Fix the HPC install step that renv's autoloader breaks (bake `RENV_CONFIG_AUTOLOADER_ENABLED=FALSE` into the conda env) |

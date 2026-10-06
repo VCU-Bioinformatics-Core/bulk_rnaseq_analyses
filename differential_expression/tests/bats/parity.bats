@@ -57,6 +57,20 @@ tui_cmd() {
     [[ "$b" == *"--brs-ticket BRS-1234"* ]]
 }
 
+@test "parity holds with an analyst name set" {
+    export BISR_ANALYST="Jane Doe"
+    b="$(bash_cmd)"; t="$(tui_cmd)"
+    [ "$b" = "$t" ]
+    [[ "$b" == *"--analyst Jane Doe"* ]]
+}
+
+@test "parity holds with a whitespace-only analyst name (flag dropped)" {
+    export BISR_ANALYST="   "
+    b="$(bash_cmd)"; t="$(tui_cmd)"
+    [ "$b" = "$t" ]
+    [[ "$b" != *"--analyst"* ]]
+}
+
 @test "parity holds with non-default thresholds and volcano labels" {
     export BISR_FOLD_CHANGE=2 BISR_PADJ=0.01 BISR_VOLCANO_LABELS=25
     b="$(bash_cmd)"; t="$(tui_cmd)"

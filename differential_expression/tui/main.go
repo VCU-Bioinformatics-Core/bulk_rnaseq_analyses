@@ -33,7 +33,7 @@ Flags:
     -h, --help    This help.
 
 Env overrides (skip the matching prompt): BISR_COUNTS, BISR_SAMPLESHEET,
-BISR_ANNOTATION, BISR_RUNID, BISR_OUTDIR, BISR_BRS, BISR_IDTYPE, BISR_GSEA_RANK, BISR_LFC_SHRINK, BISR_INDEPENDENT_FILTERING,
+BISR_ANNOTATION, BISR_RUNID, BISR_OUTDIR, BISR_BRS, BISR_ANALYST, BISR_IDTYPE, BISR_GSEA_RANK, BISR_LFC_SHRINK, BISR_INDEPENDENT_FILTERING,
 BISR_EXCLUDE_SAMPLES, BISR_EXCLUDE_GROUPS, BISR_INCLUDE_CONTRASTS,
 BISR_EXCLUDE_CONTRASTS, BISR_PROJECT_DIR.
 `)
@@ -63,7 +63,7 @@ func main() {
 
 	if !nonInteractive {
 		fmt.Println(bannerStyle.Render(
-			"Bulk RNA-Seq Differential Expression\nbisrDE · v1.7.1 · Go TUI"))
+			"Bulk RNA-Seq Differential Expression\nbisrDE · v1.8.0 · Go TUI"))
 	}
 
 	cfg, err := BuildConfig(nonInteractive)

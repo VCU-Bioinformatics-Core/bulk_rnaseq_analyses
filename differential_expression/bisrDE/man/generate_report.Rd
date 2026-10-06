@@ -32,7 +32,8 @@ Default \code{"Mikail Bala"}.}
 \code{"rnaseq_analysis"}. Combined with a timestamp at render time.}
 
 \item{platform}{Free-text description of where the analysis ran, used in
-the Methods sentence "All computational analyses were performed on ...".
+the Methods sentence "The differential expression and enrichment analyses
+were performed on ...".
 The template prefers the value recorded at analysis time in the RDS
 (\code{run_options$platform}, see \code{\link[=.run_platform]{.run_platform()}}); this argument is the
 fallback for bundles that predate it. Default \code{.run_platform()}: the
@@ -57,9 +58,10 @@ tempdir.
 either \code{subtitle: "<brs_ticket>"} (if non-empty) or an empty
 string (no stray YAML field).
 \item Calling \code{quarto::quarto_render} with \code{execute_params} =
-\code{list(rds_path, analyst, brs_ticket, genome_assembly, sections_dir, bisrde_version, upstream_versions_path, run_platform)}. The last three are resolved here because the
-render runs in its own R process where, in dev mode, neither
-the package version nor \code{system.file()} resolve.
+\code{list(rds_path, analyst, brs_ticket, genome_assembly, sections_dir, bisrde_version, run_platform)}. The last two
+are resolved here because the render runs in its own R
+process where, in dev mode, the package version does not
+resolve.
 \item Moving the rendered HTML to \code{output_dir} with a timestamped
 filename.
 }

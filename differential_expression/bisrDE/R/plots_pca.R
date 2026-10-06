@@ -156,13 +156,17 @@ pca_plotly <- function(tmm, sample_info) {
 #'   Computes a separate `prcomp(rank. = 3)` (matching the parent
 #'   pipeline's behavior — the 2D and 3D paths use independent prcomp
 #'   calls). PC2 and PC3 axes are sign-flipped for visualization
-#'   (preserves the parent pipeline's view orientation).
+#'   (preserves the parent pipeline's view orientation). The title reports
+#'   the percent variance explained by PC1, PC2 and PC3 together, summed
+#'   from the per-component percentages (each rounded to 1 dp) and rounded
+#'   to 1 dp; components beyond the third are not counted.
 #'
 #' @param tmm Genes x Samples numeric matrix on a log-like scale; the
 #'   pipeline passes [qc_matrix()] (blind VST, all genes).
 #' @param sample_info Data frame with `sample` and `condition` columns.
-#' @return A `plotly` object with a title showing total explained
-#'   variance across the three retained components.
+#' @return A `plotly` object titled
+#'   `"Variance explained by PC1 + PC2 + PC3 = <x>%"`, where `<x>` is the
+#'   summed percent variance of the three plotted components.
 #'
 #' @export
 pca_plotly_3d <- function(tmm, sample_info) {
@@ -181,9 +185,8 @@ pca_plotly_3d <- function(tmm, sample_info) {
   components$Group <- unname(grp[samp])
   components$Display <- display
 
-  tot_explained <- summary(prin_comp)[["importance"]]["Proportion of Variance", ]
-  tot_explained <- 100 * sum(tot_explained)
-  tit <- paste0("Total Explained Variance = ", tot_explained)
+  tot_explained <- round(sum(pca$var_pct[1:3]), 1)
+  tit <- paste0("Variance explained by PC1 + PC2 + PC3 = ", tot_explained, "%")
 
   fig <- plotly::plot_ly(
     components,

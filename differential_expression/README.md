@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.7.1** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.8.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -224,6 +224,8 @@ tail -f slurm-bisrde-<jobid>.out
 
 The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
 
+Before the analysis starts, the job resolves the MSigDB cache directory the way R will (`R_USER_CACHE_DIR` included), prints it in the job header as `msigdb:`, and warns in the `.err` log with the exact warm-up command if the directory is missing or empty. The run continues, since Hallmark is the only step that needs the cache; warm it and resubmit if you want Hallmark results.
+
 Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
 GSEA backends are memory-bound rather than CPU-bound.
 
@@ -317,7 +319,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.7.1) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.8.0) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 
@@ -327,7 +329,7 @@ For the polished bash experience (borders, colors, fuzzy multi-select, markdown 
 brew install gum glow freeze    # macOS; see charmbracelet repos for Linux
 ```
 
-Without them the bash launcher falls back to plain prompts — it always works. The launcher is also scriptable / non-interactive: set `BISR_*` environment variables (e.g. `BISR_COUNTS`, `BISR_SAMPLESHEET`, `BISR_ANNOTATION`, `BISR_RUNID`, `BISR_EXCLUDE_GROUPS`, `BISR_FRONTEND`, …) and pass `--print-cmd` to print the assembled `run_analysis.sh` command without executing it.
+Without them the bash launcher falls back to plain prompts — it always works. The launcher is also scriptable / non-interactive: set `BISR_*` environment variables (e.g. `BISR_COUNTS`, `BISR_SAMPLESHEET`, `BISR_ANNOTATION`, `BISR_RUNID`, `BISR_ANALYST`, `BISR_EXCLUDE_GROUPS`, `BISR_FRONTEND`, …) and pass `--print-cmd` to print the assembled `run_analysis.sh` command without executing it.
 
 #### Mouse analysis
 
@@ -377,6 +379,7 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--runid`           | `-r`  | yes      | —              | Unique identifier for this run; appears in the report.                      |
 | `--annotation`      | `-a`  | no       | `mouse`        | `mouse` or `human`. Selects OrgDb + KEGG / Reactome / MSigDB organism.      |
 | `--brs-ticket`      | `-b`  | no       | (none)         | BRS ticket identifier (e.g. `BRS-1234`). Renders as a subtitle in the report. |
+| `--analyst`         |       | no       | `Mikail Bala`  | Analyst name shown in the report header. Env: `BISR_ANALYST`. |
 | `--id-type`         | `-i`  | no       | `ensembl`      | `ensembl`, `entrez`, or `symbol`. Identifier type in the count matrix rownames. Output CSVs always carry all four ID columns regardless. |
 | `--exclude-samples` |       | no       | (none)         | Comma-separated `SampleID`s to drop from the whole analysis (e.g. `SRR1,SRR2`). Unions with the `Exclude` column. |
 | `--exclude-groups`  |       | no       | (none)         | Comma-separated `GroupID`s to drop from the whole analysis. |

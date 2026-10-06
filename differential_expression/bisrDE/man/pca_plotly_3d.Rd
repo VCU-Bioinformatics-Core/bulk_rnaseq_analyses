@@ -13,13 +13,17 @@ pipeline passes \code{\link[=qc_matrix]{qc_matrix()}} (blind VST, all genes).}
 \item{sample_info}{Data frame with \code{sample} and \code{condition} columns.}
 }
 \value{
-A \code{plotly} object with a title showing total explained
-variance across the three retained components.
+A \code{plotly} object titled
+\code{"Variance explained by PC1 + PC2 + PC3 = <x>\%"}, where \verb{<x>} is the
+summed percent variance of the three plotted components.
 }
 \description{
 Render an interactive 3D PCA scatter via \code{plotly::plot_ly}.
 Computes a separate \code{prcomp(rank. = 3)} (matching the parent
 pipeline's behavior — the 2D and 3D paths use independent prcomp
 calls). PC2 and PC3 axes are sign-flipped for visualization
-(preserves the parent pipeline's view orientation).
+(preserves the parent pipeline's view orientation). The title reports
+the percent variance explained by PC1, PC2 and PC3 together, summed
+from the per-component percentages (each rounded to 1 dp) and rounded
+to 1 dp; components beyond the third are not counted.
 }

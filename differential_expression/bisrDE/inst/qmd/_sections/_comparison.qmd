@@ -7,31 +7,6 @@
 
 **Volcano Plot**
 
-::: {.callout-tip title="How to read this"}
-```{r, include=FALSE}
-# Chunks in this file must stay UNLABELLED. report.qmd knits this child once
-# per comparison, and under Quarto a fixed label collides on the second pass
-# ("Duplicate chunk label 'x', which has been used for the chunk: ..."). This
-# is independent of the knitr version. Unnamed chunks are numbered
-# continuously across children, so they cannot collide.
-shrink_this <- if (!is.null(results[[i]]) && !is.null(results[[i]]$de_options) &&
-                   !is.null(results[[i]]$de_options$lfc_shrink)) results[[i]]$de_options$lfc_shrink else shrink_used
-```
-Each dot is a gene. X-axis = log2 fold change`r if (shrink_this != "none") sprintf(" (shrunken with lfcShrink type = \"%s\"; the DEG call and the dashed lines use the unshrunken estimate, so a coloured dot inside the lines is a noisy estimate the shrinkage pulled toward zero)", shrink_this) else ""` (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks the `padj` = `r padj_cut` cutoff; the **black dashed lines** mark |log2FC| = `r round(lfc_cut, 2)` (&#8776;`r fc_cut`x). Red and blue dots pass both thresholds; grey dots fail at least one.
-:::
-
-::: {.callout-note title="What to look for"}
-The strongest hits are in the **top-right** (most-up + most-confident) and **top-left** (most-down + most-confident). The labeled genes are the top hits by ascending `padj`. A **roughly symmetric** spread of red and blue is typical of paired contrasts; **heavy bias to one side** can be biological (e.g. a global suppressor) or a normalization artefact. Look at how many dots are above the red line — this is your "true" DEG count.
-:::
-
-::: {.callout-warning title="Common pitfalls"}
-**Very few or zero significant genes** can mean low effect size, low replicate count, high biological variability, or a contrast that doesn't capture the biology. **Crowded labels in the top corners** mean a subset of your top hits — don't conclude that the unlabeled significant genes are less interesting. **Genes with huge log2FC but high padj** are often low-expression genes where one sample has 0 counts — interesting but treat with caution. **Genes hugging the y-axis at log2FC &#8776; 0** that still hit significance are usually housekeeping with extremely low variance.
-:::
-
-::: {.callout-tip title="Next steps"}
-The full DEG list is in `data/de_data/DESeq2_<comparison>.csv`. For pathway-level interpretation, see the GO/KEGG/Reactome/Hallmark dotplots below. To do your own custom enrichment with IPA, upload the CSV per the **Utilizing IPA** section. The top-100 heatmap below shows the top hits with gene symbols.
-:::
-
 ```{r}
 #| out-width: "750px"
 #| fig-align: "center"
@@ -44,25 +19,32 @@ if (file.exists(volcano_path)) {
 }
 ```
 
-**Heatmaps**
-
 ::: {.callout-tip title="How to read this"}
-Rows are genes, columns are samples (only samples in this comparison's experimental and control groups — not the full samplesheet). Cell colour is the **z-score** — how many standard deviations a sample's expression sits above (red) or below (blue) the mean for that gene. Top and side dendrograms cluster samples and genes by similarity. Two heatmaps are produced: **all significant DEGs** (broad view, no row labels because too many genes) and **top 100 by `padj`** with gene-symbol labels (focused view).
+```{r, include=FALSE}
+# Chunks in this file must stay UNLABELLED. report.qmd knits this child once
+# per comparison, and under Quarto a fixed label collides on the second pass
+# ("Duplicate chunk label 'x', which has been used for the chunk: ..."). This
+# is independent of the knitr version. Unnamed chunks are numbered
+# continuously across children, so they cannot collide.
+shrink_this <- if (!is.null(results[[i]]) && !is.null(results[[i]]$de_options) &&
+                   !is.null(results[[i]]$de_options$lfc_shrink)) results[[i]]$de_options$lfc_shrink else shrink_used
+```
+Each dot is a gene. X-axis = log2 fold change`r if (shrink_this != "none") sprintf(" (shrunken with lfcShrink type = \"%s\"; the DEG call and the dashed lines use the unshrunken estimate, so a coloured dot inside the lines is a noisy estimate the shrinkage pulled toward zero)", shrink_this) else ""` (right = up in experimental, left = down). Y-axis = `-log10(padj)`, so higher = more statistically confident after FDR correction. The **red dashed line** marks the `padj` = `r padj_cut` cutoff; the **black dashed lines** mark |log2FC| = log2(`r fc_cut`) &#8776; `r round(lfc_cut, 3)` (`r fc_cut`x). Orange and blue dots pass both thresholds (orange = up in the experimental group, blue = down); grey dots fail at least one.
 :::
 
 ::: {.callout-note title="What to look for"}
-The two condition columns should split into **two distinct color blocks** (red on one side, blue on the other) for a clean DE signal. Within each condition column, replicates should look similar (same color intensity for a given row). The **gene clustering** on the side often reveals biologically related modules — neighboring rows tend to share regulatory logic.
+The strongest hits are in the **top-right** (most-up + most-confident) and **top-left** (most-down + most-confident). The labeled genes are the DEGs (orange and blue dots) with the smallest `padj`, up to a fixed number (10 by default); grey dots are never labeled, however high they sit. A **roughly symmetric** spread of orange and blue is common in a two-group comparison; **heavy bias to one side** can be biological (e.g. a global suppressor) or a normalization artefact. Count the coloured dots ("Over expressed" and "Under expressed" in the legend), not every dot above the red line: grey dots above it pass the `padj` cutoff but not the fold-change cutoff, so they are not DEGs. The exact DEG counts are in the **Summary of Comparisons** table.
 :::
 
 ::: {.callout-warning title="Common pitfalls"}
-**Mosaic patterns** (no clean column split) often indicate sample swaps or batch effects — cross-check with the QC correlation heatmap. **One sample column that's the inverse color of its group-mates** is a strong outlier signal. **A row that's all light grey** (no extreme z-score) usually means a low-variance gene that should not have been called significant — verify by checking the `baseMean` and `pvalue` for that gene in the DE CSV. The all-significant heatmap may be huge and unreadable for big DEG sets — use the top-100 view for visual inspection and the CSV for the full data.
+**Very few or zero significant genes** can mean low effect size, low replicate count, high biological variability, or a contrast that doesn't capture the biology. **Crowded labels in the top corners** mean a subset of your top hits; don't conclude that the unlabeled significant genes are less interesting. **Genes with huge log2FC but high padj** are often low-expression genes where one sample has 0 counts: interesting but treat with caution. **Grey dots near log2FC &#8776; 0 above the red line** are usually highly expressed genes with very low replicate variability, where even a small change is statistically detectable.
 :::
 
 ::: {.callout-tip title="Next steps"}
-For specific genes of interest, look them up in the DT table below the volcano. To explore custom gene sets, filter the `data/de_data/DESeq2_<comparison>.csv` and feed into your own clustering tool. For a sample-level view, the QC plots in the **Sample Exploration** section above are the right place.
+The full DE results table (every tested gene, not only the DEGs) is in `data/de_data/DESeq2_<comparison>.csv`; filter it on `padj` < `r padj_cut` and |`log2FoldChange`| &ge; log2(`r fc_cut`) (&#8776; `r round(lfc_cut, 3)`) to get the DEG list. For pathway-level interpretation, see the GO/KEGG/Reactome/Hallmark dotplots below. To do your own custom enrichment with IPA, upload the CSV per the **Utilizing IPA** section. The top-100 heatmap below shows the top hits with gene symbols.
 :::
 
-_**Left:** all genes that pass the significance thresholds (broad view, no row labels — too many genes to read). **Right:** top 100 genes ranked by ascending `padj`, with gene-symbol row labels (focused view)._
+**Heatmaps**
 
 ::: {layout-ncol=2}
 
@@ -79,7 +61,7 @@ if (file.exists(hm_all)) {
 }
 ```
 
-**Top 100 by padj**
+**Top 100 DEGs by padj**
 
 ```{r}
 #| out-width: "100%"
@@ -92,6 +74,24 @@ if (file.exists(hm_top)) {
 }
 ```
 
+:::
+
+_**Left:** all genes that pass the significance thresholds (broad view, no row labels). **Right:** the top 100 of those significant genes ranked by ascending `padj` (all of them when the comparison has 100 or fewer DEGs, in which case both panels show the same genes), with gene-symbol row labels, or the gene ID where no symbol exists (focused view)._
+
+::: {.callout-tip title="How to read this"}
+Rows are genes, columns are samples (only samples in this comparison's experimental and control groups, not the full samplesheet). Cell colour is the **z-score**: how many standard deviations a sample's log2 expression sits above (orange) or below (blue) the mean for that gene across the samples shown; white is the mean. Top and side dendrograms cluster samples and genes by similarity. When at least 2 genes pass the significance thresholds, two heatmaps are produced: **all significant DEGs** (broad view, no row labels) and **top 100 significant DEGs by `padj`** with gene-symbol labels (focused view). With fewer than 2 significant genes no heatmap is drawn, and a "not available" note appears in its place.
+:::
+
+::: {.callout-note title="What to look for"}
+The sample columns should group by condition, and for a clean DE signal each gene row should be orange in one condition's samples and blue in the other's. Genes up in the experimental group and genes down in it show opposite patterns, so a clean heatmap looks like **four colour blocks** (the up-regulated rows and the down-regulated rows each flip colour between the two conditions), not one orange side and one blue side. Within each condition column, replicates should look similar (same color intensity for a given row). The **gene clustering** on the side often reveals biologically related modules: neighboring rows tend to share regulatory logic.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**Patchy rows** whose colour flips within one condition's samples (no clean column split) often indicate sample swaps or batch effects; cross-check with the QC correlation heatmap. **One sample column that's the inverse color of its group-mates** is a strong outlier signal. **Colour intensity does not show effect size.** Each row is z-scored, so a gene with a small fold change can look as vivid as one with a large fold change. A row that is pale except for one vivid cell means that one sample carries the gene's variance (an outlier signal), not that the effect is weak. Check `log2FoldChange` and `baseMean` for that gene in the DE CSV to judge effect size and expression level. The all-significant heatmap may be huge and unreadable for big DEG sets; use the top-100 view for visual inspection and the CSV for the full data.
+:::
+
+::: {.callout-tip title="Next steps"}
+For specific genes of interest, search `data/de_data/DESeq2_<comparison>.csv`, which lists every tested gene; the DT tables below the heatmaps show only the top 20 up-regulated and top 20 down-regulated DEGs by `padj`. To explore custom gene sets, filter the `data/de_data/DESeq2_<comparison>.csv` and feed into your own clustering tool. For a sample-level view, the QC plots in the **Sample Exploration** section above are the right place.
 :::
 
 **Top Differentially Expressed Genes**
@@ -129,9 +129,12 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$deseq)) {
 }
 ```
 
-```{r}
-if (sum(deg_flags) == 0) {
+```{r, results='asis'}
+if (is.null(results[[i]]) || is.null(results[[i]]$deseq)) {
   cat("No differential expression results available for this comparison")
+} else if (sum(deg_flags) == 0) {
+  cat(sprintf("No genes passed padj < %s and |log2FC| &ge; %s in this comparison. All tested genes are in data/de_data/DESeq2_%s.csv",
+              padj_cut, round(lfc_cut, 3), comparisons[[i]]$name))
 }
 ```
 
@@ -173,25 +176,30 @@ if (deg_flags[2] > 0) {
 
 **Pathway / Gene-Set Enrichment**
 
-Four complementary enrichment analyses are run per comparison. Each is independent and uses the same ranked gene vector (ranked by `r gsea_rank_label`), so disagreement between them often signals a meaningful biological difference (a process specific to one ontology vs. one shared across many). Only gene sets with p.adjust < `r padj_cut` are shown in the dotplots and tables below; the full tables (with a `significant` column) are in the CSV files.
+Four complementary enrichment analyses are run per comparison. Each is independent and ranks genes by the same metric (`r gsea_rank_label`) from the same DESeq2 result. GO is run on Ensembl gene IDs, while KEGG, Reactome and Hallmark are run on Entrez IDs, so a gene that lacks one of those identifiers is left out of the analyses that need it. Disagreement between them reflects how each database defines its gene sets (a process covered by one collection vs. one shared across many) and which of your genes carry its identifier, not a difference in the DESeq2 result they start from; a theme that recurs across backends is the stronger evidence. Only gene sets with p.adjust < `r padj_cut` are shown in the dotplots and tables below; the full tables (with a `significant` column) are in the CSV files.
 
-::: {.callout-tip title="How to read these dotplots"}
-Each dot is a gene set. X-axis = **gene ratio** (fraction of the set's genes that appear in your ranked list). Dot **size** = absolute set size; **colour** = adjusted p-value (deeper red = more significant). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). The top 15 **significant** sets by `p.adjust` are shown; a missing plot means no set passed p.adjust < `r padj_cut`.
-:::
+```{r, include=FALSE}
+# A dotplot is explained only where there is one. The full explanation goes
+# under the first dotplot this comparison has, a one-line pointer under the
+# others, and nothing under a backend with no enriched set. ASCII only inside
+# R code: the render may run under a C locale.
+.dotplot_explained <- FALSE
+.explain_dotplot <- function(path, notes = character(0)) {
+  if (!file.exists(path)) return(invisible(NULL))
+  if (!.dotplot_explained) {
+    .dotplot_explained <<- TRUE
+    cat('::: {.callout-tip title="How to read these dotplots"}',
+        paste0("The dotplots in this section are read the same way. Each dot is a gene set. X-axis = **gene ratio** (the share of the set's genes that are in the leading edge, the core genes driving the enrichment; the set is counted over the genes present in your ranked list). Dot **size** = the number of the set's genes in the leading edge (legend: `Count`), not the size of the set in your ranked list (the `setSize` column of the table below); **colour** = adjusted p-value (yellow = most significant, darkening through orange and magenta to dark purple for the least significant of the sets shown). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). The top 15 **significant** sets by `p.adjust` are shown in each panel (so up to 30 in total); a missing plot means either that no set passed p.adjust < ",
+               padj_cut, ", or that the backend produced no result at all (no gene set of testable size, or the backend failed); the summary table shows `no result` in that case and the session log in `logs/` gives the reason."),
+        ':::', '', sep = "\n")
+  } else {
+    cat('*Read this dotplot the same way as the first dotplot in this section.*', '', sep = "\n")
+  }
+  cat(notes, '', sep = "\n")
+}
+```
 
-::: {.callout-note title="What to look for"}
-**Convergent themes across backends** are the strongest signal — if "ribosome biogenesis" lights up in GO, KEGG, Reactome, AND Hallmark, that's a robust biological signal. **Same direction in both panels** (activated AND suppressed of related sets) usually reflects bidirectional regulation of a shared process. Pay attention to set **size** — small sets (<20 genes) can look highly significant but be driven by a handful of genes, while large sets (200+) capture broad pathways with more biological context.
-:::
-
-::: {.callout-warning title="Common pitfalls"}
-**No enrichment found** is a real possibility for small / underpowered contrasts — don't force interpretations from the DEG list when GSEA disagrees. **High redundancy** between sets (e.g. multiple "translation"-themed GO terms) is normal because GO is hierarchical; the ID column distinguishes parent vs child terms. **Different backends disagreeing** is expected — they curate gene sets independently. **Hallmark is conservative** (50 well-curated sets); a Hallmark hit is usually robust. **Reactome is comprehensive** (>1500 sets); Reactome hits need more interpretation.
-:::
-
-::: {.callout-tip title="Next steps"}
-The full enrichment tables (one per backend) are below the dotplots; sort the DT table by `p.adjust` to see ranking, by `setSize` to find broad-impact sets, or by `NES` to find direction-aware enrichment. For a deeper IPA-style canonical-pathway view, upload the per-comparison DEG CSV to QIAGEN IPA per the **Utilizing IPA** section. The CSV files for each enrichment backend are in `data/{gsea,kegg,reactome,hallmark}_data/`.
-:::
-
-**GO Term Enrichment (gseGO)** — Gene Ontology Biological Process / Molecular Function / Cellular Component
+**GO Term Enrichment (gseGO)** &mdash; Gene Ontology Biological Process / Molecular Function / Cellular Component
 
 ```{r}
 #| out-width: "750px"
@@ -200,9 +208,18 @@ gsea_path <- file.path(out_dirs$gsea,
                        paste0(comparisons[[i]]$name, "_GSEA.png"))
 if (file.exists(gsea_path)) {
   knitr::include_graphics(gsea_path)
+} else if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
+  cat(sprintf("No GO dotplot: no GO term reached p.adjust < %s", padj_cut))
 } else {
   cat("GO enrichment not available for this comparison")
 }
+```
+
+```{r, results='asis'}
+.explain_dotplot(gsea_path, c(
+  '::: {.callout-warning title="Common pitfalls"}',
+  '**High redundancy** between sets (e.g. multiple "translation"-themed GO terms) is normal because GO is hierarchical; the ID column gives the GO accession of each term, which you can look up in QuickGO or AmiGO to see its parent and child terms.',
+  ':::'))
 ```
 
 ##### Top Enriched GO Terms (significant at p.adjust < `r padj_cut`, max 20)
@@ -241,7 +258,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
 
 <br>
 
-**KEGG Pathway Enrichment (gseKEGG)** — curated metabolic / signalling pathways from the KEGG database
+**KEGG Pathway Enrichment (gseKEGG)** &mdash; curated metabolic / signalling pathways from the KEGG database
 
 ```{r}
 #| out-width: "750px"
@@ -250,9 +267,15 @@ kegg_path <- file.path(out_dirs$kegg,
                        paste0(comparisons[[i]]$name, "_KEGG.png"))
 if (file.exists(kegg_path)) {
   knitr::include_graphics(kegg_path)
+} else if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
+  cat(sprintf("No KEGG dotplot: no KEGG pathway reached p.adjust < %s", padj_cut))
 } else {
   cat("KEGG enrichment not available for this comparison")
 }
+```
+
+```{r, results='asis'}
+.explain_dotplot(kegg_path)
 ```
 
 ##### Top Enriched KEGG Pathways (significant at p.adjust < `r padj_cut`, max 20)
@@ -283,7 +306,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
 
 <br>
 
-**Reactome Pathway Enrichment (gsePathway)** — biological pathways from the Reactome knowledgebase
+**Reactome Pathway Enrichment (gsePathway)** &mdash; biological pathways from the Reactome knowledgebase
 
 ```{r}
 #| out-width: "750px"
@@ -292,9 +315,18 @@ reactome_path <- file.path(out_dirs$reactome,
                            paste0(comparisons[[i]]$name, "_Reactome.png"))
 if (file.exists(reactome_path)) {
   knitr::include_graphics(reactome_path)
+} else if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
+  cat(sprintf("No Reactome dotplot: no Reactome pathway reached p.adjust < %s", padj_cut))
 } else {
   cat("Reactome enrichment not available for this comparison")
 }
+```
+
+```{r, results='asis'}
+.explain_dotplot(reactome_path, c(
+  '::: {.callout-warning title="Common pitfalls"}',
+  '**Reactome is comprehensive** (>1500 sets); Reactome hits need more interpretation.',
+  ':::'))
 ```
 
 ##### Top Enriched Reactome Pathways (significant at p.adjust < `r padj_cut`, max 20)
@@ -325,7 +357,7 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
 
 <br>
 
-**MSigDB Hallmark Gene Sets (GSEA + msigdbr H)** — 50 well-curated gene sets representing distinct biological states / processes
+**MSigDB Hallmark Gene Sets (GSEA + msigdbr H)** &mdash; 50 well-curated gene sets representing distinct biological states / processes
 
 ```{r}
 #| out-width: "750px"
@@ -334,9 +366,18 @@ hallmark_path <- file.path(out_dirs$hallmark,
                            paste0(comparisons[[i]]$name, "_Hallmark.png"))
 if (file.exists(hallmark_path)) {
   knitr::include_graphics(hallmark_path)
+} else if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
+  cat(sprintf("No Hallmark dotplot: no Hallmark gene set reached p.adjust < %s", padj_cut))
 } else {
   cat("Hallmark enrichment not available for this comparison")
 }
+```
+
+```{r, results='asis'}
+.explain_dotplot(hallmark_path, c(
+  '::: {.callout-note title="What to look for"}',
+  '**Hallmark is conservative** (50 well-curated sets); a Hallmark hit is usually robust.',
+  ':::'))
 ```
 
 ##### Top Enriched Hallmark Gene Sets (significant at p.adjust < `r padj_cut`, max 20)
@@ -365,4 +406,18 @@ if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
 }
 ```
 
-**Next steps:** Upload the per-comparison `DESeq2_<comparison>.csv` to **QIAGEN IPA** (see *Utilizing IPA* below) for full-fidelity pathway exploration. Reuse the **Manuscript-Ready Text** section verbatim in your manuscript Methods.
+**Reading the four enrichment analyses together**
+
+::: {.callout-note title="What to look for"}
+**Convergent themes across backends** are the strongest signal: if apoptosis-related sets light up in GO, KEGG, Reactome and Hallmark, that is a robust biological signal. **Related sets in both panels** (some activated, some suppressed) can reflect bidirectional regulation of a shared process; any single set appears in only one panel, decided by the sign of its NES. Pay attention to set **size** &mdash; small sets (<20 genes) can look highly significant but be driven by a handful of genes, while large sets (200+) capture broad pathways with more biological context.
+:::
+
+::: {.callout-warning title="Common pitfalls"}
+**No enrichment found** is a real possibility for small / underpowered contrasts &mdash; don't force interpretations from the DEG list when GSEA disagrees. **Different backends disagreeing** is expected &mdash; they curate gene sets independently.
+:::
+
+::: {.callout-tip title="Next steps"}
+The tables under each dotplot above (one per backend) list up to 20 significant sets, smallest `p.adjust` first; sort a table by `setSize` to find broad-impact sets, or by `NES` to find direction-aware enrichment. For a deeper IPA-style canonical-pathway view, upload the per-comparison DE results CSV to QIAGEN IPA per the **Utilizing IPA** section. The full tables for each enrichment backend are in `data/{gsea,kegg,reactome,hallmark}_data/`.
+:::
+
+**Next steps:** Upload the per-comparison `DESeq2_<comparison>.csv` to **QIAGEN IPA** (see *Utilizing IPA* below) for full-fidelity pathway exploration. Use the **Manuscript-Ready Text** section as the starting point for your manuscript Methods: confirm the genome assembly and the quantification method (Salmon or RSEM) against the nf-core run record, and remove the parenthetical notes addressed to the reader before submitting.
