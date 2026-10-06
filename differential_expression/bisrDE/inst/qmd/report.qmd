@@ -137,7 +137,7 @@ legacy_bundle <- length(rds_data) < 11
 **Analyst:** `r params$analyst`
 
 This report covers `r length(comparisons)` comparisons.
-It starts with an **Executive Summary** that distills each comparison into a few plain-English
+It starts with an **Executive Summary** that distills each comparison into a few
 bullet points, then a **Pipeline** section that lists the analysis steps, thresholds and output
 files, and a **Sample Exploration using PCA** section that highlights sample similarity and
 helps surface outliers. Next, we present the **Differential Expression Results**
