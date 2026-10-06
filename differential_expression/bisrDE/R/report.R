@@ -24,7 +24,8 @@
 #' @param report_prefix Prefix for the output HTML filename. Default
 #'   `"rnaseq_analysis"`. Combined with a timestamp at render time.
 #' @param platform Free-text description of where the analysis ran, used in
-#'   the Methods sentence "All computational analyses were performed on ...".
+#'   the Methods sentence "The differential expression and enrichment analyses
+#'   were performed on ...".
 #'   The template prefers the value recorded at analysis time in the RDS
 #'   (`run_options$platform`, see [.run_platform()]); this argument is the
 #'   fallback for bundles that predate it. Default `.run_platform()`: the
@@ -42,10 +43,10 @@
 #'           string (no stray YAML field).
 #'     \item Calling `quarto::quarto_render` with `execute_params` =
 #'           `list(rds_path, analyst, brs_ticket, genome_assembly,
-#'           sections_dir, bisrde_version, upstream_versions_path,
-#'           run_platform)`. The last three are resolved here because the
-#'           render runs in its own R process where, in dev mode, neither
-#'           the package version nor `system.file()` resolve.
+#'           sections_dir, bisrde_version, run_platform)`. The last two
+#'           are resolved here because the render runs in its own R
+#'           process where, in dev mode, the package version does not
+#'           resolve.
 #'     \item Moving the rendered HTML to `output_dir` with a timestamped
 #'           filename.
 #'   }
@@ -86,11 +87,9 @@ generate_report <- function(rds_path,
   # Quarto renders in a separate R process where bisrDE may not be loaded
   # (dev mode via devtools::load_all()), so anything that needs the package
   # on the search path is resolved HERE and passed in as a param: the bisrDE
-  # version (was rendering as "dev") and the upstream-versions YAML (was
-  # rendering as blanks such as "STAR v").
+  # version (was rendering as "dev").
   bisrde_version <- tryCatch(as.character(utils::packageVersion("bisrDE")),
                              error = function(e) "")
-  upstream_path <- system.file("extdata/upstream_versions.yml", package = "bisrDE")
   if (is.null(platform) || !nzchar(platform)) platform <- .run_platform()
 
   template_path <- system.file("qmd/report.qmd", package = "bisrDE")
@@ -144,7 +143,6 @@ generate_report <- function(rds_path,
       genome_assembly = genome_assembly,
       sections_dir    = normalizePath(sections_dest, mustWork = TRUE),
       bisrde_version  = bisrde_version,
-      upstream_versions_path = upstream_path,
       run_platform    = platform
     ),
     quiet = FALSE

@@ -50,8 +50,7 @@ Imports:
     SummarizedExperiment,
     tidyselect,
     tools,
-    utils,
-    yaml
+    utils
 Suggests:
     apeglm,
     cluster,

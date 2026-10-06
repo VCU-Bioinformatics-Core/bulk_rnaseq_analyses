@@ -72,6 +72,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files.** The two lines under the interactive PCA plots showed the output
   directory as it was on the machine that ran the analysis. They now give the
   location inside the output directory, `figures/pca/`.
+- **The report's explanatory text was checked statement by statement against
+  the code and corrected.** 494 statements in the two templates were compared
+  with the plotting and enrichment code, the library sources and the figures of
+  a run on the bundled example. 86 were wrong, inconsistent or misleading and
+  are now fixed. The ones that changed what a reader would conclude: the
+  volcano guidance counted every dot above the padj line as a DEG and called
+  the up-regulated dots red (they are orange, and grey dots above the line fail
+  the fold-change cutoff); the per-comparison CSV was called the DEG list (it
+  holds every tested gene); the heatmap text described one red side and one
+  blue side and a "light grey" row (z-scores are per gene, so a clean result
+  shows four colour blocks and no row can be uniformly pale); the dotplot
+  callout defined gene ratio, dot size and colour differently from the code
+  (gene ratio is the leading-edge count over `setSize`, size is the
+  leading-edge count, and the palette runs from yellow for the most
+  significant set to dark purple); the density-curve pitfall called two humps
+  a sign of failed rRNA depletion (they are the normal shape, because
+  unexpressed genes pile up at zero); the correlation heatmap text promised
+  dark red within-group blocks (white is pinned to the run's median, so only
+  the diagonal saturates); the Executive Summary skipped enrichment for a
+  comparison with no DEGs and reported "no gene set reached p.adjust" when a
+  backend had returned nothing. The glossary, the Pipeline section and the
+  Methods paragraph now share one definition each for gene ratio, the
+  fold-change cutoff (|log2FC| at or above log2(FC), 0.585 for 1.5-fold rather
+  than 0.58), the QC matrix ("all genes that passed the low-count filter") and
+  which transform feeds each sample-level plot. A backend that produced no
+  result object shows `no result` in the summary table instead of `not run`,
+  and every sentence about it follows. The Methods text names Salmon or RSEM
+  with a citation for each, cites the DESeq2 vignette rather than Love 2014 for
+  the count pre-filter, states the shrinkage method from what each comparison
+  recorded, and tells the reader to confirm the assembly and the quantifier
+  against the nf-core run record instead of pasting the section verbatim.
+- **The Methods paragraph names the upstream nf-core/rnaseq tools without
+  version numbers.** The numbers came from a hand-maintained file inside the
+  package, not from the nf-core run that produced the counts, so they could be
+  wrong for any given project. FastQC, Trim Galore!, STAR, Salmon, RSEM and
+  MultiQC are cited by name. `inst/extdata/upstream_versions.yml`, the helper
+  that read it and the `yaml` import are gone; R package versions are still
+  read from the analysis record.
 
 ### Fixed
 
@@ -83,6 +121,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   take rounding, instead of the three components on the axes. It now reads
   "Variance explained by PC1 + PC2 + PC3 = x%" (88.8% for the bundled example).
   A unit test on synthetic data fails on the old code and passes on the new.
+- **Per-comparison sections rendered non-ASCII characters as byte escapes.**
+  The per-comparison child is knitted once per comparison and its output
+  written with `useBytes = TRUE` (since v1.7.0), so every em dash and similar
+  character in the child's prose appeared as `<80><94>` in the report: 54
+  occurrences in a three-comparison render of the bundled example. The child
+  is now ASCII only, with HTML entities where a symbol is needed, and the
+  render has none.
+- **A comparison with DESeq2 results but no significant gene said "No
+  differential expression results available".** It now says that no gene
+  passed the thresholds and names the CSV that holds every tested gene; the
+  old message appears only when the comparison has no DESeq2 result. The
+  fallback under each dotplot makes the same distinction (no significant set,
+  or no result object).
 
 ## [1.7.1] - 2026-09-28
 
