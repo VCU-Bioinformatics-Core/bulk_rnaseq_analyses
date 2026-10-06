@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps the output directory and prints its path. `just bump` now points at
   this recipe and prints the `gh release create` command with `--target`,
   without which gh tags the default branch instead of the release commit.
+- **`--analyst` sets the name printed in the report header.** Every report
+  named the same analyst because the template default was the only source and
+  nothing overrode it. The flag is forwarded to `generate_report()`; the bash
+  launcher and the Go TUI ask for it and read `BISR_ANALYST`, and
+  `submit_slurm.sh` reads `ANALYST`. Without the flag the report reads exactly
+  as before. The parity test covers a name with a space and a blank value,
+  which both launchers drop.
 
 ### Changed
 

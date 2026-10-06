@@ -41,6 +41,7 @@ RUNID="${RUNID:-run_$(date +%Y%m%d_%H%M%S)}"
 ANNOTATION="${ANNOTATION:-human}"          # human | mouse
 IDTYPE="${IDTYPE:-ensembl}"                # ensembl | entrez | symbol
 BRS_TICKET="${BRS_TICKET:-}"               # e.g. BRS-1234 (optional)
+ANALYST="${ANALYST:-}"                     # name shown in the report header (optional, default Mikail Bala)
 FOLD_CHANGE="${FOLD_CHANGE:-1.5}"
 PADJ="${PADJ:-0.05}"
 GSEA_RANK="${GSEA_RANK:-stat}"                       # stat | log2fc
@@ -168,6 +169,7 @@ args=(--counts "$COUNTS" --samplesheet "$SAMPLESHEET"
       --gsea-rank "$GSEA_RANK" --lfc-shrink "$LFC_SHRINK")
 [ "$INDEPENDENT_FILTERING" = "yes" ] && args+=(--independent-filtering)
 [ -n "$BRS_TICKET" ] && args+=(--brs-ticket "$BRS_TICKET")
+[ -n "${ANALYST//[[:space:]]/}" ] && args+=(--analyst "$ANALYST")
 
 bash run_analysis.sh "${args[@]}"
 

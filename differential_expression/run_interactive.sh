@@ -312,6 +312,7 @@ annotation=$(ask_choose "Genome annotation" "${BISR_ANNOTATION:-}" human mouse)
 runid=$(ask_input       "Run ID"            "run_$(date +%Y%m%d_%H%M%S)"        "${BISR_RUNID:-}")
 outdir=$(ask_input      "Output directory"  "./results"                        "${BISR_OUTDIR:-}")
 brs=$(ask_input         "BRS ticket (blank = none)" ""                         "${BISR_BRS:-}")
+analyst=$(ask_input     "Analyst name (blank = report default)" ""            "${BISR_ANALYST:-}")
 idtype=$(ask_choose     "Gene ID type"      "${BISR_IDTYPE:-}" ensembl entrez symbol)
 vlabels=$(ask_input     "Volcano labels — max genes to name (top N)" "10"           "${BISR_VOLCANO_LABELS:-}")
 foldchange=$(ask_input  "Fold-change cutoff (e.g. 2 = 2-fold)"       "1.5"          "${BISR_FOLD_CHANGE:-}")
@@ -377,6 +378,7 @@ args=(--counts "$counts" --samplesheet "$samplesheet" --outdir "$outdir"
       --gsea-rank "$gsearank" --lfc-shrink "$lfcshrink")
 [ "$indepfilt" = "yes" ] && args+=(--independent-filtering)
 [ -n "$brs" ]            && args+=(--brs-ticket "$brs")
+[ -n "${analyst//[[:space:]]/}" ] && args+=(--analyst "$analyst")  # trimmed test matches the TUI
 [ -n "$excl_samples" ]   && args+=(--exclude-samples "$excl_samples")
 [ -n "$excl_groups" ]    && args+=(--exclude-groups "$excl_groups")
 [ -n "$incl_contrasts" ] && args+=(--include-contrasts "$incl_contrasts")
@@ -396,6 +398,7 @@ summary_md=$(cat <<EOF
 | Run ID         | $runid |
 | Output dir     | \`$outdir\` |
 | BRS ticket     | ${brs:-—} |
+| Analyst        | ${analyst:-—} |
 | ID type        | $idtype |
 | Volcano labels | $vlabels |
 | Fold-change    | $foldchange |

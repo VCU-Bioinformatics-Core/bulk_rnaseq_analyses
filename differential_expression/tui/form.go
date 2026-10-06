@@ -39,6 +39,7 @@ func defaultConfig() Config {
 		Runid:            envOr("BISR_RUNID", "run_"+time.Now().Format("20060102_150405")),
 		Annotation:       envOr("BISR_ANNOTATION", "mouse"),
 		BRS:              envOr("BISR_BRS", ""),
+		Analyst:          envOr("BISR_ANALYST", ""),
 		IDType:           envOr("BISR_IDTYPE", "ensembl"),
 		VolcanoLabels:    envOr("BISR_VOLCANO_LABELS", "10"),
 		FoldChange:       envOr("BISR_FOLD_CHANGE", "1.5"),
@@ -152,6 +153,7 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 			huh.NewInput().Title("Run ID").Value(&c.Runid),
 			huh.NewInput().Title("Output directory").Value(&c.Outdir),
 			huh.NewInput().Title("BRS ticket (optional)").Value(&c.BRS),
+			huh.NewInput().Title("Analyst name (optional)").Value(&c.Analyst),
 			huh.NewSelect[string]().Title("Gene ID type").
 				Options(huh.NewOptions("ensembl", "entrez", "symbol")...).
 				Value(&c.IDType),

@@ -15,6 +15,7 @@
 #     --runid <unique_id> \
 #     --annotation <mouse|human> \
 #     [--brs-ticket BRS-XXXX] \
+#     [--analyst "Name"] \
 #     [--id-type <ensembl|entrez|symbol>]
 
 suppressPackageStartupMessages({
@@ -96,6 +97,10 @@ option_list <- list(
   make_option(c("-b", "--brs-ticket"),
     type = "character", default = NULL,
     help = "Optional BRS ticket identifier (e.g. BRS-1234), rendered as a subtitle in the report."
+  ),
+  make_option("--analyst",
+    type = "character", default = "Mikail Bala",
+    help = "Analyst name shown in the report header [default %default]."
   ),
   make_option(c("-i", "--id-type"),
     type = "character", default = "ensembl",
@@ -206,7 +211,8 @@ tryCatch({
   bisrDE::generate_report(
     rds_path   = res$rds_path,
     output_dir = opt$outdir,
-    brs_ticket = brs_ticket
+    brs_ticket = brs_ticket,
+    analyst    = opt$analyst
   )
 }, interrupt = function(cnd) {
   # Ctrl-C during a long run: don't leave the session log sink open and the
