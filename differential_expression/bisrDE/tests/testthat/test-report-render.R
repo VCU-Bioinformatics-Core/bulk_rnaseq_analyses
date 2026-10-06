@@ -154,6 +154,26 @@ test_that("per-comparison child templates contain no labelled chunks", {
   }
 })
 
+test_that("per-comparison child templates contain only ASCII", {
+  # report.qmd writes each knitted child with useBytes = TRUE, so a byte above
+  # 0x7F in the child's prose reaches the report as a literal escape such as
+  # <80><94> instead of the character. Symbols go in as HTML entities.
+  sections <- system.file("qmd/_sections", package = "bisrDE")
+  expect_true(nzchar(sections) && dir.exists(sections))
+
+  for (child in list.files(sections, pattern = "\\.qmd$", full.names = TRUE)) {
+    lines <- readLines(child, warn = FALSE, encoding = "bytes")
+    hit   <- grepl("[^\\x01-\\x7F]", lines, perl = TRUE, useBytes = TRUE)
+    expect_false(
+      any(hit),
+      info = paste0(
+        basename(child), " has a non-ASCII character at line",
+        if (sum(hit) > 1) "s " else " ", paste(which(hit), collapse = ", "),
+        ". The knitted child is written with useBytes = TRUE, so the report ",
+        "shows such characters as byte escapes; use an HTML entity instead."))
+  }
+})
+
 test_that("the report renders for a run with several comparisons", {
   skip_on_cran()
   skip_if_not(nzchar(Sys.getenv("BISR_TEST_RENDER")),

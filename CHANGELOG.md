@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `submit_slurm.sh` reads `ANALYST`. Without the flag the report reads exactly
   as before. The parity test covers a name with a space and a blank value,
   which both launchers drop.
+- **A structural test keeps the per-comparison child ASCII only.** It fails,
+  naming the file and line, when a byte above 0x7F appears in any template
+  under `inst/qmd/_sections/`, because such characters reach the report as
+  byte escapes (see Fixed below). Checked against an em dash inserted in the
+  child: the test names the line; with the child restored it passes.
 
 ### Changed
 
