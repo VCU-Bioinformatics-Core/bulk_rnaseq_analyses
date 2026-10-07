@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **DESeq2 independent filtering is on by default.** It is DESeq2's own
+  default: genes with too little information to reach significance are left
+  out of the multiple-testing correction, which gains power on the rest and
+  leaves `padj` empty for the genes it removes. Adjusted p-values, and so DEG
+  counts, change for every run that keeps the default; `--independent-filtering
+  no` reproduces the tables of releases up to v1.8.0. The Methods text states
+  the setting a run used and the run JSON records it. `perform_deseq2_analysis()`,
+  `run_analysis()` and `run_pipeline()` default to `TRUE`; the bash launcher,
+  the Go TUI and `submit_slurm.sh` default to `yes`.
+- **`--independent-filtering` takes a value, `yes` or `no`** (also true/false
+  and on/off), so `--help` shows the default and both launchers always pass the
+  chosen value in a fixed position of the argument vector. The bare switch form
+  from v1.7.0 and v1.8.0 no longer works: followed by another flag it fails with
+  "must be 'yes' or 'no'".
+- **`--annotation` defaults to `human` everywhere.** `de.R`, the README and
+  the Go TUI said mouse while the bash launcher's first choice and the Slurm
+  template said human, and the two launchers only agreed because the parity
+  test pinned the value. The nf-module default follows. A `de.R` call that
+  relied on the mouse default must now pass `--annotation mouse`; both
+  launchers always pass the value explicitly, as before.
+- **Every option with a default says so.** `Rscript de.R --help` prints
+  `[default x]` for each one and marks the recommended method settings; the
+  launcher and TUI choice prompts name their default in the title; the README
+  table and the Slurm template comments match.
 - **The report overview no longer calls the Executive Summary "plain-English".**
   The sentence now says the summary distills each comparison into a few
   bullet points.

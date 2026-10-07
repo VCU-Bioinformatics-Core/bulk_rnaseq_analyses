@@ -13,7 +13,7 @@
 #     --samplesheet <samplesheet.csv> \
 #     --outdir <out_dir> \
 #     --runid <unique_id> \
-#     --annotation <mouse|human> \
+#     --annotation <human|mouse> \
 #     [--brs-ticket BRS-XXXX] \
 #     [--analyst "Name"] \
 #     [--id-type <ensembl|entrez|symbol>]
@@ -91,8 +91,8 @@ option_list <- list(
     metavar = "character"
   ),
   make_option(c("-a", "--annotation"),
-    type = "character", default = "mouse",
-    help = "Genome annotation: 'mouse' or 'human' [default %default]."
+    type = "character", default = "human",
+    help = "Genome annotation: 'human' or 'mouse' [default %default]."
   ),
   make_option(c("-b", "--brs-ticket"),
     type = "character", default = NULL,
@@ -104,7 +104,7 @@ option_list <- list(
   ),
   make_option(c("-i", "--id-type"),
     type = "character", default = "ensembl",
-    help = "Gene identifier type used in the counts matrix rownames: 'ensembl' (default), 'entrez', or 'symbol'."
+    help = "Gene identifier type used in the counts matrix rownames: 'ensembl', 'entrez', or 'symbol' [default %default]."
   ),
   make_option("--exclude-samples",
     type = "character", default = NULL,
@@ -136,15 +136,15 @@ option_list <- list(
   ),
   make_option("--gsea-rank",
     type = "character", default = "stat",
-    help = "Ranking metric for pre-ranked GSEA: 'stat' (DESeq2 Wald statistic, default) or 'log2fc' (pre-v1.7 behaviour)."
+    help = "Ranking metric for pre-ranked GSEA: 'stat' (DESeq2 Wald statistic) or 'log2fc' (pre-v1.7 behaviour) [default %default, recommended]."
   ),
   make_option("--lfc-shrink",
     type = "character", default = "apeglm",
-    help = "Log2 fold-change shrinkage for volcano plots and the DE CSV (log2FC_shrunken column): 'apeglm' (default; falls back to 'normal' if apeglm is not installed), 'normal', or 'none'. DEG calls always use the unshrunken estimate."
+    help = "Log2 fold-change shrinkage for volcano plots and the DE CSV (log2FC_shrunken column): 'apeglm' (falls back to 'normal' if apeglm is not installed), 'normal', or 'none' [default %default, recommended]. DEG calls always use the unshrunken estimate."
   ),
   make_option("--independent-filtering",
-    action = "store_true", default = FALSE,
-    help = "Enable DESeq2's independent filtering (DESeq2's own default). Off by default: every tested gene keeps an adjusted p-value."
+    type = "character", default = "yes",
+    help = "DESeq2 independent filtering: 'yes' or 'no' [default %default, recommended; DESeq2's own default]. 'no' keeps an adjusted p-value for every tested gene (the behaviour up to v1.8.0)."
   )
 )
 opt_parser <- OptionParser(option_list = option_list)
@@ -161,6 +161,18 @@ if (is.null(opt$runid) | is.null(opt$counts) |
 # can treat them as simple strings.
 brs_ticket <- if (is.null(opt[["brs-ticket"]])) "" else opt[["brs-ticket"]]
 id_type    <- if (is.null(opt[["id-type"]]))    "ensembl" else opt[["id-type"]]
+
+# --independent-filtering takes yes/no (also true/false, on/off) so the default
+# is visible in --help and the launchers can always pass the chosen value.
+indep_filt <- tolower(trimws(opt[["independent-filtering"]]))
+if (indep_filt %in% c("yes", "true", "on")) {
+  indep_filt <- TRUE
+} else if (indep_filt %in% c("no", "false", "off")) {
+  indep_filt <- FALSE
+} else {
+  stop("--independent-filtering must be 'yes' or 'no', got '",
+       opt[["independent-filtering"]], "'", call. = FALSE)
+}
 
 # Comma-separated list flags -> character vectors (NULL when unset/empty).
 split_csv <- function(x) {
@@ -203,7 +215,7 @@ tryCatch({
     padj              = opt[["padj"]],
     fold_change       = opt[["fold-change"]],
     session_log       = slog,
-    independent_filtering = isTRUE(opt[["independent-filtering"]]),
+    independent_filtering = indep_filt,
     gsea_rank         = opt[["gsea-rank"]],
     lfc_shrink        = opt[["lfc-shrink"]]
   )
