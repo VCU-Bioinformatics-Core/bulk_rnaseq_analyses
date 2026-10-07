@@ -27,6 +27,12 @@
 #
 #     sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,INDEPENDENT_FILTERING=no,... submit_slurm.sh
 #
+# Runtime (default RUNTIME=auto: the container when apptainer is on PATH and the
+# image has been pulled, otherwise conda). To use the prebuilt image, pull it
+# once on a login node with `bash pull_container.sh`, then:
+#
+#     sbatch --export=ALL,RUNTIME=container,BISR_SIF_DIR=/shared/bisrde,... submit_slurm.sh
+#
 # Check on it with:  squeue -u $USER      /  tail -f slurm-bisrde-<jobid>.out
 
 set -euo pipefail
@@ -54,6 +60,16 @@ INDEPENDENT_FILTERING="${INDEPENDENT_FILTERING:-yes}" # yes | no (default yes, D
 PLATFORM_NAME="${PLATFORM_NAME:-}"
 [ -n "$PLATFORM_NAME" ] || PLATFORM_NAME="VCU's High Performance Research Computing (HPRC) cluster"
 export BISR_PLATFORM_NAME="$PLATFORM_NAME"
+
+# How to run: auto | container | conda.
+#   container  the prebuilt Apptainer image (bisrde_<version>.sif in BISR_SIF_DIR,
+#              or the file named by BISR_SIF). No conda env needed and no MSigDB
+#              preflight: the gene sets are baked in. Compute nodes cannot pull,
+#              so the image must already exist (pull_container.sh on a login node).
+#   conda      the conda environment below, as before.
+#   auto       container when apptainer/singularity is on PATH and the image is
+#              already present (or BISR_SIF is set), otherwise conda.
+RUNTIME="${RUNTIME:-auto}"
 
 # Name of the conda environment (see environment.yml). If your site provides a
 # central module instead, replace the activation block below with `module load`.
@@ -91,6 +107,51 @@ if [ ! -f "$PIPELINE_DIR/run_analysis.sh" ]; then
 fi
 
 cd "$PIPELINE_DIR"
+
+# --------------------------------------------------------------------------
+# Runtime
+# --------------------------------------------------------------------------
+# Resolve the image the launcher would use, so auto can check it exists.
+VERSION="$(sed -n 's/^Version:[[:space:]]*//p' bisrDE/DESCRIPTION 2>/dev/null || true)"
+VERSION="${VERSION:-latest}"
+SIF_DIR="${BISR_SIF_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/bisrde}"
+SIF="${BISR_SIF:-$SIF_DIR/bisrde_$VERSION.sif}"
+
+# Compute nodes have no network, so nothing in this job may pull an image;
+# run_analysis.sh says how to fetch it on a login node instead.
+export BISR_NO_PULL=1
+
+# An explicit BISR_SIF selects the container whether or not the file exists,
+# so a mistyped path fails in the launcher with a message naming it instead
+# of silently running conda.
+if [ "$RUNTIME" = "auto" ]; then
+    if { command -v apptainer >/dev/null 2>&1 || command -v singularity >/dev/null 2>&1; } \
+       && { [ -n "${BISR_SIF:-}" ] || [ -f "$SIF" ]; }; then
+        RUNTIME=container
+    else
+        RUNTIME=conda
+    fi
+fi
+
+case "$RUNTIME" in
+    container|conda) ;;
+    *) echo "ERROR: RUNTIME must be auto, container or conda (got: $RUNTIME)" >&2; exit 2 ;;
+esac
+
+if [ "$RUNTIME" = "container" ]; then
+    # The launcher does the rest; the image must be there already.
+    export BISR_RUNTIME=container
+    [ -z "${BISR_SIF_DIR:-}" ] || export BISR_SIF_DIR
+    [ -z "${BISR_SIF:-}" ] || export BISR_SIF
+    ENV_LINE="$SIF"
+    R_LINE="inside the image"
+    MSIGDB_STATUS="baked into the image"
+else
+
+# Pin the launcher to this decision: its own auto rule would otherwise pick
+# the container when a legacy dge_analysis.sif sits next to it or another
+# Rscript shadows the env's, after conda has already been activated here.
+export BISR_RUNTIME=conda
 
 # Activate conda. `conda activate` needs the shell hook in a non-interactive
 # job, which is why this is not just `conda activate`.
@@ -149,10 +210,16 @@ else
     } >&2
 fi
 
+ENV_LINE="${CONDA_PREFIX:-<none>}"
+R_LINE="$(command -v Rscript) ($(Rscript --no-init-file -e 'cat(R.version.string)' 2>/dev/null))"
+
+fi  # RUNTIME
+
 echo "host:      $(hostname)"
 echo "job:       ${SLURM_JOB_ID:-<interactive>}"
-echo "env:       ${CONDA_PREFIX:-<none>}"
-echo "R:         $(command -v Rscript) ($(Rscript --no-init-file -e 'cat(R.version.string)' 2>/dev/null))"
+echo "runtime:   $RUNTIME"
+echo "env:       $ENV_LINE"
+echo "R:         $R_LINE"
 echo "outdir:    $OUTDIR"
 echo "methods:   gsea-rank=$GSEA_RANK  lfc-shrink=$LFC_SHRINK  independent-filtering=$INDEPENDENT_FILTERING"
 echo "platform:  $BISR_PLATFORM_NAME"

@@ -25,8 +25,8 @@ GOOS=linux GOARCH=amd64 go build -o bisrde-tui-linux-amd64 .
 ```
 
 The binary is git-ignored (built per-platform). Ship prebuilt binaries as
-GitHub release assets so HPC users don't need Go; the container
-(`dge_analysis.def`) can `COPY` the Linux binary in.
+GitHub release assets so HPC users don't need Go; the container image
+(`Dockerfile`) can `COPY` the Linux binary in.
 
 ## Run
 
