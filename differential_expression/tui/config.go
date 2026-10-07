@@ -43,10 +43,7 @@ func (c Config) ToArgs() []string {
 		"--padj", c.Padj,
 		"--gsea-rank", c.GseaRank,
 		"--lfc-shrink", c.LfcShrink,
-	}
-	// Exact "yes" to stay byte-identical with run_interactive.sh's test.
-	if strings.TrimSpace(c.IndepFiltering) == "yes" {
-		args = append(args, "--independent-filtering")
+		"--independent-filtering", c.IndepFiltering,
 	}
 	if strings.TrimSpace(c.BRS) != "" {
 		args = append(args, "--brs-ticket", c.BRS)

@@ -111,7 +111,7 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
                          deseq_norm_counts = NULL,
                          padj = 0.05, lfc = 0.58,
                          tick = NULL,
-                         independent_filtering = FALSE,
+                         independent_filtering = TRUE,
                          lfc_shrink = "none",
                          gsea_rank = "stat",
                          gene_meta = NULL) {
@@ -407,7 +407,7 @@ run_pipeline <- function(counts_path,
                          padj              = 0.05,
                          fold_change       = 1.5,
                          session_log       = NULL,
-                         independent_filtering = FALSE,
+                         independent_filtering = TRUE,
                          gsea_rank         = c("stat", "log2fc"),
                          lfc_shrink        = c("apeglm", "normal", "none")) {
   annotation <- match.arg(annotation, c("human", "mouse"))
