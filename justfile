@@ -152,7 +152,8 @@ bump version:
     echo "bumping $cur -> {{version}}"
     sed -i '' "s/^Version: .*/Version: {{version}}/" bisrDE/DESCRIPTION
     sed -i '' "s/v$cur/v{{version}}/g" README.md run_interactive.sh tui/main.go
-    grep -rn "{{version}}" bisrDE/DESCRIPTION README.md run_interactive.sh tui/main.go | head
+    sed -i '' "s|bisrde:$cur|bisrde:{{version}}|" nf-module/nextflow.config
+    grep -rn "{{version}}" bisrDE/DESCRIPTION README.md run_interactive.sh tui/main.go nf-module/nextflow.config | head
     echo "now update CHANGELOG.md (section + Version History row), then:"
     echo "  just release-check"
     echo "  git commit, then git push"
