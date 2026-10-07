@@ -18,7 +18,7 @@ run_analysis(
   padj = 0.05,
   lfc = 0.58,
   tick = NULL,
-  independent_filtering = TRUE,
+  independent_filtering = FALSE,
   lfc_shrink = "none",
   gsea_rank = "stat",
   gene_meta = NULL

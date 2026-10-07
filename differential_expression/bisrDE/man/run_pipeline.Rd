@@ -20,7 +20,7 @@ run_pipeline(
   padj = 0.05,
   fold_change = 1.5,
   session_log = NULL,
-  independent_filtering = TRUE,
+  independent_filtering = FALSE,
   gsea_rank = c("stat", "log2fc"),
   lfc_shrink = c("apeglm", "normal", "none")
 )

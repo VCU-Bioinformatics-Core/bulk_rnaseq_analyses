@@ -22,10 +22,10 @@
 #     sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
 #     OUTDIR=/path/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
 #
-# Method knobs (defaults: GSEA_RANK=stat, LFC_SHRINK=apeglm, INDEPENDENT_FILTERING=yes),
-# e.g. to reproduce a pre-1.7 ranking and the pre-1.9 padj behaviour:
+# Method knobs (v1.7): GSEA_RANK=stat|log2fc, LFC_SHRINK=apeglm|normal|none,
+# INDEPENDENT_FILTERING=yes|no, e.g. to reproduce a pre-1.7 ranking:
 #
-#     sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,INDEPENDENT_FILTERING=no,... submit_slurm.sh
+#     sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,... submit_slurm.sh
 #
 # Check on it with:  squeue -u $USER      /  tail -f slurm-bisrde-<jobid>.out
 
@@ -46,7 +46,7 @@ FOLD_CHANGE="${FOLD_CHANGE:-1.5}"
 PADJ="${PADJ:-0.05}"
 GSEA_RANK="${GSEA_RANK:-stat}"                       # stat | log2fc
 LFC_SHRINK="${LFC_SHRINK:-apeglm}"                   # apeglm | normal | none
-INDEPENDENT_FILTERING="${INDEPENDENT_FILTERING:-yes}" # yes | no (default yes, DESeq2's own default; no = pre-1.9 behaviour)
+INDEPENDENT_FILTERING="${INDEPENDENT_FILTERING:-no}" # yes | no (DESeq2 default is yes)
 
 # Named in the report's Methods ("All computational analyses were performed
 # on ..."). Recorded at analysis time by the pipeline; override via --export.
@@ -166,8 +166,8 @@ args=(--counts "$COUNTS" --samplesheet "$SAMPLESHEET"
       --outdir "$OUTDIR" --runid "$RUNID"
       --annotation "$ANNOTATION" --id-type "$IDTYPE"
       --fold-change "$FOLD_CHANGE" --padj "$PADJ"
-      --gsea-rank "$GSEA_RANK" --lfc-shrink "$LFC_SHRINK"
-      --independent-filtering "$INDEPENDENT_FILTERING")
+      --gsea-rank "$GSEA_RANK" --lfc-shrink "$LFC_SHRINK")
+[ "$INDEPENDENT_FILTERING" = "yes" ] && args+=(--independent-filtering)
 [ -n "$BRS_TICKET" ] && args+=(--brs-ticket "$BRS_TICKET")
 [ -n "${ANALYST//[[:space:]]/}" ] && args+=(--analyst "$ANALYST")
 
