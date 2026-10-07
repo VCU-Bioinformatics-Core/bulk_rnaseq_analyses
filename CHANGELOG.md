@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The report overview no longer calls the Executive Summary "plain-English".**
+  The sentence now says the summary distills each comparison into a few
+  bullet points.
+
 ## [1.8.0] - 2026-10-06
 
 ### Added
@@ -837,9 +845,7 @@ not a release artefact.
 - Enhanced logging and progress output during analysis
 - Updated volcano plot and heatmap generation for better visualization
 
-## [Unreleased]
-
-### Planned
+## Planned
 
 - Container rebuild + in-container smoke test on HPC (x86_64 / Apptainer).
 - Multi-factor designs and covariate support.
