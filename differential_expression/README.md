@@ -215,8 +215,8 @@ Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
 sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
 OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
 
-# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=yes)
-sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,INDEPENDENT_FILTERING=no,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
+# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=no)
+sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
 
 squeue -u "$USER"
 tail -f slurm-bisrde-<jobid>.out
@@ -377,7 +377,7 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--samplesheet`     | `-s`  | yes      | —              | Samplesheet CSV with `SampleID`, `GroupID`, contrast columns.               |
 | `--outdir`          | `-o`  | no       | `./output`     | Output directory (created if missing).                                      |
 | `--runid`           | `-r`  | yes      | —              | Unique identifier for this run; appears in the report.                      |
-| `--annotation`      | `-a`  | no       | `human`        | `human` or `mouse`. Selects OrgDb + KEGG / Reactome / MSigDB organism.      |
+| `--annotation`      | `-a`  | no       | `mouse`        | `mouse` or `human`. Selects OrgDb + KEGG / Reactome / MSigDB organism.      |
 | `--brs-ticket`      | `-b`  | no       | (none)         | BRS ticket identifier (e.g. `BRS-1234`). Renders as a subtitle in the report. |
 | `--analyst`         |       | no       | `Mikail Bala`  | Analyst name shown in the report header. Env: `BISR_ANALYST`. |
 | `--id-type`         | `-i`  | no       | `ensembl`      | `ensembl`, `entrez`, or `symbol`. Identifier type in the count matrix rownames. Output CSVs always carry all four ID columns regardless. |
@@ -387,7 +387,7 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
 | `--gsea-rank`       |       | no       | `stat`         | Ranking metric for pre-ranked GSEA: `stat` (DESeq2 Wald statistic) or `log2fc` (pre-v1.7 behaviour). Env: `BISR_GSEA_RANK`. |
 | `--lfc-shrink`      |       | no       | `apeglm`       | Log2 fold-change shrinkage (`apeglm`, `normal`, `none`). Adds `log2FC_shrunken` / `lfcSE_shrunken` to the DE CSV and places volcano points at the shrunken value; DEG calls always use the unshrunken estimate. Falls back to `normal` when apeglm is not installed. Env: `BISR_LFC_SHRINK`. |
-| `--independent-filtering` |  | no      | `yes`          | DESeq2 independent filtering, `yes` or `no`. `yes` is DESeq2's own default and the recommended setting; it gains power on low-count genes and leaves `padj` empty for the genes it filters. `no` keeps an adjusted p-value for every tested gene (the behaviour up to v1.8.0). Env: `BISR_INDEPENDENT_FILTERING`. |
+| `--independent-filtering` |  | no      | off            | Enable DESeq2's independent filtering (DESeq2's own default). Off keeps an adjusted p-value for every tested gene. Env: `BISR_INDEPENDENT_FILTERING=yes`. |
 
 **Examples.** Re-run dropping a QC outlier without editing the samplesheet:
 

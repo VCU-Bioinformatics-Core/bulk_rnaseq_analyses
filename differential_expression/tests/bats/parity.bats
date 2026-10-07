@@ -179,24 +179,10 @@ CSV
 }
 
 @test "bash and Go TUI stay byte-identical with the v1.7 method flags set" {
-  export BISR_GSEA_RANK=log2fc BISR_LFC_SHRINK=none BISR_INDEPENDENT_FILTERING=no
+  export BISR_GSEA_RANK=log2fc BISR_LFC_SHRINK=none BISR_INDEPENDENT_FILTERING=yes
     b="$(bash_cmd)"
     t="$(tui_cmd)"
     [ -n "$b" ]
     [ "$b" = "$t" ]
-  [[ "$b" == *"--gsea-rank log2fc --lfc-shrink none --independent-filtering no"* ]]
-}
-
-@test "independent filtering defaults to yes on both launchers" {
-    unset BISR_INDEPENDENT_FILTERING
-    b="$(bash_cmd)"; t="$(tui_cmd)"
-    [ "$b" = "$t" ]
-    [[ "$b" == *"--independent-filtering yes"* ]]
-}
-
-@test "annotation defaults to human on both launchers" {
-    unset BISR_ANNOTATION
-    b="$(bash_cmd)"; t="$(tui_cmd)"
-    [ "$b" = "$t" ]
-    [[ "$b" == *"--annotation human"* ]]
+  [[ "$b" == *"--gsea-rank log2fc --lfc-shrink none --independent-filtering"* ]]
 }

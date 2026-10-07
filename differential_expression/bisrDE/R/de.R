@@ -8,8 +8,8 @@
 #'   experimental-vs-control contrast on a pre-built `DESeqDataSet`.
 #'   Re-levels `dds$condition` so `ctrl` is the reference, then queries
 #'   results with `cooksCutoff = TRUE` and `independentFiltering =
-#'   independent_filtering` (default `TRUE`, DESeq2's own default; `FALSE`
-#'   was the setting up to v1.8.0). Optionally appends a shrunken
+#'   independent_filtering` (default `FALSE`, the historical BISR setting;
+#'   DESeq2's own default is `TRUE`). Optionally appends a shrunken
 #'   log2 fold change (`DESeq2::lfcShrink`).
 #'
 #' @param dds A `DESeqDataSet` whose `condition` factor includes both
@@ -19,10 +19,9 @@
 #'   `dds$condition`).
 #' @param ctrl Control group label (must be a level of `dds$condition`).
 #' @param independent_filtering Passed to `DESeq2::results(independentFiltering =)`.
-#'   Default `TRUE` (DESeq2's own default) gains power on low-count genes at
-#'   the cost of `NA` padj for the genes the mean-count filter removes.
-#'   `FALSE` keeps an adjusted p-value for every tested gene (the setting
-#'   up to v1.8.0).
+#'   Default `FALSE` keeps every tested gene in the table (no padj set to
+#'   `NA` by the mean-count filter). `TRUE` is DESeq2's default and gains
+#'   power on low-count genes at the cost of `NA` padj for the filtered ones.
 #' @param lfc_shrink One of `"apeglm"`, `"normal"`, `"none"`. When not
 #'   `"none"`, `DESeq2::lfcShrink()` is run and two columns are appended:
 #'   `log2FC_shrunken` and `lfcSE_shrunken`. `"apeglm"` needs the apeglm
@@ -44,7 +43,7 @@
 #' @importFrom stats relevel
 #' @export
 perform_deseq2_analysis <- function(dds, exp, ctrl,
-                                    independent_filtering = TRUE,
+                                    independent_filtering = FALSE,
                                     lfc_shrink = c("none", "apeglm", "normal")) {
   lfc_shrink <- match.arg(lfc_shrink)
   tryCatch(

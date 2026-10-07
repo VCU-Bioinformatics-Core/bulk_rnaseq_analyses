@@ -52,7 +52,7 @@ nextflow run nf-module/main.nf --help
 | `--samplesheet` | yes      | —           | Comma-delimited samplesheet (`SampleID, GroupID, ...contrasts`) |
 | `--runid`       | yes      | —           | Unique identifier for this run                       |
 | `--outdir`      | no       | `./results` | Output directory                                     |
-| `--annotation`  | no       | `human`     | `human` or `mouse`                                   |
+| `--annotation`  | no       | `mouse`     | `mouse` or `human`                                   |
 | `--brs_ticket`  | no       | `''`        | BRS ticket identifier (rendered as report subtitle)  |
 | `--id_type`     | no       | `ensembl`   | `ensembl`, `entrez`, or `symbol`                     |
 

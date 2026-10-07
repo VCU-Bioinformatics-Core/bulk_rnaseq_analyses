@@ -37,7 +37,7 @@ func defaultConfig() Config {
 		Samplesheet:      envOr("BISR_SAMPLESHEET", "assets/example_samplesheet.csv"),
 		Outdir:           envOr("BISR_OUTDIR", "./results"),
 		Runid:            envOr("BISR_RUNID", "run_"+time.Now().Format("20060102_150405")),
-		Annotation:       envOr("BISR_ANNOTATION", "human"),
+		Annotation:       envOr("BISR_ANNOTATION", "mouse"),
 		BRS:              envOr("BISR_BRS", ""),
 		Analyst:          envOr("BISR_ANALYST", ""),
 		IDType:           envOr("BISR_IDTYPE", "ensembl"),
@@ -46,7 +46,7 @@ func defaultConfig() Config {
 		Padj:             envOr("BISR_PADJ", "0.05"),
 		GseaRank:         envOr("BISR_GSEA_RANK", "stat"),
 		LfcShrink:        envOr("BISR_LFC_SHRINK", "apeglm"),
-		IndepFiltering:   envOr("BISR_INDEPENDENT_FILTERING", "yes"),
+		IndepFiltering:   envOr("BISR_INDEPENDENT_FILTERING", "no"),
 		ExcludeSamples:   envList("BISR_EXCLUDE_SAMPLES"),
 		ExcludeGroups:    envList("BISR_EXCLUDE_GROUPS"),
 		IncludeContrasts: envList("BISR_INCLUDE_CONTRASTS"),
@@ -147,27 +147,27 @@ func BuildConfig(nonInteractive bool) (Config, error) {
 		huh.NewGroup(
 			huh.NewInput().Title("Counts TSV").Value(&c.Counts),
 			huh.NewInput().Title("Samplesheet CSV").Value(&c.Samplesheet),
-			huh.NewSelect[string]().Title("Annotation (default human)").
-				Options(huh.NewOptions("human", "mouse")...).
+			huh.NewSelect[string]().Title("Annotation").
+				Options(huh.NewOptions("mouse", "human")...).
 				Value(&c.Annotation),
 			huh.NewInput().Title("Run ID").Value(&c.Runid),
 			huh.NewInput().Title("Output directory").Value(&c.Outdir),
 			huh.NewInput().Title("BRS ticket (optional)").Value(&c.BRS),
 			huh.NewInput().Title("Analyst name (optional)").Value(&c.Analyst),
-			huh.NewSelect[string]().Title("Gene ID type (default ensembl)").
+			huh.NewSelect[string]().Title("Gene ID type").
 				Options(huh.NewOptions("ensembl", "entrez", "symbol")...).
 				Value(&c.IDType),
 			huh.NewInput().Title("Volcano labels (top N genes)").Value(&c.VolcanoLabels),
 			huh.NewInput().Title("Fold-change cutoff (e.g. 2 = 2-fold)").Value(&c.FoldChange),
 			huh.NewInput().Title("Adjusted p-value (FDR) cutoff").Value(&c.Padj),
-			huh.NewSelect[string]().Title("GSEA ranking metric (default stat)").
+			huh.NewSelect[string]().Title("GSEA ranking metric").
 				Options(huh.NewOptions("stat", "log2fc")...).
 				Value(&c.GseaRank),
-			huh.NewSelect[string]().Title("LFC shrinkage, volcano + CSV column (default apeglm)").
+			huh.NewSelect[string]().Title("LFC shrinkage (volcano + CSV column)").
 				Options(huh.NewOptions("apeglm", "normal", "none")...).
 				Value(&c.LfcShrink),
-			huh.NewSelect[string]().Title("DESeq2 independent filtering (default yes, recommended)").
-				Options(huh.NewOptions("yes", "no")...).
+			huh.NewSelect[string]().Title("DESeq2 independent filtering").
+				Options(huh.NewOptions("no", "yes")...).
 				Value(&c.IndepFiltering),
 		),
 	).WithTheme(huh.ThemeCharm())

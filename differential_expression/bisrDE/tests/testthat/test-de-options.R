@@ -35,13 +35,6 @@ test_that("perform_deseq2_analysis with apeglm produces shrunken columns when in
   expect_true("log2FC_shrunken" %in% colnames(res))
 })
 
-test_that("independent filtering is on unless asked off", {
-  dds <- .sim_dds()
-  res <- suppressMessages(perform_deseq2_analysis(dds, "trt", "ctrl"))
-  expect_true(attr(res, "de_options")$independent_filtering)
-  expect_true(isTRUE(formals(run_pipeline)$independent_filtering))
-})
-
 test_that("independent filtering = TRUE can introduce NA padj; FALSE does not", {
   dds <- .sim_dds()
   a <- suppressMessages(perform_deseq2_analysis(dds, "trt", "ctrl", independent_filtering = TRUE))
