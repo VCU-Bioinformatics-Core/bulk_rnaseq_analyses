@@ -308,19 +308,19 @@ case "$basedir" in "~"*) basedir="$HOME${basedir#\~}" ;; esac
 
 counts=$(ask_file       "Counts matrix"     "assets/example_counts.tsv"        "${BISR_COUNTS:-}"      "$basedir" counts)
 samplesheet=$(ask_file  "Samplesheet"       "assets/example_samplesheet.csv"   "${BISR_SAMPLESHEET:-}" "$basedir" sheet)
-annotation=$(ask_choose "Genome annotation" "${BISR_ANNOTATION:-}" human mouse)
+annotation=$(ask_choose "Genome annotation (default human)" "${BISR_ANNOTATION:-}" human mouse)
 runid=$(ask_input       "Run ID"            "run_$(date +%Y%m%d_%H%M%S)"        "${BISR_RUNID:-}")
 outdir=$(ask_input      "Output directory"  "./results"                        "${BISR_OUTDIR:-}")
 brs=$(ask_input         "BRS ticket (blank = none)" ""                         "${BISR_BRS:-}")
 analyst=$(ask_input     "Analyst name (blank = report default)" ""            "${BISR_ANALYST:-}")
-idtype=$(ask_choose     "Gene ID type"      "${BISR_IDTYPE:-}" ensembl entrez symbol)
+idtype=$(ask_choose     "Gene ID type (default ensembl)" "${BISR_IDTYPE:-}" ensembl entrez symbol)
 vlabels=$(ask_input     "Volcano labels — max genes to name (top N)" "10"           "${BISR_VOLCANO_LABELS:-}")
 foldchange=$(ask_input  "Fold-change cutoff (e.g. 2 = 2-fold)"       "1.5"          "${BISR_FOLD_CHANGE:-}")
 padjcut=$(ask_input     "Adjusted p-value (FDR) cutoff"              "0.05"         "${BISR_PADJ:-}")
 # v1.7 — method options (first option = default, also used non-interactively).
-gsearank=$(ask_choose   "GSEA ranking metric"                        "${BISR_GSEA_RANK:-}"   stat log2fc)
-lfcshrink=$(ask_choose  "LFC shrinkage (volcano + DE CSV column)"    "${BISR_LFC_SHRINK:-}"  apeglm normal none)
-indepfilt=$(ask_choose  "DESeq2 independent filtering"               "${BISR_INDEPENDENT_FILTERING:-}" no yes)
+gsearank=$(ask_choose   "GSEA ranking metric (default stat)"         "${BISR_GSEA_RANK:-}"   stat log2fc)
+lfcshrink=$(ask_choose  "LFC shrinkage, volcano + DE CSV column (default apeglm)" "${BISR_LFC_SHRINK:-}"  apeglm normal none)
+indepfilt=$(ask_choose  "DESeq2 independent filtering (default yes, recommended)" "${BISR_INDEPENDENT_FILTERING:-}" yes no)
 
 # v1.5.0 — interactive sample / group / contrast selection (only when the
 # samplesheet is readable; otherwise these stay empty = no filtering).
@@ -375,8 +375,8 @@ fi
 args=(--counts "$counts" --samplesheet "$samplesheet" --outdir "$outdir"
       --runid "$runid" --annotation "$annotation" --id-type "$idtype"
       --volcano-labels "$vlabels" --fold-change "$foldchange" --padj "$padjcut"
-      --gsea-rank "$gsearank" --lfc-shrink "$lfcshrink")
-[ "$indepfilt" = "yes" ] && args+=(--independent-filtering)
+      --gsea-rank "$gsearank" --lfc-shrink "$lfcshrink"
+      --independent-filtering "$indepfilt")
 [ -n "$brs" ]            && args+=(--brs-ticket "$brs")
 [ -n "${analyst//[[:space:]]/}" ] && args+=(--analyst "$analyst")  # trimmed test matches the TUI
 [ -n "$excl_samples" ]   && args+=(--exclude-samples "$excl_samples")

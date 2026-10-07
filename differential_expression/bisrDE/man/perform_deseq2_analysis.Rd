@@ -8,7 +8,7 @@ perform_deseq2_analysis(
   dds,
   exp,
   ctrl,
-  independent_filtering = FALSE,
+  independent_filtering = TRUE,
   lfc_shrink = c("none", "apeglm", "normal")
 )
 }
@@ -23,9 +23,10 @@ should already be done by the caller.}
 \item{ctrl}{Control group label (must be a level of \code{dds$condition}).}
 
 \item{independent_filtering}{Passed to \code{DESeq2::results(independentFiltering =)}.
-Default \code{FALSE} keeps every tested gene in the table (no padj set to
-\code{NA} by the mean-count filter). \code{TRUE} is DESeq2's default and gains
-power on low-count genes at the cost of \code{NA} padj for the filtered ones.}
+Default \code{TRUE} (DESeq2's own default) gains power on low-count genes at
+the cost of \code{NA} padj for the genes the mean-count filter removes.
+\code{FALSE} keeps an adjusted p-value for every tested gene (the setting
+up to v1.8.0).}
 
 \item{lfc_shrink}{One of \code{"apeglm"}, \code{"normal"}, \code{"none"}. When not
 \code{"none"}, \code{DESeq2::lfcShrink()} is run and two columns are appended:
@@ -47,8 +48,8 @@ actually used, \code{design}, \code{reference_level}, \code{coef}).
 Run \code{DESeq()} and extract \code{results()} for a single
 experimental-vs-control contrast on a pre-built \code{DESeqDataSet}.
 Re-levels \code{dds$condition} so \code{ctrl} is the reference, then queries
-results with \code{cooksCutoff = TRUE} and \code{independentFiltering = independent_filtering} (default \code{FALSE}, the historical BISR setting;
-DESeq2's own default is \code{TRUE}). Optionally appends a shrunken
+results with \code{cooksCutoff = TRUE} and \code{independentFiltering = independent_filtering} (default \code{TRUE}, DESeq2's own default; \code{FALSE}
+was the setting up to v1.8.0). Optionally appends a shrunken
 log2 fold change (\code{DESeq2::lfcShrink}).
 }
 \details{
