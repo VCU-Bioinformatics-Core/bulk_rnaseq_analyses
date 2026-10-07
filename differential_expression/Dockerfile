@@ -47,13 +47,20 @@ ENV QUARTO_SHARE_PATH=/opt/conda/share/quarto \
 
 # List every activation script in the build log, so a future conda package
 # that only works after activation is noticed, then require the QUARTO_* ENV
-# lines above to equal what the activation scripts export.
+# lines above to equal what the activation scripts export. QUARTO_DENO_DOM is
+# compared by existence instead: the quarto feedstock's activation script
+# exports a build-machine path for it (/home/conda/feedstock_root/...), so
+# the value above comes from deno_dom.sh's DENO_DOM_PLUGIN. Every tool path
+# must exist, or the first report render would fail at run time.
 RUN for f in /opt/conda/etc/conda/activate.d/*.sh; do echo "== $f"; cat "$f"; done \
-    && env | grep '^QUARTO_' | sort > /tmp/quarto_env.txt \
+    && env | grep '^QUARTO_' | grep -v '^QUARTO_DENO_DOM=' | sort > /tmp/quarto_env.txt \
     && env -i PATH="$PATH" /bin/bash -c 'for f in /opt/conda/etc/conda/activate.d/*.sh; do . "$f"; done; env' \
-         | grep '^QUARTO_' | sort > /tmp/quarto_activate.txt \
+         | grep '^QUARTO_' | grep -v '^QUARTO_DENO_DOM=' | sort > /tmp/quarto_activate.txt \
     && { diff /tmp/quarto_env.txt /tmp/quarto_activate.txt \
          || { echo "QUARTO_* ENV lines in the Dockerfile (<) differ from the conda activation scripts (>); update the ENV block"; exit 1; }; } \
+    && for p in "$QUARTO_DENO" "$QUARTO_DENO_DOM" "$QUARTO_PANDOC" "$QUARTO_ESBUILD" "$QUARTO_TYPST" "$QUARTO_DART_SASS" "$QUARTO_SHARE_PATH"; do \
+         test -e "$p" || { echo "QUARTO_* path does not exist in the image: $p"; exit 1; }; \
+       done \
     && rm /tmp/quarto_env.txt /tmp/quarto_activate.txt
 
 # ---- bisrDE package, driver, MSigDB cache ---------------------------------
