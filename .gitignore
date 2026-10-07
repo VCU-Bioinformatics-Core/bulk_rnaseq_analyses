@@ -27,5 +27,5 @@ differential_expression/tasks.md
 **/.nf-test.log
 **/_nf_config_*
 
-# Container artefact (built on HPC; not committed)
-differential_expression/dge_analysis.sif
+# Apptainer images (pulled from GHCR or built locally; never committed)
+*.sif

@@ -1,0 +1,185 @@
+# bisrDE container image: build, smoke test, publish.
+#
+# Two outcomes, decided by the event:
+#   pull request touching the image inputs  -> build + smoke test, nothing pushed
+#   tag v* push                             -> build + smoke test, then push to
+#                                              ghcr.io/<owner>/bisrde:<version>
+#                                              and :latest
+#   manual dispatch                         -> build + smoke test; pushes only
+#                                              when the publish input is ticked
+#
+# The smoke test always runs on the image before anything is pushed, so a tag
+# never publishes an image that cannot analyse the bundled example.
+#
+# Dispatch with publish=true replaces the <version> and :latest images with
+# whatever the chosen ref contains, so use it deliberately. It is needed once
+# to publish 1.9.0: the v1.9.0 tag predates the Dockerfile, so run the
+# workflow from main with publish ticked instead of re-tagging.
+#
+# One-time step after the first publish: the package is private by default.
+# In the GitHub package settings for "bisrde" (Package settings -> Danger
+# Zone -> Change visibility) make it public so pull_container.sh can pull it
+# anonymously from the cluster, where nobody has a GitHub token.
+
+name: container
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to build (default: the default branch)"
+        required: false
+        default: ""
+      publish:
+        description: "Push the tested image to GHCR as <version> and latest (replaces existing tags)"
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    paths:
+      - "differential_expression/Dockerfile"
+      - "differential_expression/.dockerignore"
+      - "differential_expression/environment.yml"
+      - "differential_expression/bisrDE/**"
+      - "differential_expression/de.R"
+      - "differential_expression/warm_msigdb_cache.R"
+      - ".github/workflows/container.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    # The conda solve plus one example run normally take well under an hour;
+    # the cap stops a stalled enrichment download from burning the 6 h default.
+    timeout-minutes: 90
+    env:
+      PUBLISH: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.publish == true) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      # GHCR requires a lowercase repository path; the org name is not.
+      - name: Image name and version
+        id: info
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde" >> "$GITHUB_OUTPUT"
+          version=$(awk '/^Version:/ {print $2}' differential_expression/bisrDE/DESCRIPTION)
+          [ -n "$version" ] || { echo "::error::no Version field in bisrDE/DESCRIPTION"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde, version $version"
+
+      - name: Tag must match bisrDE/DESCRIPTION
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "${{ steps.info.outputs.version }}" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Version: ${{ steps.info.outputs.version }} in bisrDE/DESCRIPTION"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.info.outputs.image }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=${{ steps.info.outputs.version }}
+            type=raw,value=latest,enable=${{ env.PUBLISH == 'true' }}
+            type=match,pattern=v(.*),group=1
+
+      # load: true puts the image in the local docker daemon for the smoke
+      # test. Nothing is pushed here.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: differential_expression
+          file: differential_expression/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BISRDE_VERSION=${{ steps.info.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test on the bundled example
+        shell: bash
+        env:
+          IMAGE: ${{ steps.info.outputs.image }}:${{ steps.info.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker run --rm "$IMAGE" --help > /dev/null
+          # Informational: quarto check exits 0 even when a dependency is
+          # missing. The render inside the example run below is the real test.
+          docker run --rm --entrypoint quarto "$IMAGE" check
+
+          out="$RUNNER_TEMP/bisrde_ci_out"
+          mkdir -p "$out" && chmod 777 "$out"
+          docker run --rm \
+            -v "$PWD/differential_expression/assets:/data:ro" \
+            -v "$out:/out" \
+            "$IMAGE" \
+            --counts /data/example_counts.tsv \
+            --samplesheet /data/example_samplesheet.csv \
+            --outdir /out --runid ci \
+            --annotation mouse --id-type ensembl \
+            --include-contrasts cmtfa_vs_cmtf
+
+          shopt -s nullglob
+          reports=("$out"/rnaseq_analysis_*.html)
+          if [ "${#reports[@]}" -ne 1 ]; then
+            echo "::error::expected one rnaseq_analysis_*.html report, found ${#reports[@]}"
+            ls -la "$out"
+            exit 1
+          fi
+          summaries=("$out"/logs/*_report.json)
+          if [ "${#summaries[@]}" -ne 1 ]; then
+            echo "::error::expected one logs/*_report.json run summary, found ${#summaries[@]}"
+            ls -la "$out/logs" || true
+            exit 1
+          fi
+          if grep -q '"ok": false' "${summaries[0]}"; then
+            echo "::error::a comparison produced no DE result (\"ok\": false in ${summaries[0]})"
+            cat "${summaries[0]}"
+            exit 1
+          fi
+          echo "smoke test passed: ${reports[0]}"
+
+      # Push the exact image the smoke test ran, under every tag from the
+      # metadata step.
+      - name: Push
+        if: env.PUBLISH == 'true'
+        shell: bash
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            docker push "$tag"
+          done <<< "$TAGS"

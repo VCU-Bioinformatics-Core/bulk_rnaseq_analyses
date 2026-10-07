@@ -211,9 +211,30 @@ release-check: (_need "quarto" "brew install --cask quarto  # or https://quarto.
 
 # ---------------------------------------------------------- container --------
 
-# Build the Apptainer image (needs a Linux host with apptainer/singularity).
+# GitHub Actions (.github/workflows/container.yml) builds, smoke-tests and
+# publishes ghcr.io/vcu-bioinformatics-core/bisrde:<version> on every v* tag.
+# This recipe only builds a local copy for poking at the Dockerfile.
+#
+# Build the container image locally with docker (CI publishes the real one).
 container:
-    cd {{de}} && bash build_container.sh
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{de}}
+    version=$(awk '/^Version:/{print $2}' bisrDE/DESCRIPTION)
+    if command -v docker >/dev/null 2>&1; then
+        docker build --platform linux/amd64 \
+            --build-arg BISRDE_VERSION="$version" -t bisrde:dev .
+        printf '\033[32m✓\033[0m built bisrde:dev (linux/amd64)\n'
+    else
+        printf 'docker is not installed here, so nothing was built.\n'
+        printf 'GitHub Actions builds and publishes the image on every v* tag:\n'
+        printf '  ghcr.io/vcu-bioinformatics-core/bisrde:%s  (and :latest)\n' "$version"
+        printf 'pull it on the cluster with: just container-pull\n'
+    fi
+
+# Pull the published image into BISR_SIF_DIR as bisrde_<version>.sif (run on a login node).
+container-pull version="":
+    cd {{de}} && bash pull_container.sh {{version}}
 
 # Pre-download the MSigDB gene sets so Hallmark enrichment works OFFLINE.
 # msigdbr fetches its archive from Zenodo on first use; HPC compute nodes
