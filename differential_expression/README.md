@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.8.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.9.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -319,7 +319,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.8.0) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.9.0) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 
@@ -387,7 +387,7 @@ This runs in ~1-2 minutes on a modern Mac / HPC node and produces `/tmp/bisrDE_s
 | `--exclude-contrasts` |     | no       | (none)         | Comma-separated contrast columns to **skip** (denylist). |
 | `--gsea-rank`       |       | no       | `stat`         | Ranking metric for pre-ranked GSEA: `stat` (DESeq2 Wald statistic) or `log2fc` (pre-v1.7 behaviour). Env: `BISR_GSEA_RANK`. |
 | `--lfc-shrink`      |       | no       | `apeglm`       | Log2 fold-change shrinkage (`apeglm`, `normal`, `none`). Adds `log2FC_shrunken` / `lfcSE_shrunken` to the DE CSV and places volcano points at the shrunken value; DEG calls always use the unshrunken estimate. Falls back to `normal` when apeglm is not installed. Env: `BISR_LFC_SHRINK`. |
-| `--independent-filtering` |  | no      | `yes`          | DESeq2 independent filtering, `yes` or `no`. `yes` is DESeq2's own default and the recommended setting; it gains power on low-count genes and leaves `padj` empty for the genes it filters. `no` keeps an adjusted p-value for every tested gene (the behaviour up to v1.8.0). Env: `BISR_INDEPENDENT_FILTERING`. |
+| `--independent-filtering` |  | no      | `yes`          | DESeq2 independent filtering, `yes` or `no`. `yes` is DESeq2's own default and the recommended setting; it gains power on low-count genes and leaves `padj` empty for the genes it filters. `no` keeps an adjusted p-value for every tested gene (the behaviour up to v1.9.0). Env: `BISR_INDEPENDENT_FILTERING`. |
 
 **Examples.** Re-run dropping a QC outlier without editing the samplesheet:
 
