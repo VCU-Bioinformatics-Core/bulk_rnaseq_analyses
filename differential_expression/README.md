@@ -41,8 +41,11 @@ differential_expression/
 ├── de.R                      # thin optparse wrapper -> bisrDE::run_pipeline + generate_report
 ├── run_interactive.sh        # guided launcher (recommended): bash session OR Go TUI chooser
 ├── run_analysis.sh           # non-interactive executor (auto-detects mac/linux + container)
-├── build_container.sh        # builds dge_analysis.sif from dge_analysis.def
-├── dge_analysis.def          # Apptainer recipe: R 4.2 + renv lib + bisrDE + Quarto CLI
+├── run_in_container.sh       # runs de.R inside the prebuilt image (called by run_analysis.sh)
+├── pull_container.sh         # pulls ghcr.io/vcu-bioinformatics-core/bisrde into BISR_SIF_DIR
+├── submit_slurm.sh           # sbatch template (RUNTIME=auto|container|conda)
+├── Dockerfile                # image recipe (conda env + bisrDE + MSigDB cache); built by GitHub Actions
+├── environment.yml           # conda environment (Bioconductor 3.18); the image is built from it
 ├── setup_renv.R              # one-time renv bootstrap helper
 ├── renv.lock                 # pinned R deps
 ├── assets/
@@ -84,7 +87,7 @@ differential_expression/
 
 ## Environment setup
 
-The pipeline uses [`renv`](https://rstudio.github.io/renv/) for R reproducibility plus [Quarto](https://quarto.org) for report rendering. The launcher (`run_analysis.sh`) auto-detects platform and chooses execution method.
+The launcher (`run_analysis.sh`) picks the runtime for the machine it is on: the prebuilt container on Linux servers, otherwise a conda environment or a local R with [`renv`](https://rstudio.github.io/renv/). Every runtime includes [Quarto](https://quarto.org) for report rendering. `BISR_RUNTIME` overrides the choice (see the table in the container section).
 
 ### Required tooling
 
@@ -92,7 +95,7 @@ The pipeline uses [`renv`](https://rstudio.github.io/renv/) for R reproducibilit
 |-----------|-------------|-------------------------------------------------------------------------|
 | R         | 4.2         | `renv::restore()` will pull pinned package versions on first run.       |
 | Quarto    | 1.5+        | Required for report rendering. Install via `brew install --cask quarto` (macOS) or [download](https://quarto.org/docs/get-started/). |
-| Apptainer | 1.0+        | _Optional._ Only for container execution (recommended on HPC).          |
+| Apptainer | 1.0+        | _Linux servers._ Runs the prebuilt image; R and Quarto then come from the image. Singularity works too. Not available on macOS. |
 | Nextflow  | 22.10+      | _Optional._ Only for the Nextflow DSL2 wrapper (see [`nf-module/`](nf-module/README.md)). |
 
 ### Local macOS
@@ -105,9 +108,99 @@ bash run_analysis.sh \
     --outdir results --runid my_run --annotation mouse
 ```
 
-### Linux / HPC (conda, recommended)
+### Linux / HPC (container, recommended)
 
-Getting the pipeline onto the cluster, start to finish:
+The image `ghcr.io/vcu-bioinformatics-core/bisrde` holds the conda environment from `environment.yml` (R 4.3, Bioconductor 3.18, the Quarto CLI), the `bisrDE` package at the tagged version and the MSigDB gene sets, already downloaded. GitHub Actions builds it for x86_64 Linux on every release tag and publishes it under the version (`:<version>`, the Version field of `bisrDE/DESCRIPTION`) and `:latest`. Nothing is compiled on the server, no account needs its own R library, and the R code that runs is the copy baked into the image, so it always matches the image version.
+
+Team setup, three steps:
+
+```bash
+# 1. Code
+git clone https://github.com/VCU-Bioinformatics-Core/bulk_rnaseq_analyses.git
+cd bulk_rnaseq_analyses/differential_expression
+
+# 2. Where the image lives. Pick one group-readable directory for the whole
+#    team and export it in everyone's shell profile (or in a module file).
+#    Unset, it defaults to ~/.cache/bisrde, which is private to one account.
+export BISR_SIF_DIR=/lustre/home/<lab>/containers
+
+# 3. Pull the image once, ON A LOGIN NODE (3 to 4 GB; a few minutes).
+bash pull_container.sh
+```
+
+Then run as usual, with `run_analysis.sh` or `run_interactive.sh`:
+
+```bash
+bash run_analysis.sh --counts assets/example_counts.tsv \
+    --samplesheet assets/example_samplesheet.csv \
+    --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
+```
+
+The launcher finds `apptainer` (or `singularity`) on PATH, looks for `$BISR_SIF_DIR/bisrde_<version>.sif` and runs `de.R` inside it. On a machine with network access it pulls the image itself when the file is missing, so step 3 matters where the compute nodes are offline, which is the usual case on a cluster. A `dge_analysis.sif` next to `run_analysis.sh` from an earlier install is still used when present.
+
+**Version pairing.** The launcher reads the version from `bisrDE/DESCRIPTION` and uses the image with the same tag; the file is named `bisrde_<version>.sif`, so several versions can sit side by side in `BISR_SIF_DIR` and an older clone keeps working. To move the team to a new release, `git pull` the shared clone and run `bash pull_container.sh` once more; everyone who uses that clone moves together.
+
+**Bind mounts.** The directories holding `--counts` and `--samplesheet`, the `--outdir` (created first) and the current directory are bound into the container automatically, resolved through symlinks. Anything else the run has to read goes in `BISR_BIND` as a comma-separated list of host paths. The host environment passes through, so `BISR_PLATFORM_NAME` and friends reach the run.
+
+**Environment variables.**
+
+| Variable        | Default                                                   | Effect |
+|-----------------|-----------------------------------------------------------|--------|
+| `BISR_RUNTIME`  | `auto`                                                    | `container`, `conda` or `renv` forces one runtime. `auto` picks, in order: `BISR_SIF` if set; a legacy `dge_analysis.sif` next to the launcher; conda when a conda environment is active and provides `Rscript`; the container when `apptainer` or `singularity` is on PATH; renv otherwise. On macOS: conda if active, else renv. |
+| `BISR_SIF`      | unset                                                     | Path to a `.sif` to use as is. Wins over everything else. |
+| `BISR_SIF_DIR`  | `${XDG_CACHE_HOME:-$HOME/.cache}/bisrde`                  | Directory holding `bisrde_<version>.sif`. Set it to a shared, group-readable directory. |
+| `BISR_IMAGE`    | `docker://ghcr.io/vcu-bioinformatics-core/bisrde:<version>` | Image reference pulled when the SIF is missing. |
+| `BISR_NO_PULL`  | unset                                                     | `1` disables pulling: a missing SIF is an error that says to run `pull_container.sh` on a login node. `submit_slurm.sh` sets it. |
+| `BISR_BIND`     | unset                                                     | Extra host paths to bind, comma separated. |
+| `BISR_DRY_RUN`  | unset                                                     | `1` prints the resolved runtime and the exact command, then exits without running anything. |
+
+Note the order in `auto`: a shell with a conda environment activated runs in that environment, not in the container. Deactivate it, or set `BISR_RUNTIME=container`, to use the image.
+
+**macOS.** Apptainer does not run on macOS, so the launcher never picks the container there. Mac users use the conda or renv path below.
+
+**Validation.** The image is built from the same `environment.yml` as the conda path, so a container run and a conda run of the bundled example are expected to agree:
+
+```bash
+Rscript compare_runs.R --a <conda_run> --b <container_run> --out validation.md
+```
+
+Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
+
+#### Batch submission
+
+`submit_slurm.sh` is a ready sbatch template (4 cpus / 32 G / 4 h by default). The `RUNTIME` knob in its CONFIG block picks the runtime: `auto` (the default) uses the container when `apptainer` or `singularity` is on PATH and the SIF already exists: `$BISR_SIF_DIR/bisrde_<version>.sif`, or the file named by `BISR_SIF` when that is set; conda otherwise. `container` and `conda` force one.
+
+```bash
+# container. The SIF must exist before submission: compute nodes have no
+# network, so run `bash pull_container.sh` on a login node first.
+export BISR_SIF_DIR=/lustre/home/<lab>/containers
+sbatch --export=ALL,RUNTIME=container,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
+OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
+
+# conda: submit from the activated environment
+micromamba activate bisrde
+sbatch --export=ALL,RUNTIME=conda,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
+OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
+
+# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=yes)
+sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,INDEPENDENT_FILTERING=no,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
+
+squeue -u "$USER"
+tail -f slurm-bisrde-<jobid>.out
+```
+
+`--export=ALL` carries `BISR_SIF_DIR` into the job, so export it before `sbatch` or put it in the shell profile. In container mode the job skips the conda activation and the MSigDB preflight, because the gene sets are baked into the image; a missing SIF fails at job start with the `pull_container.sh` instruction instead of attempting a pull from a compute node.
+
+The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
+
+In conda mode, before the analysis starts, the job resolves the MSigDB cache directory the way R will (`R_USER_CACHE_DIR` included), prints it in the job header as `msigdb:`, and warns in the `.err` log with the exact warm-up command if the directory is missing or empty. The run continues, since Hallmark is the only step that needs the cache; warm it and resubmit if you want Hallmark results.
+
+Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
+GSEA backends are memory-bound rather than CPU-bound.
+
+### Linux / HPC (conda, alternative)
+
+Use this where Apptainer is not installed, or when you want to run R code that differs from the released image. Start to finish:
 
 ```bash
 # 1. Code
@@ -148,7 +241,8 @@ bash run_analysis.sh --counts assets/example_counts.tsv \
 #    msigdbr fetches its archive from Zenodo on first use. Compute nodes
 #    usually have no outbound internet, so without this every run fails with
 #    "MSigDB Hallmark error: Timeout was reached [zenodo.org]" and silently
-#    produces no Hallmark enrichment.
+#    produces no Hallmark enrichment. (The container ships this cache; only
+#    the conda and renv paths need the warm-up.)
 Rscript warm_msigdb_cache.R
 ```
 
@@ -199,58 +293,17 @@ If step 5 produces `rnaseq_analysis_*.html`, the install is good.
 **Note:** `environment.yml` pins **Bioconductor 3.18 / R 4.3**, not the
 `renv.lock` 3.16 — Bioc 3.16 is not installable from bioconda (see the header
 of `environment.yml` for the two blocking dependency conflicts). Results are
-therefore *near*-equivalent, not identical. Validate before production use:
-
-```bash
-Rscript compare_runs.R --a <renv_reference_run> --b <conda_run> --out validation.md
-```
-
-Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
-
-#### Batch submission
-
-`submit_slurm.sh` is a ready sbatch template (4 cpus / 32 G / 4 h by default):
-
-```bash
-sbatch --export=ALL,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
-OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
-
-# method knobs (defaults: GSEA_RANK=stat LFC_SHRINK=apeglm INDEPENDENT_FILTERING=yes)
-sbatch --export=ALL,GSEA_RANK=log2fc,LFC_SHRINK=none,INDEPENDENT_FILTERING=no,COUNTS=...,SAMPLESHEET=... submit_slurm.sh
-
-squeue -u "$USER"
-tail -f slurm-bisrde-<jobid>.out
-```
-
-The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
-
-Before the analysis starts, the job resolves the MSigDB cache directory the way R will (`R_USER_CACHE_DIR` included), prints it in the job header as `msigdb:`, and warns in the `.err` log with the exact warm-up command if the directory is missing or empty. The run continues, since Hallmark is the only step that needs the cache; warm it and resubmit if you want Hallmark results.
-
-Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
-GSEA backends are memory-bound rather than CPU-bound.
+therefore *near*-equivalent to a renv run, not identical. The container is
+built from this same file, so it carries the same versions.
 
 ### Linux / HPC (renv)
 
-Identical command; the launcher falls back to local R + renv when no container is found.
+Identical command; the launcher falls back to local R + renv when neither Apptainer nor an active conda environment is found (or when `BISR_RUNTIME=renv`). The MSigDB warm-up from step 6 above applies here too.
 
 ```bash
 module load R/4.2.1   # or your HPC's R module
 bash run_analysis.sh ...
 ```
-
-### Linux / HPC (container, recommended)
-
-Build once, then run:
-
-```bash
-# 1. Build the container (one time, ~30 min)
-bash build_container.sh
-
-# 2. Run — launcher auto-detects the .sif and uses Apptainer
-bash run_analysis.sh ...
-```
-
-The container (`dge_analysis.sif`) bundles R 4.2 + the pinned renv lib, the `bisrDE` R package (via `remotes::install_local`), and the **Quarto CLI** (pinned 1.5.57) — so report rendering works out of the box. The `.sif` is built on an x86_64 Linux host (`bash build_container.sh`); the def file is build-ready.
 
 ## Usage
 

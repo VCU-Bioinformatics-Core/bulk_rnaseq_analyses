@@ -38,5 +38,5 @@ _nf_config_*
 # nf-test runtime cache
 .nf-test/
 
-# Container artefact (built on HPC; not committed)
-dge_analysis.sif
+# Apptainer images (pulled from GHCR or built locally; never committed)
+*.sif

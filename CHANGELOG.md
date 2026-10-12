@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A prebuilt container image, published to GitHub Container Registry.**
+  `ghcr.io/vcu-bioinformatics-core/bisrde:<version>` (and `:latest`) holds the
+  conda environment from `environment.yml` (R 4.3, Bioconductor 3.18, the
+  Quarto CLI), the `bisrDE` package at the tagged version, the `de.R` driver
+  and the MSigDB gene sets, downloaded at build time into a cache the image
+  points R at. The workflow `.github/workflows/container.yml` builds it for
+  linux/amd64 on every release tag and runs the bundled example inside the
+  image before pushing; a pull request that touches the image inputs builds
+  and tests without publishing. Team members on a Linux server pull one file
+  and run; nothing is compiled and no account needs its own R library.
+- **`pull_container.sh` fetches the image as a SIF.** It writes
+  `bisrde_<version>.sif` into `BISR_SIF_DIR` (default
+  `${XDG_CACHE_HOME:-$HOME/.cache}/bisrde`; the team sets it to a shared,
+  group-readable directory), keeps the Apptainer conversion cache under that
+  directory so `$HOME` does not fill up, and prints the path and the line to
+  put in a job script. The version defaults to the one in
+  `bisrDE/DESCRIPTION`, so a clone always pulls the image that matches its
+  own code.
+- **`run_analysis.sh` resolves the runtime and pulls on demand.** `auto`
+  picks, in order, an explicit `BISR_SIF`, a legacy `dge_analysis.sif` next
+  to the launcher, an active conda environment, the container when
+  `apptainer` or `singularity` is on PATH, and renv otherwise; on macOS the
+  container is never chosen. When the versioned SIF is missing and the
+  machine has network, the launcher pulls it into `BISR_SIF_DIR`.
+  `BISR_RUNTIME` forces a runtime, `BISR_IMAGE` changes the image reference,
+  `BISR_NO_PULL=1` turns a missing SIF into an error with instructions,
+  `BISR_BIND` adds host paths to bind, and `BISR_DRY_RUN=1` prints the
+  resolved runtime and the exact command without running anything.
+  `run_in_container.sh` binds the directories of `--counts`, `--samplesheet`
+  and `--outdir` plus the current directory, and runs the driver baked into
+  the image rather than the checkout.
+- **`RUNTIME` knob in `submit_slurm.sh`.** `auto` (the default) uses the
+  container when Apptainer or Singularity is on PATH and the versioned SIF
+  already exists, and conda otherwise; `container` and `conda` force one. In
+  container mode the job skips the conda activation and the MSigDB preflight
+  (the cache is in the image) and sets `BISR_NO_PULL=1`, since compute nodes
+  have no network; the error names `pull_container.sh` on a login node.
+- **`tests/bats/runtime.bats` covers the runtime resolution.** It runs the
+  launchers under `BISR_DRY_RUN=1` and checks which runtime each combination
+  of variables resolves to and which command it would run, without a
+  container engine or R on the test machine.
+
+### Changed
+
+- **The container is the recommended way to run on Linux servers.** The
+  README's install part leads with the three-step team setup (clone, choose a
+  shared `BISR_SIF_DIR`, run `pull_container.sh` once on a login node); the
+  conda install becomes the alternative for servers without Apptainer, and
+  the renv path stays for byte-exact reproduction of older analyses. Mac
+  users keep conda or renv, because Apptainer does not run on macOS.
+- **The nf-module `container` profile points at the registry image** instead
+  of a `dge_analysis.sif` co-located with the project.
+- **`just container` builds the image locally with docker when docker is
+  available** (`docker build --platform linux/amd64 -t bisrde:dev`), and
+  otherwise says that GitHub Actions builds it. `just container-pull` runs
+  `pull_container.sh`.
+
+### Fixed
+
+- **`environment.yml` includes `r-cluster`.** conda-forge builds R without the
+  recommended packages, so `cluster` (a Suggests of bisrDE, used for the
+  silhouette score in "QC at a glance") was missing from every conda install
+  and the score silently rendered as NA. The image build asserts that the
+  Suggests the pipeline relies on (apeglm, cluster, optparse) are present.
+
+### Removed
+
+- **`dge_analysis.def` and `build_container.sh`.** The Apptainer recipe
+  from v1.3.0 was never built: producing a SIF from a definition file needs
+  root or fakeroot on a Linux host, which no team machine offers, and the
+  macOS development box cannot build a linux/amd64 image at all. GitHub
+  Actions builds the Docker image instead and Apptainer converts it on pull.
+  `*.sif` is git-ignored.
+
 ## [1.9.0] - 2026-10-07
 
 ### Changed

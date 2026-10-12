@@ -1,0 +1,17 @@
+# Build context for the bisrDE image: send only what the Dockerfile copies.
+# Everything else in differential_expression/ (renv/, renv.lock, results,
+# brs*_results, *.sif, tui/ and its bisrde-tui binary, tests/, nf-module/,
+# .nf-test, docs/, assets/ screenshots and example data, logs, the launcher
+# scripts) stays on the host.
+*
+
+!environment.yml
+!de.R
+!warm_msigdb_cache.R
+!bisrDE
+
+# Editor and session leftovers inside the package source.
+bisrDE/.RData
+bisrDE/.Rhistory
+bisrDE/.Rproj.user
+**/.DS_Store

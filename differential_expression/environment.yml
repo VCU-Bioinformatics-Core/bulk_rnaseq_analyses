@@ -110,6 +110,10 @@ dependencies:
   - r-quarto
   - r-optparse
   - r-testthat
+  # cluster is a Suggests used for the silhouette QC metric. conda-forge builds
+  # r-base with --with-recommended-packages=no, so it is not there unless named;
+  # without it the metric is silently NA and QC output differs from a renv run.
+  - r-cluster
   # For installing the bisrDE package itself.
   - r-remotes
 

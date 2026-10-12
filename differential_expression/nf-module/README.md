@@ -15,8 +15,8 @@ of [`nf-core/rnaseq`](https://nf-co.re/rnaseq/)'s merged-counts output.
 - For the `local` profile: R 4.2+ with the `bisrDE` package available
   (installed, or accessible via `devtools::load_all()` from `../bisrDE/`),
   plus a [Quarto CLI](https://quarto.org) install for `bisrDE::generate_report`.
-- For the `container` profile: `apptainer` (or `singularity`) plus the
-  `dge_analysis.sif` image built from `../dge_analysis.def` (Phase 8).
+- For the `container` profile: `apptainer` (or `singularity`). The image
+  (`ghcr.io/vcu-bioinformatics-core/bisrde:<version>`) is pulled on first use.
 
 ## Quickstart
 
@@ -63,7 +63,7 @@ nextflow run nf-module/main.nf -profile <name> ...
 ```
 
 - `local` — run with the host R environment. Requires `bisrDE` + Quarto installed locally.
-- `container` — run inside `dge_analysis.sif` (auto-bound via Apptainer). Phase 8 rebuilds this container.
+- `container` — run inside the published `ghcr.io/vcu-bioinformatics-core/bisrde` image (auto-bound via Apptainer).
 - `slurm` — submit as a SLURM job. Combine with `container`: `-profile container,slurm`.
 
 ## Integration with `nf-core/rnaseq`

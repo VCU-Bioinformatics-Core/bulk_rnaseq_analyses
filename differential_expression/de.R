@@ -24,7 +24,7 @@ suppressPackageStartupMessages({
 
 # ---------------------------------------------------------------------------
 # Load the bisrDE package. Prefer the installed version (in container builds
-# bisrDE is installed via remotes::install_local in dge_analysis.def). Fall
+# bisrDE is installed via remotes::install_local in the Dockerfile). Fall
 # back to devtools::load_all() against the sibling source dir for local
 # development without an install step.
 # ---------------------------------------------------------------------------
