@@ -220,14 +220,21 @@ release-check: (_need "quarto" "brew install --cask quarto  # or https://quarto.
 # publishes ghcr.io/vcu-bioinformatics-core/bisrde:<version> on every v* tag.
 # This recipe only builds a local copy for poking at the Dockerfile.
 #
-# Build the container image locally with docker (CI publishes the real one).
+# The base image (conda env + gene sets) is built only when its content-hash tag is missing.
+#
+# Build the base image if needed and bisrde:dev locally with docker (CI publishes the real ones).
 container:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{de}}
     version=$(awk '/^Version:/{print $2}' bisrDE/DESCRIPTION)
     if command -v docker >/dev/null 2>&1; then
-        docker build --platform linux/amd64 \
+        tag=$(bash container_base_tag.sh)
+        base="bisrde-base:$tag"
+        docker image inspect "$base" >/dev/null 2>&1 \
+            || docker build --platform linux/amd64 -f Dockerfile.base \
+                --build-arg BASE_TAG="$tag" -t "$base" .
+        docker build --platform linux/amd64 --build-arg BISRDE_BASE="$base" \
             --build-arg BISRDE_VERSION="$version" -t bisrde:dev .
         printf '\033[32m✓\033[0m built bisrde:dev (linux/amd64)\n'
     else

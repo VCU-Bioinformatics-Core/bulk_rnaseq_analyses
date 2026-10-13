@@ -104,7 +104,9 @@ dependencies:
   - r-cli
   - r-yaml
   - r-jsonlite
-  - r-msigdbr
+  # The gene sets a build ships are decided by this pin (MSigDB 2025.1 for
+  # 25.1.1). Bump it deliberately and record the MSigDB release in the changelog.
+  - r-msigdbr=25.1.1
   - r-knitr
   - r-rmarkdown
   - r-quarto
