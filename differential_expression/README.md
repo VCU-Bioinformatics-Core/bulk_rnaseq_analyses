@@ -39,6 +39,10 @@ differential_expression/
 ├── README.md                 # this file
 ├── CHANGELOG.md              # at repo root: differential_expression/../CHANGELOG.md
 ├── de.R                      # thin optparse wrapper -> bisrDE::run_pipeline + generate_report
+├── bin/
+│   └── bisrde                # team command: bisrde run | submit | interactive | pull | version
+├── modulefiles/
+│   └── bisrde                # Tcl modulefile: puts bin/ on PATH and sets BISR_SIF_DIR
 ├── run_interactive.sh        # guided launcher (recommended): bash session OR Go TUI chooser
 ├── run_analysis.sh           # non-interactive executor (auto-detects mac/linux + container)
 ├── run_in_container.sh       # runs de.R inside the prebuilt image (called by run_analysis.sh)
@@ -112,33 +116,56 @@ bash run_analysis.sh \
 
 The image `ghcr.io/vcu-bioinformatics-core/bisrde` holds the conda environment from `environment.yml` (R 4.3, Bioconductor 3.18, the Quarto CLI), the `bisrDE` package at the tagged version and the MSigDB gene sets, already downloaded. GitHub Actions builds it for x86_64 Linux on every release tag and publishes it under the version (`:<version>`, the Version field of `bisrDE/DESCRIPTION`) and `:latest`. Nothing is compiled on the server, no account needs its own R library, and the R code that runs is the copy baked into the image, so it always matches the image version.
 
-Team setup, three steps:
+Team setup, three steps. The first is done once by one person, the second by every member, the third once per version.
+
+**1. Shared image directory and shared clone (one person, once).** Pick a directory every lab member can read, and let members add new versions to it. The setgid bit (`2775`) makes new files inherit the lab group.
 
 ```bash
-# 1. Code
-git clone https://github.com/VCU-Bioinformatics-Core/bulk_rnaseq_analyses.git
-cd bulk_rnaseq_analyses/differential_expression
+mkdir -p /lustre/home/mccbnfolab/containers
+chgrp <lab-group> /lustre/home/mccbnfolab/containers
+chmod 2775 /lustre/home/mccbnfolab/containers
 
-# 2. Where the image lives. Pick one group-readable directory for the whole
-#    team and export it in everyone's shell profile (or in a module file).
-#    Unset, it defaults to ~/.cache/bisrde, which is private to one account.
-export BISR_SIF_DIR=/lustre/home/<lab>/containers
-
-# 3. Pull the image once, ON A LOGIN NODE (3 to 4 GB; a few minutes).
-bash pull_container.sh
+mkdir -p /lustre/home/mccbnfolab/src
+git clone https://github.com/VCU-Bioinformatics-Core/bulk_rnaseq_analyses.git \
+    /lustre/home/mccbnfolab/src/bulk_rnaseq_analyses
 ```
 
-Then run as usual, with `run_analysis.sh` or `run_interactive.sh`:
+**2. Module and command (every member, once).** Add these lines to `~/.bashrc` or `~/.bash_profile`. If the site provides Apptainer as a module, load it first; its name differs by site (`module avail apptainer`).
 
 ```bash
-bash run_analysis.sh --counts assets/example_counts.tsv \
-    --samplesheet assets/example_samplesheet.csv \
-    --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse
+module load apptainer        # only if your site provides it as a module
+module use /lustre/home/mccbnfolab/src/bulk_rnaseq_analyses/differential_expression/modulefiles
+module load bisrde
 ```
 
-The launcher finds `apptainer` (or `singularity`) on PATH, looks for `$BISR_SIF_DIR/bisrde_<version>.sif` and runs `de.R` inside it. On a machine with network access it pulls the image itself when the file is missing, so step 3 matters where the compute nodes are offline, which is the usual case on a cluster. A `dge_analysis.sif` next to `run_analysis.sh` from an earlier install is still used when present.
+`module load bisrde` puts the `bisrde` command on PATH and sets `BISR_SIF_DIR` to `/lustre/home/mccbnfolab/containers`. A `BISR_SIF_DIR` you have already exported wins. Other sites edit the path in `modulefiles/bisrde`.
 
-**Version pairing.** The launcher reads the version from `bisrDE/DESCRIPTION` and uses the image with the same tag; the file is named `bisrde_<version>.sif`, so several versions can sit side by side in `BISR_SIF_DIR` and an older clone keeps working. To move the team to a new release, `git pull` the shared clone and run `bash pull_container.sh` once more; everyone who uses that clone moves together.
+**3. Pull the image (once per version, on a login node).** The download is 3 to 4 GB and takes a few minutes.
+
+```bash
+bisrde pull
+```
+
+Then run from any directory:
+
+```bash
+# Run directly on the machine you are logged in to
+bisrde run --counts counts.tsv --samplesheet samplesheet.csv \
+    --outdir results --runid my_run --annotation human
+
+# Slurm job; sbatch options such as --time=08:00:00 go first
+bisrde submit COUNTS=counts.tsv SAMPLESHEET=samplesheet.csv \
+    OUTDIR=results RUNID=my_run ANNOTATION=human
+
+bisrde interactive        # guided launcher; it starts in the clone, so enter your own project and output directories
+bisrde version            # pipeline version, and where its image should be
+```
+
+Relative paths in `--counts`, `--samplesheet` and `--outdir` (`COUNTS`, `SAMPLESHEET` and `OUTDIR` for `submit`) resolve against the directory you run the command from, not against the clone. Without `--outdir`, `bisrde run` writes results to `./output` in that directory; a submitted job without `OUTDIR` writes to `./results` in the submit directory. `bisrde interactive` is the exception: it runs inside the clone, so its prompts default to the clone's files and `./results` there, and you enter your own project and output directories. `bisrde submit` writes `slurm-bisrde-<jobid>.out` in the submit directory, and its values cannot contain commas. The plain forms still work from inside the clone, for example `bash run_analysis.sh --counts assets/example_counts.tsv --samplesheet assets/example_samplesheet.csv --outdir /tmp/bisrde_smoke --runid smoke --annotation mouse`.
+
+The launcher finds `apptainer` (or `singularity`) on PATH, looks for `$BISR_SIF_DIR/bisrde_<version>.sif` and runs `de.R` inside it. On a machine with network access it pulls the image itself when the file is missing, so the pull step matters where the compute nodes are offline, which is the usual case on a cluster. A `dge_analysis.sif` next to `run_analysis.sh` from an earlier install is still used when present.
+
+**Version pairing.** The launcher reads the version from `bisrDE/DESCRIPTION` and uses the image with the same tag; the file is named `bisrde_<version>.sif`, so several versions can sit side by side in `BISR_SIF_DIR` and an older clone keeps working. To move the team to a new release, `git pull` the shared clone and run `bisrde pull` once more; everyone who uses that clone moves together.
 
 **Bind mounts.** The directories holding `--counts` and `--samplesheet`, the `--outdir` (created first) and the current directory are bound into the container automatically, resolved through symlinks. Anything else the run has to read goes in `BISR_BIND` as a comma-separated list of host paths. The host environment passes through, so `BISR_PLATFORM_NAME` and friends reach the run.
 
@@ -170,9 +197,14 @@ Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
 
 `submit_slurm.sh` is a ready sbatch template (4 cpus / 32 G / 4 h by default). The `RUNTIME` knob in its CONFIG block picks the runtime: `auto` (the default) uses the container when `apptainer` or `singularity` is on PATH and the SIF already exists: `$BISR_SIF_DIR/bisrde_<version>.sif`, or the file named by `BISR_SIF` when that is set; conda otherwise. `container` and `conda` force one.
 
+`bisrde submit` is the shortest route. It collects the `KEY=VALUE` words into one `--export` list, adds `PIPELINE_DIR` so the job finds the shared clone, turns relative `COUNTS`, `SAMPLESHEET` and `OUTDIR` into absolute paths, and calls `sbatch` on `submit_slurm.sh`. Words that start with a dash go to `sbatch` unchanged and must come first, written as `--option=value`.
+
 ```bash
-# container. The SIF must exist before submission: compute nodes have no
-# network, so run `bash pull_container.sh` on a login node first.
+# bisrde submit. Run `bisrde pull` on a login node first: compute nodes have no network.
+bisrde submit --time=08:00:00 COUNTS=counts.tsv SAMPLESHEET=samplesheet.csv \
+    OUTDIR=results RUNID=my_run ANNOTATION=human
+
+# container, with sbatch directly
 export BISR_SIF_DIR=/lustre/home/<lab>/containers
 sbatch --export=ALL,RUNTIME=container,COUNTS=/path/counts.tsv,SAMPLESHEET=/path/ss.csv,\
 OUTDIR=$PWD/results,RUNID=my_run,ANNOTATION=human submit_slurm.sh
@@ -189,7 +221,7 @@ squeue -u "$USER"
 tail -f slurm-bisrde-<jobid>.out
 ```
 
-`--export=ALL` carries `BISR_SIF_DIR` into the job, so export it before `sbatch` or put it in the shell profile. In container mode the job skips the conda activation and the MSigDB preflight, because the gene sets are baked into the image; a missing SIF fails at job start with the `pull_container.sh` instruction instead of attempting a pull from a compute node.
+`--export=ALL` carries `BISR_SIF_DIR` into the job, so export it before `sbatch` or load the module in the shell profile. Without `bisrde submit`, pass `PIPELINE_DIR=<clone>/differential_expression` in `--export` to submit from another directory. In container mode the job skips the conda activation and the MSigDB preflight, because the gene sets are baked into the image; a missing SIF fails at job start with the `pull_container.sh` instruction instead of attempting a pull from a compute node.
 
 The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Research Computing (HPRC) cluster", override with `PLATFORM_NAME=...`), which the report's Methods text names as where the analysis ran.
 
