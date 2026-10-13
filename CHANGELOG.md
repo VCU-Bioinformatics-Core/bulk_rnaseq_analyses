@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A `bisrde` command for the whole team.** `differential_expression/bin/bisrde`
+  wraps the existing scripts so every lab member runs the pipeline from any
+  directory against one shared clone: `bisrde run` (`run_analysis.sh`),
+  `bisrde submit` (`sbatch` on `submit_slurm.sh`), `bisrde interactive`
+  (`run_interactive.sh`), `bisrde pull` (`pull_container.sh`) and
+  `bisrde version` (the pipeline version and the path, present or missing, of
+  its image). The command finds the clone by following its own symlinks, so it
+  works by full path, through a link, or from PATH. The pipeline itself does not
+  change.
+- **`bisrde run` resolves relative paths against the caller's directory.** The
+  launcher `run_analysis.sh` changes into the clone before it runs, so a
+  relative `--counts`, `--samplesheet` or `--outdir` (also `-c`, `-s`, `-o` and
+  the `--flag=value` form) would otherwise point inside the shared clone.
+  `bisrde run` rewrites those values to absolute paths first, leaves absolute
+  paths and every other flag alone, and, when no `--outdir` is given, adds
+  `--outdir ./output` in the caller's directory because the driver's own default
+  would land in the clone.
+- **`bisrde submit` builds the `--export` list.** Words that start with a dash
+  go to `sbatch` before the script; `KEY=VALUE` words become one
+  `--export=ALL,PIPELINE_DIR=<clone>,KEY=VALUE,...`, with relative `COUNTS`,
+  `SAMPLESHEET` and `OUTDIR` made absolute. A value that contains a comma, which
+  `--export` cannot carry, and any word that is neither an option nor `KEY=VALUE`
+  are errors (exit 2). `submit_slurm.sh` already honours `PIPELINE_DIR`, so the
+  job finds the clone from any submit directory.
+- **A modulefile for Environment Modules and Lmod.**
+  `differential_expression/modulefiles/bisrde` puts `bin/` on PATH and sets
+  `BISR_SIF_DIR` to `/lustre/home/mccbnfolab/containers` unless an exported value
+  is already present. Lab members add `module use <clone>/differential_expression/modulefiles`
+  and `module load bisrde` to their profile; other sites edit the path. The
+  README team setup now covers the shared image directory, the shared clone and
+  the three commands.
+- **Tests for the command and the modulefile.** `tests/bats/bisrde.bats` covers
+  usage and exit codes, `version`, path resolution in `run` and `submit` (with
+  stub `apptainer`, `sbatch` and `uname` on a throwaway PATH), `pull`, and the
+  modulefile, which it sources in `tclsh` with stubbed module commands.
+
 ## [1.10.0] - 2026-10-13
 
 ### Added

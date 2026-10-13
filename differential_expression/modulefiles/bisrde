@@ -1,0 +1,35 @@
+#%Module1.0
+#
+# bisrde - bulk RNA-seq differential expression pipeline (bisrDE).
+#
+# Puts the `bisrde` command on PATH and points BISR_SIF_DIR at the team's
+# shared container image directory. Load apptainer (or singularity) yourself
+# first when your site provides it as a module; its name differs by site.
+#
+# Use:
+#   module use <clone>/differential_expression/modulefiles
+#   module load bisrde
+#   bisrde help
+#
+# Written for both Environment Modules and Lmod: no exec, no shell-outs.
+
+# The differential_expression directory of the clone that holds this file.
+set root [file dirname [file dirname [file normalize $ModulesCurrentModulefile]]]
+
+proc ModulesHelp {} {
+    puts stderr "bisrde: bulk RNA-seq differential expression pipeline"
+    puts stderr "  bisrde run ...          analyse on this machine"
+    puts stderr "  bisrde submit ...       submit a Slurm job"
+    puts stderr "  bisrde interactive      guided launcher"
+    puts stderr "  bisrde pull             download the container image"
+    puts stderr "  bisrde version          show the pipeline version and image"
+}
+
+module-whatis "bisrDE bulk RNA-seq differential expression pipeline (bisrde command)"
+
+prepend-path PATH $root/bin
+
+# An exported BISR_SIF_DIR wins. Other sites edit this path.
+if {![info exists ::env(BISR_SIF_DIR)]} {
+    setenv BISR_SIF_DIR /lustre/home/mccbnfolab/containers
+}
