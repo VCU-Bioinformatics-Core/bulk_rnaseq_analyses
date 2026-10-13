@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+#
+# bisrde - team entry point for the bisrDE differential expression pipeline.
+#
+# Works from any directory against one shared clone. After
+# `module load bisrde` (see modulefiles/bisrde) the command is on PATH; it can
+# also be called by full path or through a symlink.
+#
+# The launcher run_analysis.sh changes into the clone before it runs, so
+# `bisrde run` first turns relative --counts, --samplesheet and --outdir
+# values into absolute paths against the caller's directory.
+
+set -euo pipefail
+
+# Resolve the script's real location, then the differential_expression directory.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+    dir="$(cd -P "$(dirname "$src")" && pwd -P)"
+    src="$(readlink "$src")"
+    case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+DE_DIR="$(cd -P "$(dirname "$src")/.." && pwd -P)"
+
+usage() {
+    cat <<'USAGE'
+usage: bisrde <command> [arguments]
+
+commands:
+  run [de.R flags]        analyse on this machine
+                          bisrde run --counts counts.tsv --samplesheet ss.csv --runid r1 --annotation human
+  submit [opts] KEY=VAL   submit a Slurm job; sbatch options go first, written as --opt=value
+                          bisrde submit --time=08:00:00 COUNTS=counts.tsv SAMPLESHEET=ss.csv RUNID=r1 ANNOTATION=human
+  interactive [flags]     guided launcher (bash prompts or the Go TUI); its
+                          defaults point into the clone, so enter your own paths
+                          bisrde interactive
+  pull [version]          download the container image once per version, on a login node
+                          bisrde pull
+  version                 print the pipeline version and where its image should be
+                          bisrde version
+
+Relative --counts, --samplesheet and --outdir paths (COUNTS, SAMPLESHEET and
+OUTDIR for submit) resolve against the current directory. Without --outdir,
+bisrde run writes to ./output; without OUTDIR, a submitted job writes to
+./results. A submitted job writes slurm-bisrde-<jobid>.out in the current
+directory. KEY=VAL values cannot contain commas.
+
+environment:
+  BISR_SIF_DIR   directory holding bisrde_<version>.sif (set by the module)
+  BISR_RUNTIME   auto, container, conda or renv; forces the runtime
+  BISR_DRY_RUN   any value: print the resolved command and stop
+USAGE
+}
+
+die() { echo "bisrde: $*" >&2; exit 2; }
+
+# Absolute form of a path: relative ones resolve against the caller's directory.
+abs() { case "$1" in /*|'') printf '%s' "$1" ;; *) printf '%s/%s' "$PWD" "${1#./}" ;; esac; }
+
+[ $# -gt 0 ] || { usage >&2; exit 2; }
+cmd="$1"; shift
+
+case "$cmd" in
+    help|-h|--help)
+        usage ;;
+
+    run)
+        args=(); have_outdir=0
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --counts|-c|--samplesheet|-s|--outdir|-o)
+                    case "$1" in --outdir|-o) have_outdir=1 ;; esac
+                    if [ $# -ge 2 ]; then args+=("$1" "$(abs "$2")"); shift 2
+                    else args+=("$1"); shift; fi ;;
+                --counts=*|--samplesheet=*|--outdir=*)
+                    case "$1" in --outdir=*) have_outdir=1 ;; esac
+                    args+=("${1%%=*}=$(abs "${1#*=}")"); shift ;;
+                *)
+                    args+=("$1"); shift ;;
+            esac
+        done
+        [ "$have_outdir" -eq 1 ] || args+=(--outdir "$PWD/output")
+        exec bash "$DE_DIR/run_analysis.sh" "${args[@]}" ;;
+
+    interactive)
+        exec bash "$DE_DIR/run_interactive.sh" "$@" ;;
+
+    pull)
+        exec bash "$DE_DIR/pull_container.sh" "$@" ;;
+
+    submit)
+        sbatch_opts=(); export_list="ALL,PIPELINE_DIR=$DE_DIR"
+        for a in "$@"; do
+            case "$a" in
+                -*) sbatch_opts+=("$a") ;;
+                *=*)
+                    key="${a%%=*}"; val="${a#*=}"
+                    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "not a KEY=VALUE setting: $a"
+                    case "$key" in COUNTS|SAMPLESHEET|OUTDIR) val="$(abs "$val")" ;; esac
+                    case "$val" in *,*) die "$key contains a comma, which sbatch --export cannot carry" ;; esac
+                    export_list="$export_list,$key=$val" ;;
+                *) die "expected an sbatch option or KEY=VALUE, got: $a" ;;
+            esac
+        done
+        exec sbatch ${sbatch_opts[@]+"${sbatch_opts[@]}"} "--export=$export_list" "$DE_DIR/submit_slurm.sh" ;;
+
+    version)
+        version="$(sed -n 's/^Version:[[:space:]]*//p' "$DE_DIR/bisrDE/DESCRIPTION")"
+        sif="${BISR_SIF:-${BISR_SIF_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/bisrde}/bisrde_$version.sif}"
+        state=missing; [ ! -f "$sif" ] || state=present
+        echo "bisrDE $version"
+        echo "image: $sif ($state)" ;;
+
+    *)
+        echo "bisrde: unknown command: $cmd" >&2
+        usage >&2
+        exit 2 ;;
+esac
