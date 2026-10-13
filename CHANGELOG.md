@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.10.0] - 2026-10-13
 
 ### Added
 
@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   image before pushing; a pull request that touches the image inputs builds
   and tests without publishing. Team members on a Linux server pull one file
   and run; nothing is compiled and no account needs its own R library.
+  A container run and a conda run of the bundled example on the HPRC
+  cluster produced identical fold changes, adjusted p-values and DEG sets
+  in every comparison (`compare_runs.R`: PASS).
 - **`pull_container.sh` fetches the image as a SIF.** It writes
   `bisrde_<version>.sif` into `BISR_SIF_DIR` (default
   `${XDG_CACHE_HOME:-$HOME/.cache}/bisrde`; the team sets it to a shared,
@@ -73,6 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silhouette score in "QC at a glance") was missing from every conda install
   and the score silently rendered as NA. The image build asserts that the
   Suggests the pipeline relies on (apeglm, cluster, optparse) are present.
+- **The README's `--independent-filtering` row cites the right release.**
+  `no` reproduces the behaviour up to v1.8.0; the v1.9.0 version bump had
+  rewritten that reference to v1.9.0, because `just bump` replaced every
+  mention of the old version in the README. The recipe now touches only
+  the header and the TUI line, which name the current release.
 
 ### Removed
 
@@ -960,6 +968,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.10.0  | 2026-10-13 | Prebuilt image on GitHub Container Registry (`ghcr.io/vcu-bioinformatics-core/bisrde:<version>`), built and smoke-tested by GitHub Actions on every release tag; `pull_container.sh`; `run_analysis.sh` resolves the runtime (`BISR_RUNTIME`, `BISR_SIF_DIR`, `BISR_NO_PULL`, `BISR_DRY_RUN`) and pulls on demand; `RUNTIME` knob in `submit_slurm.sh`; `r-cluster` in `environment.yml` (silhouette score was NA under conda); `dge_analysis.def` and `build_container.sh` removed; container and conda runs validated identical on the bundled example |
 | 1.9.0   | 2026-10-07 | DESeq2 independent filtering on by default (`--independent-filtering yes|no`, `no` reproduces v1.8 tables); every option names its default in `--help`, the launchers and the TUI; `--annotation` defaults to human everywhere; report overview wording |
 | 1.8.0   | 2026-10-06 | Report text audited against the code and corrected (86 statements); `--analyst` flag with launcher/TUI parity; 3D PCA title reports the three plotted components; Methods names upstream tools without versions; per-comparison child rendered non-ASCII as byte escapes since v1.7.0; MSigDB cache preflight in `submit_slurm.sh`; report render tests and `just release-check` gate |
 | 1.7.1   | 2026-09-28 | Report renders again for two or more comparisons (duplicate chunk label in the per-comparison child); `environment.yml` gains `bioconductor-apeglm`; `submit_slurm.sh` finds the pipeline via `$SLURM_SUBMIT_DIR` and reuses an inherited conda env |

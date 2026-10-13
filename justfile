@@ -151,7 +151,11 @@ bump version:
     cur=$(awk '/^Version:/{print $2}' bisrDE/DESCRIPTION)
     echo "bumping $cur -> {{version}}"
     sed -i '' "s/^Version: .*/Version: {{version}}/" bisrDE/DESCRIPTION
-    sed -i '' "s/v$cur/v{{version}}/g" README.md run_interactive.sh tui/main.go
+    # README: only the header and the TUI line name the current version; the
+    # text also cites older releases ("the behaviour up to v1.8.0"), which a
+    # blanket substitution would rewrite into nonsense (it did, in v1.9.0).
+    sed -i '' -e "s/^\*\*v$cur\*\*/**v{{version}}**/" -e "s/bisrde-tui\`, v$cur)/bisrde-tui\`, v{{version}})/" README.md
+    sed -i '' "s/v$cur/v{{version}}/g" run_interactive.sh tui/main.go
     sed -i '' "s|bisrde:$cur|bisrde:{{version}}|" nf-module/nextflow.config
     grep -rn "{{version}}" bisrDE/DESCRIPTION README.md run_interactive.sh tui/main.go nf-module/nextflow.config | head
     echo "now update CHANGELOG.md (section + Version History row), then:"
