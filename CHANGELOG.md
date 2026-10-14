@@ -66,6 +66,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`just container` builds the base locally when its tag is missing, then
   `bisrde:dev`.**
 
+### Fixed
+
+- **`warm_msigdb_cache.R` survives a slow Zenodo.** msigdbr 25.1.1 downloads
+  each gene set file with a fixed 300 second limit and no retry; Zenodo has
+  served the 34 MB human file at 75 KB/s, which failed the first v1.11.0 image
+  build. The script now fetches the files msigdbr expects itself, with a one
+  hour limit and three attempts, reading the URLs and checksums from the
+  installed package so nothing is duplicated; msigdbr then finds them cached.
+  With another package layout the script behaves as before.
+
 ## [1.10.0] - 2026-10-13
 
 ### Added

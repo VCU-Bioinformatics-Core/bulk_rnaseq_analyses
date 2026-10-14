@@ -43,6 +43,68 @@ cache <- tools::R_user_dir("msigdbr", "cache")
 cat("cache directory: ", cache, "\n", sep = "")
 cat("(override with the R_USER_CACHE_DIR environment variable)\n\n")
 
+# msigdbr 25.x keeps one .rds per species in that cache and fetches each from
+# Zenodo with a fixed 300 second limit and no retry (load_msigdb_df in the
+# package's R/utils.R). Zenodo has served the 34 MB human file at 75 KB/s,
+# which cannot finish in 300 seconds. So the files are fetched here first,
+# with a longer limit and three attempts, into the path and name msigdbr
+# expects; msigdbr then finds them cached and skips its own download. The URLs
+# and checksums are read from the installed package's function body, so a
+# version bump never leaves a stale copy here. If that body has another shape
+# (a different msigdbr layout), nothing is prefetched and msigdbr downloads
+# as before.
+msigdb_sources <- function() {
+  fn <- get0("load_msigdb_df", envir = asNamespace("msigdbr"), inherits = FALSE)
+  if (!is.function(fn)) return(NULL)
+  body <- deparse(fn)
+  pick <- function(pattern) {
+    hits <- grep(pattern, body, value = TRUE)
+    sub(pattern, "\\1", hits)
+  }
+  urls <- pick('^\\s*file_url <- "([^"]+)"$')
+  md5s <- pick('^\\s*file_md5 <- "([0-9a-f]{32})"$')
+  if (length(urls) == 0 || length(urls) != length(md5s)) return(NULL)
+  data.frame(url = urls, md5 = md5s, stringsAsFactors = FALSE)
+}
+
+prefetch <- function(src) {
+  dir.create(cache, showWarnings = FALSE, recursive = TRUE)
+  for (i in seq_len(nrow(src))) {
+    dest <- file.path(cache, sub("\\?.*$", "", basename(src$url[i])))
+    if (file.exists(dest) && unname(tools::md5sum(dest)) == src$md5[i]) {
+      cat("  ", basename(dest), " already cached\n", sep = "")
+      next
+    }
+    for (attempt in 1:3) {
+      started <- Sys.time()
+      good <- tryCatch({
+        curl::curl_download(src$url[i], dest, quiet = TRUE,
+                            handle = curl::new_handle(timeout = 3600, connecttimeout = 30))
+        unname(tools::md5sum(dest)) == src$md5[i]
+      }, error = function(e) {
+        cat("  ", basename(dest), " attempt ", attempt, " failed: ", conditionMessage(e), "\n", sep = "")
+        FALSE
+      })
+      if (good) {
+        secs <- round(as.numeric(difftime(Sys.time(), started, units = "secs")))
+        cat("  ", basename(dest), " downloaded (", round(file.size(dest) / 2^20), " MB, ", secs, " s)\n", sep = "")
+        break
+      }
+      if (file.exists(dest)) file.remove(dest)
+      if (attempt < 3) Sys.sleep(30)
+    }
+  }
+}
+
+src <- msigdb_sources()
+if (is.null(src)) {
+  cat("prefetch: msigdbr download sources not recognised; msigdbr downloads on its own\n\n")
+} else {
+  cat("prefetch from the package's own sources (", nrow(src), " files):\n", sep = "")
+  prefetch(src)
+  cat("\n")
+}
+
 species <- c("Homo sapiens", "Mus musculus")
 ok <- TRUE
 
