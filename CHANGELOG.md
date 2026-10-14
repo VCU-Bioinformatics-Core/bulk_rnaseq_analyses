@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.11.0] - 2026-10-14
 
 ### Added
 
@@ -44,6 +44,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usage and exit codes, `version`, path resolution in `run` and `submit` (with
   stub `apptainer`, `sbatch` and `uname` on a throwaway PATH), `pull`, and the
   modulefile, which it sources in `tclsh` with stubbed module commands.
+
+### Changed
+
+- **The container image is built in two layers.** `bisrde-base`
+  (`Dockerfile.base`) holds the conda environment, the Quarto setup and the
+  MSigDB gene sets, tagged `env-<hash>`, a content hash of `Dockerfile.base`,
+  `environment.yml` and `warm_msigdb_cache.R` printed by
+  `container_base_tag.sh`; the `bisrde` image (`Dockerfile`) builds FROM it and
+  adds only the bisrDE package and `de.R`. A release build reuses the base
+  when its tag exists in GHCR, so it takes minutes and no longer contacts
+  Zenodo; the base is rebuilt only when one of its three inputs changes.
+- **`r-msigdbr` is pinned to 25.1.1 (MSigDB 2025.1) in `environment.yml`.**
+  The gene sets an image ships are decided by that pin. Bump it deliberately
+  and record the MSigDB release here.
+- **The container workflow publishes the base alongside the image.** A
+  publishing run that builds a new base also pushes `bisrde-base:env-<hash>`
+  and moves `bisrde-base:latest`. The `bisrde-base` package must be made public
+  once after its first publish, like `bisrde`, so the base lookup and the
+  cluster pulls work without a token.
+- **`just container` builds the base locally when its tag is missing, then
+  `bisrde:dev`.**
+
+### Fixed
+
+- **`warm_msigdb_cache.R` survives a slow Zenodo.** msigdbr 25.1.1 downloads
+  each gene set file with a fixed 300 second limit and no retry; Zenodo has
+  served the 34 MB human file at 75 KB/s, which failed the first v1.11.0 image
+  build. The script now fetches the files msigdbr expects itself, with a one
+  hour limit and three attempts, reading the URLs and checksums from the
+  installed package so nothing is duplicated; msigdbr then finds them cached.
+  With another package layout the script behaves as before.
 
 ## [1.10.0] - 2026-10-13
 
@@ -1008,6 +1039,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
+| 1.11.0  | 2026-10-14 | `bisrde` command (`run`, `submit`, `interactive`, `pull`, `version`) and a Tcl modulefile so the team runs one shared clone from any directory, with relative paths resolved against the caller's directory; container built as `bisrde-base` (conda env + MSigDB, content-hash tag) plus a thin `bisrde` image, so release builds take minutes and no longer depend on Zenodo; `r-msigdbr` pinned to 25.1.1 |
 | 1.10.0  | 2026-10-13 | Prebuilt image on GitHub Container Registry (`ghcr.io/vcu-bioinformatics-core/bisrde:<version>`), built and smoke-tested by GitHub Actions on every release tag; `pull_container.sh`; `run_analysis.sh` resolves the runtime (`BISR_RUNTIME`, `BISR_SIF_DIR`, `BISR_NO_PULL`, `BISR_DRY_RUN`) and pulls on demand; `RUNTIME` knob in `submit_slurm.sh`; `r-cluster` in `environment.yml` (silhouette score was NA under conda); `dge_analysis.def` and `build_container.sh` removed; container and conda runs validated identical on the bundled example |
 | 1.9.0   | 2026-10-07 | DESeq2 independent filtering on by default (`--independent-filtering yes|no`, `no` reproduces v1.8 tables); every option names its default in `--help`, the launchers and the TUI; `--annotation` defaults to human everywhere; report overview wording |
 | 1.8.0   | 2026-10-06 | Report text audited against the code and corrected (86 statements); `--analyst` flag with launcher/TUI parity; 3D PCA title reports the three plotted components; Methods names upstream tools without versions; per-comparison child rendered non-ASCII as byte escapes since v1.7.0; MSigDB cache preflight in `submit_slurm.sh`; report render tests and `just release-check` gate |
