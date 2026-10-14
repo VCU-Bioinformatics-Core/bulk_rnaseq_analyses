@@ -1,6 +1,6 @@
 # Differential Expression Analysis Pipeline
 
-**v1.10.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
+**v1.11.0** — VCU Massey Comprehensive Cancer Center Bioinformatics Shared Resource (BISR)
 
 ## Introduction
 
@@ -408,7 +408,7 @@ bash run_interactive.sh
 The launcher first asks you to **choose a front-end**:
 
 - **Bash interactive session** — styled shell prompts (uses [charmbracelet `gum`](https://github.com/charmbracelet/gum) / `glow` when installed, plain `read` prompts otherwise).
-- **Go TUI** (`tui/bisrde-tui`, v1.10.0) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
+- **Go TUI** (`tui/bisrde-tui`, v1.11.0) — a [bubbletea](https://github.com/charmbracelet/bubbletea) / [huh](https://github.com/charmbracelet/huh) / [lipgloss](https://github.com/charmbracelet/lipgloss) form. If the binary isn't built yet it offers to build it for you (needs Go 1.23+); see [`tui/README.md`](tui/README.md) for build / cross-compile details. You can also run it directly: `./tui/bisrde-tui`.
 
 Either way you're walked through the counts file, samplesheet, annotation, run ID, output dir, and optional BRS ticket / ID type, then — by reading the samplesheet — offered **multi-select menus to exclude groups / samples and choose which contrasts to run** (wiring directly into the selection features below). A summary is shown for confirmation, and both front-ends assemble the **exact same `run_analysis.sh` command** (a maintained parity contract).
 
@@ -552,6 +552,8 @@ The report HTML is the primary deliverable — it embeds every plot, every resul
 ## Nextflow integration
 
 For pipelines that already chain `nf-core/rnaseq`, the `nf-module/` directory provides a DSL2 wrapper. See [`nf-module/README.md`](nf-module/README.md) for a full integration example and `nf-test` setup. Quickstart:
+
+The wrapper exposes the options of v1.5.3 (`--counts`, `--samplesheet`, `--outdir`, `--runid`, `--annotation`, `--id-type`). Flags added since are not wired through (`--exclude-samples`, `--exclude-groups`, `--exclude-contrasts`, `--include-contrasts`, `--volcano-labels`, `--fold-change`, `--padj`, `--gsea-rank`, `--lfc-shrink`, `--independent-filtering`, `--analyst`), so a Nextflow run uses their defaults, and the manifest predates them. No client project runs this path; it stays for pipelines that chain `nf-core/rnaseq` and will be brought to parity when one needs it.
 
 ```bash
 nextflow run nf-module/main.nf \
