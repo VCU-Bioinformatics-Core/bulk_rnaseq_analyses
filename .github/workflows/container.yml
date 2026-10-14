@@ -1,10 +1,18 @@
 # bisrDE container image: build, smoke test, publish.
 #
+# Two images: bisrde-base holds the conda environment and the MSigDB gene sets
+# (Dockerfile.base) and is tagged env-<hash of its inputs> by
+# container_base_tag.sh; bisrde adds the bisrDE package and de.R on top of it
+# (Dockerfile). The base is built only when no image with that tag exists in
+# GHCR, so a release build takes minutes and does not contact Zenodo.
+#
 # Two outcomes, decided by the event:
 #   pull request touching the image inputs  -> build + smoke test, nothing pushed
 #   tag v* push                             -> build + smoke test, then push to
 #                                              ghcr.io/<owner>/bisrde:<version>
-#                                              and :latest
+#                                              and :latest; a base built in
+#                                              this run is pushed as
+#                                              bisrde-base:env-<hash> and :latest
 #   manual dispatch                         -> build + smoke test; pushes only
 #                                              when the publish input is ticked
 #
@@ -12,14 +20,17 @@
 # never publishes an image that cannot analyse the bundled example.
 #
 # Dispatch with publish=true replaces the <version> and :latest images with
-# whatever the chosen ref contains, so use it deliberately. It is needed once
+# whatever the chosen ref contains, and, when the ref changes the base inputs,
+# also pushes a new bisrde-base:env-<hash> and moves bisrde-base:latest (the
+# default FROM in the Dockerfile), so use it deliberately. It is needed once
 # to publish 1.9.0: the v1.9.0 tag predates the Dockerfile, so run the
 # workflow from main with publish ticked instead of re-tagging.
 #
-# One-time step after the first publish: the package is private by default.
-# In the GitHub package settings for "bisrde" (Package settings -> Danger
-# Zone -> Change visibility) make it public so pull_container.sh can pull it
-# anonymously from the cluster, where nobody has a GitHub token.
+# One-time step after the first publish: packages are private by default.
+# In the GitHub package settings for "bisrde" and for "bisrde-base" (Package
+# settings -> Danger Zone -> Change visibility) make them public, so
+# pull_container.sh can pull the image anonymously from the cluster, where
+# nobody has a GitHub token, and so the base lookup below works without one.
 
 name: container
 
@@ -41,6 +52,8 @@ on:
   pull_request:
     paths:
       - "differential_expression/Dockerfile"
+      - "differential_expression/Dockerfile.base"
+      - "differential_expression/container_base_tag.sh"
       - "differential_expression/.dockerignore"
       - "differential_expression/environment.yml"
       - "differential_expression/bisrDE/**"
@@ -72,10 +85,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde" >> "$GITHUB_OUTPUT"
+          base_tag=$(bash differential_expression/container_base_tag.sh)
+          echo "base_tag=$base_tag" >> "$GITHUB_OUTPUT"
+          echo "base_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde-base:$base_tag" >> "$GITHUB_OUTPUT"
           version=$(awk '/^Version:/ {print $2}' differential_expression/bisrDE/DESCRIPTION)
           [ -n "$version" ] || { echo "::error::no Version field in bisrDE/DESCRIPTION"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde, version $version"
+          echo "image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bisrde, version $version, base tag $base_tag"
 
       - name: Tag must match bisrDE/DESCRIPTION
         if: github.ref_type == 'tag'
@@ -88,7 +104,11 @@ jobs:
             exit 1
           fi
 
+      # The docker driver builds against the local daemon, so an image built
+      # earlier in this job (the base) is visible to a later FROM.
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       - name: Log in to GHCR
         if: env.PUBLISH == 'true'
@@ -97,6 +117,29 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The inspect works anonymously once the package is public. On a pull
+      # request run with a private or missing package the base is simply built
+      # here (slow but correct) and never pushed. Any failed lookup, including a
+      # transient registry error, counts as a missing base and triggers a build.
+      - name: "Base image: reuse or build"
+        id: base
+        shell: bash
+        env:
+          BASE_IMAGE: ${{ steps.info.outputs.base_image }}
+          BASE_TAG: ${{ steps.info.outputs.base_tag }}
+        run: |
+          set -euo pipefail
+          if docker manifest inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+            echo "reusing $BASE_IMAGE"
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "building $BASE_IMAGE"
+            docker build -f differential_expression/Dockerfile.base \
+              --build-arg BASE_TAG="$BASE_TAG" \
+              -t "$BASE_IMAGE" differential_expression
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Image tags
         id: meta
@@ -110,22 +153,21 @@ jobs:
             type=raw,value=latest,enable=${{ env.PUBLISH == 'true' }}
             type=match,pattern=v(.*),group=1
 
-      # load: true puts the image in the local docker daemon for the smoke
-      # test. Nothing is pushed here.
+      # The docker driver leaves the image in the local daemon for the smoke
+      # test. Nothing is pushed here. When the base was not built in this job,
+      # the FROM line pulls it from GHCR.
       - name: Build
         uses: docker/build-push-action@v6
         with:
           context: differential_expression
           file: differential_expression/Dockerfile
           platforms: linux/amd64
-          load: true
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            BISRDE_BASE=${{ steps.info.outputs.base_image }}
             BISRDE_VERSION=${{ steps.info.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Smoke test on the bundled example
         shell: bash
@@ -171,15 +213,24 @@ jobs:
           echo "smoke test passed: ${reports[0]}"
 
       # Push the exact image the smoke test ran, under every tag from the
-      # metadata step.
+      # metadata step. A base built in this job is pushed afterwards, under
+      # its hashed tag and as :latest; a reused base is already in GHCR.
       - name: Push
         if: env.PUBLISH == 'true'
         shell: bash
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
+          BASE_IMAGE: ${{ steps.info.outputs.base_image }}
+          BASE_BUILT: ${{ steps.base.outputs.built }}
         run: |
           set -euo pipefail
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             docker push "$tag"
           done <<< "$TAGS"
+          if [ "$BASE_BUILT" = "true" ]; then
+            docker push "$BASE_IMAGE"
+            latest="${BASE_IMAGE%:*}:latest"
+            docker tag "$BASE_IMAGE" "$latest"
+            docker push "$latest"
+          fi

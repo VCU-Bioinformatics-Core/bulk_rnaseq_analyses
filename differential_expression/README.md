@@ -48,7 +48,9 @@ differential_expression/
 ├── run_in_container.sh       # runs de.R inside the prebuilt image (called by run_analysis.sh)
 ├── pull_container.sh         # pulls ghcr.io/vcu-bioinformatics-core/bisrde into BISR_SIF_DIR
 ├── submit_slurm.sh           # sbatch template (RUNTIME=auto|container|conda)
-├── Dockerfile                # image recipe (conda env + bisrDE + MSigDB cache); built by GitHub Actions
+├── Dockerfile                # code image recipe (bisrDE + de.R on the base); built by GitHub Actions
+├── Dockerfile.base           # base image recipe (conda env + MSigDB cache); rebuilt only when its inputs change
+├── container_base_tag.sh     # prints the base image tag (content hash of its inputs)
 ├── environment.yml           # conda environment (Bioconductor 3.18); the image is built from it
 ├── setup_renv.R              # one-time renv bootstrap helper
 ├── renv.lock                 # pinned R deps
@@ -115,6 +117,8 @@ bash run_analysis.sh \
 ### Linux / HPC (container, recommended)
 
 The image `ghcr.io/vcu-bioinformatics-core/bisrde` holds the conda environment from `environment.yml` (R 4.3, Bioconductor 3.18, the Quarto CLI), the `bisrDE` package at the tagged version and the MSigDB gene sets, already downloaded. GitHub Actions builds it for x86_64 Linux on every release tag and publishes it under the version (`:<version>`, the Version field of `bisrDE/DESCRIPTION`) and `:latest`. Nothing is compiled on the server, no account needs its own R library, and the R code that runs is the copy baked into the image, so it always matches the image version.
+
+The image is built in two layers. `bisrde-base` (`Dockerfile.base`) holds the conda environment and the MSigDB gene sets; `bisrde` (`Dockerfile`) adds the `bisrDE` package and `de.R` on top of it. The base carries a content-hash tag (`env-<hash>`, printed by `container_base_tag.sh`) and is rebuilt only when `environment.yml`, `warm_msigdb_cache.R` or `Dockerfile.base` changes, so a release build takes a few minutes and does not depend on Zenodo being reachable. The gene sets an image ships are fixed by the `r-msigdbr` pin in `environment.yml` (25.1.1, MSigDB 2025.1). The `bisrde-base` package must be made public once, like `bisrde`, so the workflow can find an existing base without a token. `just container` builds both layers locally.
 
 Team setup, three steps. The first is done once by one person, the second by every member, the third once per version.
 
