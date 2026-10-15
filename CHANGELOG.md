@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and is deterministic for a given seed and `org.Hs.eg.db` version. The
   Validation section of the README now describes how to run the same files
   through two runtimes and compare them.
+- **Conda versus renv validation on record.** On 2026-10-15 the same synthetic
+  data set (`tests/synthetic_counts.R` defaults: 20,000 human genes, three
+  samples per group, 10% planted DE genes, seed 20261015, ID universe from
+  `org.Hs.eg.db` 3.16.0) ran through both runtimes on one macOS machine: the
+  renv project (R 4.2.1 arm64, Bioconductor 3.16, DESeq2 1.38.3, apeglm 1.20.0,
+  clusterProfiler 4.6.2, org.Hs.eg.db 3.16.0) and the conda environment from
+  `environment.yml`, solved for osx-64 and run under Rosetta 2 (R 4.3.3,
+  Bioconductor 3.18, DESeq2 1.42.0, apeglm 1.24.0, clusterProfiler 4.10.0,
+  org.Hs.eg.db 3.18.0, msigdbr 25.1.1). `compare_runs.R`: **PASS**. The DE
+  tables agree on all 17,374 genes that survive filtering: `log2FoldChange` and
+  `padj` identical at the printed precision, the same 1,521 DEGs (Jaccard 1.0);
+  `log2FC_shrunken` differs by at most 0.0099 and `lfcSE_shrunken` by at most
+  0.0009 (apeglm 1.20 against 1.24). Enrichment term sets at padj < 0.05:
+  Hallmark identical (49), KEGG Jaccard 0.997 (331 against 330), Reactome
+  0.972, GO 0.921; the differences follow the annotation database versions and
+  the live KEGG fetch, not the DE results. Against the planted truth both sides
+  call 1,461 of the 1,711 DE genes that survive filtering (85.4%) with 60 false
+  discoveries (3.9% of the calls). The Linux conda build is covered by the
+  container versus conda check on the cluster recorded under 1.10.0.
 - **Tests for the generator and the shrunken comparison.**
   `tests/bats/synthetic.bats` checks the files the generator writes, that one
   seed gives identical output and another does not, and that `compare_runs.R`
