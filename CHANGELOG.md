@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The report names the reason when an enrichment backend fails.** A backend
+  that threw an error used to look the same as one with nothing to test: both
+  gave `no result`. Each enrichment function now signals the failure, and
+  `run_analysis()` records a per-backend state (`ok`, `empty` or `failed`, with
+  the error text) in `enrich_status`. In the report, the summary table shows
+  `unreachable` for a failure that looks like a network problem (KEGG fetches
+  its pathway data live, so a compute node without outbound internet always
+  lands here) and `failed` for any other error, keeping `no result` for a
+  backend with no gene set it could test. A list under the table gives the
+  comparison, the backend and the error message; the overview bullet and the
+  per-comparison section say the same. The session log keeps the error and, for
+  KEGG, adds a hint that the data is fetched live and a node with network access
+  is needed. The run summary JSON gains `enrichment_status` next to
+  `enrichments`. The run still completes, and analysis bundles written by earlier
+  versions render as before.
+
 ## [1.11.0] - 2026-10-14
 
 ### Added

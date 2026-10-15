@@ -190,7 +190,7 @@ Four complementary enrichment analyses are run per comparison. Each is independe
     .dotplot_explained <<- TRUE
     cat('::: {.callout-tip title="How to read these dotplots"}',
         paste0("The dotplots in this section are read the same way. Each dot is a gene set. X-axis = **gene ratio** (the share of the set's genes that are in the leading edge, the core genes driving the enrichment; the set is counted over the genes present in your ranked list). Dot **size** = the number of the set's genes in the leading edge (legend: `Count`), not the size of the set in your ranked list (the `setSize` column of the table below); **colour** = adjusted p-value (yellow = most significant, darkening through orange and magenta to dark purple for the least significant of the sets shown). The plot splits into **Activated** (gene sets enriched among up-regulated genes) vs **Suppressed** (enriched among down-regulated). The top 15 **significant** sets by `p.adjust` are shown in each panel (so up to 30 in total); a missing plot means either that no set passed p.adjust < ",
-               padj_cut, ", or that the backend produced no result at all (no gene set of testable size, or the backend failed); the summary table shows `no result` in that case and the session log in `logs/` gives the reason."),
+               padj_cut, ", or that the backend produced no result at all (no gene set of testable size, or the backend failed); the summary table shows `no result`, `unreachable` or `failed` in that case, the reason for a failure is listed under the table, and the session log in `logs/` has the detail."),
         ':::', '', sep = "\n")
   } else {
     cat('*Read this dotplot the same way as the first dotplot in this section.*', '', sep = "\n")
@@ -211,7 +211,8 @@ if (file.exists(gsea_path)) {
 } else if (!is.null(results[[i]]) && !is.null(results[[i]]$gsea)) {
   cat(sprintf("No GO dotplot: no GO term reached p.adjust < %s", padj_cut))
 } else {
-  cat("GO enrichment not available for this comparison")
+  cat(.enrich_na(results[[i]], "GO", "GO enrichment not available for this comparison",
+                 code = FALSE))
 }
 ```
 
@@ -270,7 +271,8 @@ if (file.exists(kegg_path)) {
 } else if (!is.null(results[[i]]) && !is.null(results[[i]]$kegg)) {
   cat(sprintf("No KEGG dotplot: no KEGG pathway reached p.adjust < %s", padj_cut))
 } else {
-  cat("KEGG enrichment not available for this comparison")
+  cat(.enrich_na(results[[i]], "KEGG", "KEGG enrichment not available for this comparison",
+                 code = FALSE))
 }
 ```
 
@@ -318,7 +320,8 @@ if (file.exists(reactome_path)) {
 } else if (!is.null(results[[i]]) && !is.null(results[[i]]$reactome)) {
   cat(sprintf("No Reactome dotplot: no Reactome pathway reached p.adjust < %s", padj_cut))
 } else {
-  cat("Reactome enrichment not available for this comparison")
+  cat(.enrich_na(results[[i]], "Reactome", "Reactome enrichment not available for this comparison",
+                 code = FALSE))
 }
 ```
 
@@ -369,7 +372,8 @@ if (file.exists(hallmark_path)) {
 } else if (!is.null(results[[i]]) && !is.null(results[[i]]$hallmark)) {
   cat(sprintf("No Hallmark dotplot: no Hallmark gene set reached p.adjust < %s", padj_cut))
 } else {
-  cat("Hallmark enrichment not available for this comparison")
+  cat(.enrich_na(results[[i]], "Hallmark", "Hallmark enrichment not available for this comparison",
+                 code = FALSE))
 }
 ```
 

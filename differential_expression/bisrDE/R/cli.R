@@ -122,6 +122,17 @@ stop_session_log <- function(log) {
     sum(!is.na(g@result$p.adjust) & g@result$p.adjust < padj)
   }
 
+  # Per-backend state ("ok", "empty", "failed") with the error text for a
+  # failure. NULL for a bundle written before enrich_status existed.
+  status_summary <- function(st) {
+    if (is.null(st)) return(NULL)
+    lapply(st, function(x) {
+      out <- list(state = x$state)
+      if (identical(x$state, "failed")) out$message <- x$message
+      out
+    })
+  }
+
   comp_summaries <- lapply(seq_along(results), function(i) {
     r  <- results[[i]]
     nm <- comparisons[[i]]$name
@@ -129,7 +140,7 @@ stop_session_log <- function(log) {
     d   <- r$deseq
     sig <- sum(!is.na(d$padj) & d$padj < padj & abs(d$log2FoldChange) >= lfc)
     o   <- if (is.null(r$de_options)) list() else r$de_options
-    list(
+    cs <- list(
       name        = nm,
       ok          = TRUE,
       n_genes     = nrow(d),
@@ -147,6 +158,9 @@ stop_session_log <- function(log) {
                                 Reactome = n_sig_sets(r$reactome),
                                 Hallmark = n_sig_sets(r$hallmark))
     )
+    es <- status_summary(r$enrich_status)
+    if (!is.null(es)) cs$enrichment_status <- es
+    cs
   })
 
   summary <- list(
