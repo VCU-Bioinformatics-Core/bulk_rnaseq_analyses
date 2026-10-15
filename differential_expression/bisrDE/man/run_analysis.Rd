@@ -68,8 +68,10 @@ forwarded to \code{\link[=annotate_results]{annotate_results()}} for the input g
 the versioned-ID column.}
 }
 \value{
-On success, a named list \code{list(deseq, gsea, kegg, reactome, hallmark, dds, de_options)}: each enrichment slot is either a
-\code{setReadable}'d GSEA object or \code{NULL} if no enrichment was found; \code{dds}
+On success, a named list \code{list(deseq, gsea, kegg, reactome, hallmark, dds, de_options, enrich_status)}: each enrichment slot is
+either a \code{setReadable}'d GSEA object or \code{NULL} if no enrichment was found
+or the backend failed; \code{enrich_status} tells those two apart, as a named
+list (\code{GO}, \code{KEGG}, \code{Reactome}, \code{Hallmark}) of \code{list(state, message, network)} where \code{state} is \code{"ok"}, \code{"empty"} or \code{"failed"}; \code{dds}
 is the fitted \code{DESeqDataSet} for this comparison (so the model can be
 audited from the RDS bundle); \code{de_options} records the design, reference
 level, coefficient, independent-filtering flag, shrinkage method used and

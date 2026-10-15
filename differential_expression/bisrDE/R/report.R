@@ -128,6 +128,12 @@ generate_report <- function(rds_path,
     file.copy(f, sections_dest, overwrite = TRUE)
   }
 
+  # The template counts significant gene sets with enrichment_cell(). Stage its
+  # source next to the template so the render uses this exact version and does
+  # not need bisrDE installed in the Quarto process (dev mode).
+  writeLines(c("enrichment_cell <-", deparse(enrichment_cell)),
+             file.path(td, "_enrichment_cell.R"))
+
   # Trailing phase: this runs after run_pipeline() has emitted its "done"
   # event, so a front-end shows the bar at 100% while the report renders.
   .emit_event("phase", name = "rendering report")

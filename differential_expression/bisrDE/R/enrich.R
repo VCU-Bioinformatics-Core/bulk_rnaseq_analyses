@@ -83,6 +83,78 @@
 }
 
 
+# Backend failures -------------------------------------------------------
+
+# Pattern for an error message that points at the network (a download or a
+# connection that did not complete), as opposed to a fault in the analysis.
+# Applied only to the backends that fetch data at run time (KEGG, Hallmark);
+# GO and Reactome read local annotation packages, so a generic "connection"
+# error from R or the database layer is not a network fault there.
+.NETWORK_BACKENDS <- c("KEGG", "Hallmark")
+.NETWORK_ERROR_PATTERN <- paste0(
+  "timeout|timed out|resolve host|connection|curl|download|internet|",
+  "cannot open URL"
+)
+
+#' Report an enrichment backend failure
+#'
+#' @description Called from the error handler of each enrichment function.
+#'   Logs the error, classifies it as network related or not, and signals a
+#'   condition of class `bisrde_enrich_failure` so that a caller can record
+#'   the failure without parsing the log. With no handler installed the
+#'   signal is a no-op, so direct callers of the enrichment functions are
+#'   unaffected.
+#'
+#' @param backend Backend label: `"GO"`, `"KEGG"`, `"Reactome"` or
+#'   `"Hallmark"`.
+#' @param e The condition caught by the enrichment function.
+#' @return `NULL`, invisibly, as the enrichment functions return it for a
+#'   failed backend. The condition carries the fields `backend`, `message`
+#'   and `network` (`TRUE` when the backend fetches data at run time, KEGG or
+#'   Hallmark, and the message looks network related).
+#' @keywords internal
+#' @noRd
+.enrich_failure <- function(backend, e) {
+  msg     <- conditionMessage(e)
+  network <- backend %in% .NETWORK_BACKENDS &&
+    grepl(.NETWORK_ERROR_PATTERN, msg, ignore.case = TRUE)
+
+  label <- switch(backend,
+    GO = "GSEA-GO", KEGG = "KEGG GSEA", Reactome = "Reactome GSEA",
+    Hallmark = "MSigDB Hallmark", backend
+  )
+  cli::cli_alert_danger("{label} error: {msg}")
+
+  if (backend == "KEGG" && network) {
+    cli::cli_bullets(c(
+      "i" = "KEGG pathway data is fetched live from KEGG at run time.",
+      "i" = "A compute node without outbound internet cannot reach it.",
+      "i" = "Run on a node with network access, or accept a report without KEGG."
+    ))
+  }
+  if (backend == "Hallmark" && network) {
+    # msigdbr >= 24 fetches the gene-set archive from Zenodo on first use and
+    # caches it. On an HPC compute node with no outbound internet that surfaces
+    # as an opaque timeout, so name the actual fix rather than leaving the user
+    # to guess. Only for network-ish failures: a genuine analysis error should
+    # not be buried under installation advice.
+    cli::cli_bullets(c(
+      "i" = "This looks like {.pkg msigdbr} failing to download its gene sets.",
+      "i" = "Warm the cache once on a machine WITH internet (e.g. a login node):",
+      "*" = '{.code Rscript -e \'msigdbr::msigdbr(species = "Homo sapiens", collection = "H")\'}',
+      "i" = "The cache lives in {.path {tools::R_user_dir(\"msigdbr\", \"cache\")}} and is reused offline.",
+      "i" = "Override the location with the {.envvar R_USER_CACHE_DIR} environment variable."
+    ))
+  }
+
+  signalCondition(structure(
+    class = c("bisrde_enrich_failure", "condition"),
+    list(message = msg, call = NULL, backend = backend, network = network)
+  ))
+  invisible(NULL)
+}
+
+
 #' GO Gene Set Enrichment Analysis (all ontologies)
 #'
 #' @description GSEA over GO BP/MF/CC, ranked by the DESeq2 Wald statistic
@@ -148,10 +220,7 @@ process_gsea <- function(annotated_result, p = 1,
 
       clusterProfiler::setReadable(gse, OrgDb = annotation_db, keyType = "ENSEMBL")
     },
-    error = function(e) {
-      cli::cli_alert_danger("GSEA-GO error: {e$message}")
-      NULL
-    }
+    error = function(e) .enrich_failure("GO", e)
   )
 }
 
@@ -226,10 +295,7 @@ process_kegg_gsea <- function(annotated_result, p = 1,
 
       clusterProfiler::setReadable(gse, OrgDb = annotation_db, keyType = "ENTREZID")
     },
-    error = function(e) {
-      cli::cli_alert_danger("KEGG GSEA error: {e$message}")
-      NULL
-    }
+    error = function(e) .enrich_failure("KEGG", e)
   )
 }
 
@@ -299,10 +365,7 @@ process_reactome_gsea <- function(annotated_result, p = 1,
 
       clusterProfiler::setReadable(gse, OrgDb = annotation_db, keyType = "ENTREZID")
     },
-    error = function(e) {
-      cli::cli_alert_danger("Reactome GSEA error: {e$message}")
-      NULL
-    }
+    error = function(e) .enrich_failure("Reactome", e)
   )
 }
 
@@ -386,26 +449,38 @@ process_msigdb_hallmark <- function(annotated_result, p = 1,
 
       clusterProfiler::setReadable(gse, OrgDb = annotation_db, keyType = "ENTREZID")
     },
-    error = function(e) {
-      cli::cli_alert_danger("MSigDB Hallmark error: {e$message}")
-      # msigdbr >= 24 fetches the gene-set archive from Zenodo on first use and
-      # caches it. On an HPC compute node with no outbound internet that surfaces
-      # as an opaque timeout, so name the actual fix rather than leaving the user
-      # to guess. Only for network-ish failures — a genuine analysis error should
-      # not be buried under installation advice.
-      if (grepl("timeout|timed out|resolve host|connection|curl|download|internet",
-                e$message, ignore.case = TRUE)) {
-        cli::cli_alert_info(c(
-          "This looks like {.pkg msigdbr} failing to download its gene sets.",
-          "i" = "Warm the cache once on a machine WITH internet (e.g. a login node):",
-          "*" = '{.code Rscript -e \'msigdbr::msigdbr(species = "Homo sapiens", collection = "H")\'}',
-          "i" = "The cache lives in {.path {tools::R_user_dir(\"msigdbr\", \"cache\")}} and is reused offline.",
-          "i" = "Override the location with the {.envvar R_USER_CACHE_DIR} environment variable."
-        ))
-      }
-      NULL
-    }
+    error = function(e) .enrich_failure("Hallmark", e)
   )
+}
+
+
+#' Summary-table cell for one enrichment backend
+#'
+#' @description Turns one backend's result and status into the short string
+#'   the report's summary table shows: the number of significant gene sets,
+#'   or a word that says why there is no number.
+#'
+#' @param x The backend's result object (a GSEA result, or `NULL`).
+#' @param status The backend's entry of `enrich_status` from
+#'   [run_analysis()]: `list(state, message, network)`. `NULL` for a bundle
+#'   written before `enrich_status` existed.
+#' @param padj_cut Adjusted p-value cutoff for counting a gene set as
+#'   significant.
+#' @return A single string: the count of gene sets with `p.adjust < padj_cut`
+#'   when `x` is not `NULL`; `"no result"` when `x` is `NULL` and the state is
+#'   `"empty"` or `status` is `NULL`; `"unreachable"` when the state is
+#'   `"failed"` and the failure looks network related; `"failed"` for any
+#'   other failure.
+#' @export
+enrichment_cell <- function(x, status, padj_cut) {
+  if (!is.null(x)) {
+    df <- as.data.frame(x)
+    return(as.character(sum(!is.na(df$p.adjust) & df$p.adjust < padj_cut)))
+  }
+  if (identical(status$state, "failed")) {
+    return(if (isTRUE(status$network)) "unreachable" else "failed")
+  }
+  "no result"
 }
 
 
