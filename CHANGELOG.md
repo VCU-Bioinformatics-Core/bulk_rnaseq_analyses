@@ -7,8 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A seeded synthetic counts generator.**
+  `differential_expression/tests/synthetic_counts.R` writes 20,000 human genes
+  in two groups of three samples with negative binomial counts, a log-normal
+  baseline, a dispersion trend, per-sample size factors and a planted set of
+  differentially expressed genes (10% by default, log2 fold change 1 to 3 with
+  random sign). It writes `counts.tsv`, `samplesheet.csv`, `truth.csv` and
+  `manifest.txt`, takes `--genes`, `--per-group`, `--de-fraction` and `--seed`,
+  and is deterministic for a given seed and `org.Hs.eg.db` version. The
+  Validation section of the README now describes how to run the same files
+  through two runtimes and compare them.
+- **Tests for the generator and the shrunken comparison.**
+  `tests/bats/synthetic.bats` checks the files the generator writes, that one
+  seed gives identical output and another does not, and that `compare_runs.R`
+  prints and gates on the shrunken columns.
+
 ### Changed
 
+- **`compare_runs.R` compares the shrunken columns.** When both DE tables have
+  `log2FC_shrunken` and `lfcSE_shrunken`, each comparison reports Spearman,
+  Pearson, median and maximum absolute difference for the shrunken fold change
+  and the maximum absolute difference for its standard error. The shrunken
+  Spearman correlation must reach the same `--min-cor` threshold as the
+  unshrunken one, or the comparison fails. When only one run has the columns,
+  the report says so on one line and the verdict does not change.
 - **The report names the reason when an enrichment backend fails.** A backend
   that threw an error used to look the same as one with nothing to test: both
   gave `no result`. Each enrichment function now signals the failure, and
