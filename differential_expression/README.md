@@ -189,13 +189,33 @@ Note the order in `auto`: a shell with a conda environment activated runs in tha
 
 **macOS.** Apptainer does not run on macOS, so the launcher never picks the container there. Mac users use the conda or renv path below.
 
-**Validation.** The image is built from the same `environment.yml` as the conda path, so a container run and a conda run of the bundled example are expected to agree:
+#### Validation
+
+The image is built from the same `environment.yml` as the conda path, so a container run and a conda run of the bundled example are expected to agree. Any two runtimes (container versus conda, conda versus renv) are checked the same way, with a synthetic data set that has a known answer:
 
 ```bash
-Rscript compare_runs.R --a <conda_run> --b <container_run> --out validation.md
+# 1. Generate the data once. A fixed seed makes it reproducible.
+Rscript tests/synthetic_counts.R --out validation/data
+
+# 2. Run the same files through each runtime.
+BISR_RUNTIME=conda bash run_analysis.sh --counts validation/data/counts.tsv \
+  --samplesheet validation/data/samplesheet.csv --outdir validation/conda \
+  --runid synth_conda --annotation human --id-type ensembl
+BISR_RUNTIME=renv bash run_analysis.sh --counts validation/data/counts.tsv \
+  --samplesheet validation/data/samplesheet.csv --outdir validation/renv \
+  --runid synth_renv --annotation human --id-type ensembl
+
+# 3. Compare the two runs.
+Rscript compare_runs.R --a validation/conda --b validation/renv --out validation.md
 ```
 
-Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
+`synthetic_counts.R` needs `AnnotationDbi` and `org.Hs.eg.db`, so run it inside the activated conda environment or the renv project, not with a bare `Rscript`. It writes negative binomial counts for 20,000 human genes in two groups of three samples, 10% of them differentially expressed with planted log2 fold changes (`--genes`, `--per-group`, `--de-fraction` and `--seed` change the design). The gene IDs come from the installed `org.Hs.eg.db`, so the ID universe depends on its version: generate the files once and run every runtime on those files, not on a copy generated per environment. `manifest.txt` records the seed, the sizes and the versions used.
+
+`compare_runs.R` compares log2 fold changes, adjusted p-values, the DEG sets, the enrichment terms and, when both runs have them, the shrunken estimates `log2FC_shrunken` and `lfcSE_shrunken`. Exit status is 0 PASS / 1 WARN / 2 FAIL, so it can gate a deployment.
+
+`truth.csv` lists every gene with its planted log2 fold change. Count the true DE genes a run calls at `padj < 0.05` to get its sensitivity, and the called genes that are not in the set to get its false discoveries. Both numbers should be similar across runtimes; a runtime that agrees with the other but recovers little of the planted signal points at the data or the settings, not at the environment.
+
+The record of each validation (date, runtimes compared, verdict, sensitivity) goes into `CHANGELOG.md`.
 
 #### Batch submission
 

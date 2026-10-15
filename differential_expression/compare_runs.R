@@ -12,6 +12,11 @@
 #   Rscript compare_runs.R --a old/ --b new/ --padj 0.05 --fold-change 1.5 \
 #                          --out validation.md
 #
+# When both DE tables carry the shrunken columns that de.R writes
+# (log2FC_shrunken and lfcSE_shrunken), those are compared too, and the
+# shrunken Spearman correlation is held to the same --min-cor threshold as
+# log2FC.
+#
 # Exit status: 0 = PASS, 1 = WARN, 2 = FAIL, 3 = usage/IO error. So it can gate
 # a deployment in CI.
 #
@@ -42,7 +47,8 @@ Optional:
   --padj <num>         significance cutoff for DEG sets      [0.05]
   --fold-change <num>  linear fold-change cutoff for DEG sets [1.5]
   --out <file>         also write a markdown report
-  --min-cor <num>      min log2FC Spearman correlation to PASS [0.99]
+  --min-cor <num>      min Spearman correlation to PASS, for log2FC and,
+                       when both runs have it, log2FC_shrunken [0.99]
   --min-jaccard <num>  min DEG-set Jaccard to PASS             [0.95]
 
 Exit: 0 PASS, 1 WARN, 2 FAIL, 3 usage/IO error
@@ -146,7 +152,9 @@ say("- reference (A): `", dir_a, "`")
 say("- candidate (B): `", dir_b, "`")
 say("- thresholds: padj < ", padj_cut, ", |log2FC| >= ", fmt(lfc_cut, 3),
     " (", fc_cut, "-fold)")
-say("- PASS gates: log2FC Spearman >= ", min_cor, ", DEG Jaccard >= ", min_jaccard)
+say("- PASS gates: log2FC Spearman >= ", min_cor,
+    " (and log2FC_shrunken Spearman when both runs have it), DEG Jaccard >= ",
+    min_jaccard)
 say("")
 
 status <- 0L   # 0 pass, 1 warn, 2 fail
@@ -195,6 +203,25 @@ for (cmp in shared) {
   okp <- is.finite(padj_a) & is.finite(padj_b)
   prho <- if (sum(okp) > 2) suppressWarnings(stats::cor(padj_a[okp], padj_b[okp], method = "spearman")) else NA_real_
 
+  # Shrunken estimates exist only when de.R ran with shrinkage; compare them
+  # when both tables have the columns, and say so when only one does.
+  has_shr_a <- all(c("log2FC_shrunken", "lfcSE_shrunken") %in% names(A))
+  has_shr_b <- all(c("log2FC_shrunken", "lfcSE_shrunken") %in% names(B))
+  rho_shr <- NA_real_
+  if (has_shr_a && has_shr_b) {
+    sa <- suppressWarnings(as.numeric(A$log2FC_shrunken[ia]))
+    sb <- suppressWarnings(as.numeric(B$log2FC_shrunken[ib]))
+    oks <- is.finite(sa) & is.finite(sb)
+    rho_shr <- if (sum(oks) > 2) suppressWarnings(stats::cor(sa[oks], sb[oks], method = "spearman")) else NA_real_
+    pear_shr <- if (sum(oks) > 2) suppressWarnings(stats::cor(sa[oks], sb[oks])) else NA_real_
+    med_shr <- if (any(oks)) stats::median(abs(sa[oks] - sb[oks])) else NA_real_
+    max_shr <- if (any(oks)) max(abs(sa[oks] - sb[oks])) else NA_real_
+    ea <- suppressWarnings(as.numeric(A$lfcSE_shrunken[ia]))
+    eb <- suppressWarnings(as.numeric(B$lfcSE_shrunken[ib]))
+    oke <- is.finite(ea) & is.finite(eb)
+    max_se <- if (any(oke)) max(abs(ea[oke] - eb[oke])) else NA_real_
+  }
+
   da <- deg_set(A, key); db <- deg_set(B, key)
   jac <- jaccard(da, db)
   lost   <- setdiff(da, db)
@@ -204,6 +231,14 @@ for (cmp in shared) {
       " (", fmt(100 * gene_cov, 2), "% of union)")
   say("- log2FC: Spearman=", fmt(rho), " Pearson=", fmt(pear),
       " median|Δ|=", fmt(medd), " max|Δ|=", fmt(maxd))
+  if (has_shr_a && has_shr_b) {
+    say("- log2FC_shrunken: Spearman=", fmt(rho_shr), " Pearson=", fmt(pear_shr),
+        " median|Δ|=", fmt(med_shr), " max|Δ|=", fmt(max_shr))
+    say("- lfcSE_shrunken: max|Δ|=", fmt(max_se))
+  } else if (has_shr_a || has_shr_b) {
+    say("- shrunken columns: only in ", if (has_shr_a) "A" else "B",
+        ", not compared")
+  }
   say("- padj: Spearman=", fmt(prho))
   say("- DEGs: A=", length(da), " B=", length(db),
       " shared=", length(intersect(da, db)), " Jaccard=", fmt(jac))
@@ -224,6 +259,7 @@ for (cmp in shared) {
 
   verdict <- "PASS"
   if (!is.na(rho) && rho < min_cor)      { verdict <- "FAIL"; bump(2L) }
+  if (!is.na(rho_shr) && rho_shr < min_cor) { verdict <- "FAIL"; bump(2L) }
   if (jac < min_jaccard)                 { if (verdict == "PASS") verdict <- "WARN"; bump(1L) }
   if (!is.na(gene_cov) && gene_cov < 0.99) { verdict <- "FAIL"; bump(2L) }
   say("- **", verdict, "**")
