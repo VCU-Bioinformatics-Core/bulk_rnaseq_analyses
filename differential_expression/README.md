@@ -231,6 +231,8 @@ The template exports `BISR_PLATFORM_NAME` (default "VCU's High Performance Resea
 
 In conda mode, before the analysis starts, the job resolves the MSigDB cache directory the way R will (`R_USER_CACHE_DIR` included), prints it in the job header as `msigdb:`, and warns in the `.err` log with the exact warm-up command if the directory is missing or empty. The run continues, since Hallmark is the only step that needs the cache; warm it and resubmit if you want Hallmark results.
 
+KEGG is the one backend that needs outbound network at run time, because `clusterProfiler::gseKEGG` fetches the pathway data live and there is no offline cache. On a node without it the report marks KEGG as `unreachable` in the summary table and names the reason, while the other backends and the rest of the report are unaffected. Run on a node with network access if you want KEGG results.
+
 Raise `--mem` before `--cpus-per-task` if a job is killed; DESeq2 and the four
 GSEA backends are memory-bound rather than CPU-bound.
 

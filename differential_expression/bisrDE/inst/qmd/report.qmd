@@ -54,6 +54,14 @@ annotation <- rds_data[[7]]
 padj_cut <- if (length(rds_data) >= 8 && !is.null(rds_data[[8]])) rds_data[[8]] else 0.05
 fc_cut   <- if (length(rds_data) >= 9 && !is.null(rds_data[[9]])) rds_data[[9]] else 1.5
 lfc_cut  <- log2(fc_cut)
+# enrichment_cell() is staged next to this file by generate_report(), so a
+# render does not depend on an installed bisrDE; a hand render falls back to
+# the package.
+if (file.exists("_enrichment_cell.R")) {
+  source("_enrichment_cell.R")
+} else {
+  enrichment_cell <- bisrDE::enrichment_cell
+}
 # v1.7: QC summary (element 10) and run options (element 11); older bundles
 # fall back to the pre-v1.7 behaviour so the report still renders.
 qc_summary <- if (length(rds_data) >= 10) rds_data[[10]] else NULL
@@ -194,6 +202,39 @@ result tables (CSV) and figures.
   best
 }
 .backend_labels <- c(gsea = "GO", kegg = "KEGG", reactome = "Reactome", hallmark = "Hallmark")
+# A backend error message on one line, cut short when very long. The text comes
+# from R or a download library and may hold markup, so in Markdown output
+# (code = TRUE) it is shown as inline code; in a code-output chunk it is plain.
+.fmt_reason <- function(msg, code = TRUE) {
+  msg <- gsub("\\s+", " ", trimws(paste(msg, collapse = " ")))
+  if (nchar(msg) > 300) msg <- paste0(substr(msg, 1, 297), "...")
+  msg <- gsub("`", "'", msg, fixed = TRUE)
+  if (code) paste0("`", msg, "`") else msg
+}
+# Status of one backend: "failed", "empty" or "ok", or NA for a bundle written
+# before enrich_status existed.
+.enrich_state <- function(results_i, label) {
+  st <- results_i$enrich_status[[label]]
+  if (is.null(st$state)) NA_character_ else st$state
+}
+# "unreachable (reason)" or "failed (reason)" for a failed backend, else NULL.
+.enrich_failure_text <- function(results_i, label) {
+  if (!identical(.enrich_state(results_i, label), "failed")) return(NULL)
+  st <- results_i$enrich_status[[label]]
+  sprintf("%s (%s)", if (isTRUE(st$network)) "unreachable" else "failed",
+          .fmt_reason(st$message))
+}
+# The sentence for a backend with no result in a comparison: the failure when
+# it failed, else `default`.
+.enrich_na <- function(results_i, label, default, code = TRUE) {
+  if (!identical(.enrich_state(results_i, label), "failed")) return(default)
+  st <- results_i$enrich_status[[label]]
+  if (isTRUE(st$network)) {
+    sprintf("%s enrichment failed: unreachable (%s)", label, .fmt_reason(st$message, code))
+  } else {
+    sprintf("%s enrichment failed (%s)", label, .fmt_reason(st$message, code))
+  }
+}
 .pathway_bullet <- function(results_i, pathway) {
   if (!is.null(pathway)) {
     return(sprintf(
@@ -201,20 +242,39 @@ result tables (CSV) and figures.
       pathway$desc, pathway$backend, .fmt_pval(pathway$padj),
       if (!is.na(pathway$nes)) sprintf(", NES = %.2f", pathway$nes) else ""))
   }
-  # A NULL slot is a backend that produced no result object (nothing it could
-  # test, or an error); the summary table reports the same slot as "no result".
-  has <- vapply(names(.backend_labels), function(s) !is.null(results_i[[s]]), logical(1))
-  with_result <- paste(.backend_labels[has],  collapse = " / ")
-  no_result   <- paste(.backend_labels[!has], collapse = " / ")
-  if (all(has)) {
-    sprintf("- No gene set reached p.adjust < %s in %s.\n", padj_cut, with_result)
-  } else if (!any(has)) {
-    sprintf("- No enrichment result was produced for %s (no gene set could be tested, or the backend failed).\n",
-            no_result)
-  } else {
-    sprintf("- No gene set reached p.adjust < %s in %s; no enrichment result was produced for %s.\n",
-            padj_cut, with_result, no_result)
+  # A NULL slot is a backend that produced no result object: nothing it could
+  # test ("empty"), or an error ("failed"). A bundle written before
+  # enrich_status existed cannot say which, and keeps the combined wording.
+  slots  <- names(.backend_labels)
+  labels <- unname(.backend_labels)
+  has    <- vapply(slots, function(s) !is.null(results_i[[s]]), logical(1))
+  state  <- vapply(labels, function(l) .enrich_state(results_i, l), character(1))
+  empty   <- labels[!has & !is.na(state) & state == "empty"]
+  failed  <- labels[!has & !is.na(state) & state == "failed"]
+  unknown <- labels[!has & !(labels %in% c(empty, failed))]
+  parts <- character(0)
+  if (any(has)) {
+    parts <- c(parts, sprintf("No gene set reached p.adjust < %s in %s",
+                              padj_cut, paste(labels[has], collapse = " / ")))
   }
+  if (length(empty) > 0) {
+    parts <- c(parts, sprintf("no gene set could be tested for %s",
+                              paste(empty, collapse = " / ")))
+  }
+  if (length(unknown) > 0) {
+    parts <- c(parts, sprintf("no enrichment result was produced for %s%s",
+                              paste(unknown, collapse = " / "),
+                              if (any(has)) "" else
+                                " (no gene set could be tested, or the backend failed)"))
+  }
+  for (l in failed) {
+    st <- results_i$enrich_status[[l]]
+    parts <- c(parts, sprintf("the %s backend failed%s(%s)", l,
+                              if (isTRUE(st$network)) ": unreachable " else " ",
+                              .fmt_reason(st$message)))
+  }
+  txt <- paste(parts, collapse = "; ")
+  sprintf("- %s%s.\n", toupper(substr(txt, 1, 1)), substring(txt, 2))
 }
 
 for (i in seq_along(comparisons)) {
@@ -518,10 +578,10 @@ for (i in seq_along(comparisons)) {
 
       # Number of gene sets significant at padj_cut (not "did the backend
       # run"): a backend that ran and found nothing shows 0, not "Yes".
-      n_sig <- function(x) {
-        if (is.null(x)) return("no result")
-        df <- as.data.frame(x)
-        as.character(sum(!is.na(df$p.adjust) & df$p.adjust < padj_cut))
+      # A backend with no result shows why: "no result" (nothing it could test,
+      # or an older bundle), "unreachable" (network) or "failed".
+      n_sig <- function(x, label) {
+        enrichment_cell(x, results[[i]]$enrich_status[[label]], padj_cut)
       }
 
       summary_table <- rbind(summary_table, data.frame(
@@ -531,10 +591,10 @@ for (i in seq_along(comparisons)) {
         Total_DEGs    = total_degs,
         Upregulated   = up_degs,
         Downregulated = down_degs,
-        GO            = n_sig(results[[i]]$gsea),
-        KEGG          = n_sig(results[[i]]$kegg),
-        Reactome      = n_sig(results[[i]]$reactome),
-        Hallmark      = n_sig(results[[i]]$hallmark),
+        GO            = n_sig(results[[i]]$gsea, "GO"),
+        KEGG          = n_sig(results[[i]]$kegg, "KEGG"),
+        Reactome      = n_sig(results[[i]]$reactome, "Reactome"),
+        Hallmark      = n_sig(results[[i]]$hallmark, "Hallmark"),
         stringsAsFactors = FALSE
       ))
     }
@@ -582,10 +642,32 @@ Specifically, the **Total_DEGs** column reports the number of genes with an adju
 p-value < `r padj_cut` and |FC| ≥ `r fc_cut`. The **Upregulated** and **Downregulated** columns break
 down this count accordingly. The **GO**, **KEGG**, **Reactome**, and **Hallmark** columns
 give the number of gene sets significant at p.adjust < `r padj_cut` for each backend
-(`no result` when a backend failed or had no gene set it could test).
+(`no result` when a backend had no gene set it could test, `unreachable` when it needs
+a network service that could not be reached, `failed` for any other backend error; the
+reason is listed under the table).
 
 ```{r display-summary-table}
 kable(summary_table, caption = "")
+```
+
+```{r failed-backends, results='asis'}
+# One line per backend that failed, naming the reason. Nothing when none did.
+failed_lines <- character(0)
+for (i in seq_along(comparisons)) {
+  if (is.null(results[[i]]) || is.null(results[[i]]$deseq)) next
+  for (label in unname(.backend_labels)) {
+    txt <- .enrich_failure_text(results[[i]], label)
+    if (!is.null(txt)) {
+      failed_lines <- c(failed_lines,
+                        sprintf("- %s, %s: %s\n", comparisons[[i]]$name, label, txt))
+    }
+  }
+}
+if (length(failed_lines) > 0) {
+  cat("\nEnrichment backends that failed (the rest of the report is unaffected):\n\n")
+  cat(failed_lines, sep = "")
+  cat("\n")
+}
 ```
 
 ```{r per-comparison, results='asis'}

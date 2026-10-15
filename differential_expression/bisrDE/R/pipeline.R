@@ -59,6 +59,21 @@ setup_directories <- function(base_dir) {
 .STEPS_PER_COMPARISON <- 10L
 
 
+# State of one enrichment backend after a call: "ok" when a result object came
+# back, "failed" when the backend signalled a bisrde_enrich_failure condition,
+# "empty" for NULL without one (nothing testable or nothing enriched).
+.enrich_status_entry <- function(result, failure = NULL) {
+  if (!is.null(failure)) {
+    list(state = "failed", message = failure$message,
+         network = isTRUE(failure$network))
+  } else if (is.null(result)) {
+    list(state = "empty", message = NULL, network = FALSE)
+  } else {
+    list(state = "ok", message = NULL, network = FALSE)
+  }
+}
+
+
 #' Run the full per-comparison DE + enrichment workflow
 #'
 #' @description Per-comparison driver: DESeq2 contrast, annotation, volcano
@@ -94,8 +109,11 @@ setup_directories <- function(base_dir) {
 #'   forwarded to [annotate_results()] for the input gene-name fallback and
 #'   the versioned-ID column.
 #' @return On success, a named list `list(deseq, gsea, kegg, reactome,
-#'   hallmark, dds, de_options)`: each enrichment slot is either a
-#'   `setReadable`'d GSEA object or `NULL` if no enrichment was found; `dds`
+#'   hallmark, dds, de_options, enrich_status)`: each enrichment slot is
+#'   either a `setReadable`'d GSEA object or `NULL` if no enrichment was found
+#'   or the backend failed; `enrich_status` tells those two apart, as a named
+#'   list (`GO`, `KEGG`, `Reactome`, `Hallmark`) of `list(state, message,
+#'   network)` where `state` is `"ok"`, `"empty"` or `"failed"`; `dds`
 #'   is the fitted `DESeqDataSet` for this comparison (so the model can be
 #'   audited from the RDS bundle); `de_options` records the design, reference
 #'   level, coefficient, independent-filtering flag, shrinkage method used and
@@ -118,6 +136,20 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
   # Advance the caller's progress bar one sub-step. No-op when called directly
   # (tick = NULL), so this function still works outside run_pipeline().
   .tick <- function(step) if (is.function(tick)) tick(step)
+
+  # Run one enrichment backend and record how it ended. A backend that threw
+  # signals a `bisrde_enrich_failure` condition (see .enrich_failure()); that
+  # is what separates "failed" from "empty" when both return NULL.
+  enrich_status <- list()
+  .run_enrich <- function(label, expr) {
+    failure <- NULL
+    res <- withCallingHandlers(
+      expr,
+      bisrde_enrich_failure = function(cnd) failure <<- cnd
+    )
+    enrich_status[[label]] <<- .enrich_status_entry(res, failure)
+    res
+  }
 
   tryCatch(
     {
@@ -211,8 +243,9 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       # ---- Enrichment: GO ----
       .tick("GO")
       cli::cli_alert_info("Enrichment: GO (gseGO)...")
-      gse <- process_gsea(annotated_results, annotation_db = annotation_db,
-                          gsea_rank = gsea_rank)
+      gse <- .run_enrich("GO", process_gsea(annotated_results,
+                                            annotation_db = annotation_db,
+                                            gsea_rank = gsea_rank))
       if (!is.null(gse)) {
         utils::write.csv(
           .enrichment_table(gse, padj, gsea_rank),
@@ -232,10 +265,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       # ---- Enrichment: KEGG ----
       .tick("KEGG")
       cli::cli_alert_info("Enrichment: KEGG (gseKEGG)...")
-      kegg_gse <- process_kegg_gsea(annotated_results,
-                                    annotation = annotation,
-                                    annotation_db = annotation_db,
-                                    gsea_rank = gsea_rank)
+      kegg_gse <- .run_enrich("KEGG", process_kegg_gsea(
+        annotated_results,
+        annotation = annotation,
+        annotation_db = annotation_db,
+        gsea_rank = gsea_rank))
       if (!is.null(kegg_gse)) {
         utils::write.csv(
           .enrichment_table(kegg_gse, padj, gsea_rank),
@@ -255,10 +289,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       # ---- Enrichment: Reactome ----
       .tick("Reactome")
       cli::cli_alert_info("Enrichment: Reactome (gsePathway)...")
-      reactome_gse <- process_reactome_gsea(annotated_results,
-                                            annotation = annotation,
-                                            annotation_db = annotation_db,
-                                            gsea_rank = gsea_rank)
+      reactome_gse <- .run_enrich("Reactome", process_reactome_gsea(
+        annotated_results,
+        annotation = annotation,
+        annotation_db = annotation_db,
+        gsea_rank = gsea_rank))
       if (!is.null(reactome_gse)) {
         utils::write.csv(
           .enrichment_table(reactome_gse, padj, gsea_rank),
@@ -280,10 +315,11 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
       # ---- Enrichment: MSigDB Hallmark ----
       .tick("Hallmark")
       cli::cli_alert_info("Enrichment: MSigDB Hallmark...")
-      hallmark_gse <- process_msigdb_hallmark(annotated_results,
-                                              annotation = annotation,
-                                              annotation_db = annotation_db,
-                                              gsea_rank = gsea_rank)
+      hallmark_gse <- .run_enrich("Hallmark", process_msigdb_hallmark(
+        annotated_results,
+        annotation = annotation,
+        annotation_db = annotation_db,
+        gsea_rank = gsea_rank))
       if (!is.null(hallmark_gse)) {
         utils::write.csv(
           .enrichment_table(hallmark_gse, padj, gsea_rank),
@@ -310,7 +346,8 @@ run_analysis <- function(comparison, dds, normalized_counts, sample_info,
         reactome   = reactome_gse,
         hallmark   = hallmark_gse,
         dds        = dds_fit,
-        de_options = de_options
+        de_options = de_options,
+        enrich_status = enrich_status
       )
     },
     error = function(e) {
