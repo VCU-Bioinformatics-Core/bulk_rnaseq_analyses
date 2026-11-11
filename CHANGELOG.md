@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.0] - 2026-11-09
+## [1.12.0] - 2026-11-11
 
 ### Added
 
@@ -1102,7 +1102,7 @@ not a release artefact.
 
 | Version | Date       | Description                                                                                  |
 | ------- | ---------- | -------------------------------------------------------------------------------------------- |
-| 1.12.0  | 2026-11-09 | The report names why an enrichment backend failed (`unreachable` or `failed` with the error text, `enrichment_status` in the run summary JSON); `compare_runs.R` compares and gates on the shrunken columns; seeded synthetic counts generator; conda versus renv validation on record (PASS on synthetic data) |
+| 1.12.0  | 2026-11-11 | The report names why an enrichment backend failed (`unreachable` or `failed` with the error text, `enrichment_status` in the run summary JSON); `compare_runs.R` compares and gates on the shrunken columns; seeded synthetic counts generator; conda versus renv validation on record (PASS on synthetic data) |
 | 1.11.0  | 2026-10-14 | `bisrde` command (`run`, `submit`, `interactive`, `pull`, `version`) and a Tcl modulefile so the team runs one shared clone from any directory, with relative paths resolved against the caller's directory; container built as `bisrde-base` (conda env + MSigDB, content-hash tag) plus a thin `bisrde` image, so release builds take minutes and no longer depend on Zenodo; `r-msigdbr` pinned to 25.1.1 |
 | 1.10.0  | 2026-10-13 | Prebuilt image on GitHub Container Registry (`ghcr.io/vcu-bioinformatics-core/bisrde:<version>`), built and smoke-tested by GitHub Actions on every release tag; `pull_container.sh`; `run_analysis.sh` resolves the runtime (`BISR_RUNTIME`, `BISR_SIF_DIR`, `BISR_NO_PULL`, `BISR_DRY_RUN`) and pulls on demand; `RUNTIME` knob in `submit_slurm.sh`; `r-cluster` in `environment.yml` (silhouette score was NA under conda); `dge_analysis.def` and `build_container.sh` removed; container and conda runs validated identical on the bundled example |
 | 1.9.0   | 2026-10-07 | DESeq2 independent filtering on by default (`--independent-filtering yes|no`, `no` reproduces v1.8 tables); every option names its default in `--help`, the launchers and the TUI; `--annotation` defaults to human everywhere; report overview wording |
