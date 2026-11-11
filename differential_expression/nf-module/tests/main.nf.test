@@ -1,0 +1,51 @@
+/*
+ * nf-test fixture for the BISR_DE process. Phase 6.2.
+ *
+ * Runs the BISR_DE process on the bundled `assets/example_*` mouse
+ * fixture (10 genes x 6 samples) and asserts that the report HTML, the
+ * analysis RDS, and the figures + data subdirs are produced.
+ *
+ * The test runs against the local R environment (not the container), so
+ * it requires bisrDE to be loadable via the de.R wrapper's load_bisrDE
+ * fallback (devtools::load_all from ../bisrDE).
+ */
+
+nextflow_process {
+
+    name "Test BISR_DE process"
+    script "../modules/local/bisr_de.nf"
+    process "BISR_DE"
+
+    test("Mouse example fixture produces report HTML + RDS bundle") {
+
+        when {
+            params {
+                runid       = "nftest"
+                annotation  = "mouse"
+                outdir      = "${outputDir}"
+                brs_ticket  = "BRS-NFTEST-0000"
+                id_type     = "ensembl"
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/../assets/example_counts.tsv")
+                input[1] = file("${projectDir}/../assets/example_samplesheet.csv")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+
+            // One HTML report emitted on the `report` channel.
+            assert process.out.report.size() == 1
+
+            // One RDS emitted on the `rds` channel.
+            assert process.out.rds.size() == 1
+
+            // figures + data subdirs are emitted as their own paths.
+            assert process.out.figures.size() == 1
+            assert process.out.data.size() == 1
+        }
+    }
+}

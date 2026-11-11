@@ -1,0 +1,11 @@
+linters: linters_with_defaults(
+    line_length_linter(120L),
+    # object_usage_linter has many false positives in this package because
+    # it cannot see through dplyr/ggplot NSE (.data pronoun), rlang := ,
+    # S4 slot accessors (gse@result), or cli string interpolation
+    # ({n_dup}). The same issues are correctly resolved by R CMD check
+    # via @importFrom rlang and utils::globalVariables() declarations in
+    # R/bisrDE-package.R. Disable the linter to focus signal on real
+    # findings.
+    object_usage_linter = NULL
+  )
